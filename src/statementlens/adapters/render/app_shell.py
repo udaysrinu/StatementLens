@@ -117,7 +117,8 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 [data-theme=light] .nav{background:rgba(241,237,228,.9)}
 .nav button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink3);font-size:10.5px;cursor:pointer;font-family:var(--body)}
 .nav button.on{color:var(--acc)}.nav button svg{width:21px;height:21px}
-.rise{animation:rise .5s var(--ease) both}
+.rise{animation:rise .5s var(--ease) both;animation-delay:calc(var(--i,0) * .06s)}
+.insrow .ins{animation-delay:calc(var(--i,0) * .08s)}
 @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.ins,.rise{animation:none}}
 .search{width:100%;padding:12px 15px;background:var(--s2);border:1px solid var(--line);border-radius:12px;color:var(--ink);font-size:14px;font-family:var(--body);margin-bottom:12px}
@@ -205,7 +206,7 @@ function home(){
   let rec2='';rows.slice().reverse().slice(0,4).forEach(t=>{rec2+=`<div class="trow"><div class="ti">${(t.m||t.c||'?').slice(0,2).toUpperCase()}</div><div class="tm"><div class="tn">${esc(t.m||t.desc)}</div><div class="td">${esc(t.d)} · ${esc(t.c)}</div></div><div class="tv num ${t.dir==='C'?'in':''}">${t.dir==='C'?'+':'−'}${fmt(t.a).replace('-','')}</div></div>`;});
 
   return `<div class="view on">
-    <div class="hero rise"><div class="l">spent ${RANGE==='all'?'· all time':'this '+({W:'week',M:'month',Y:'year'}[RANGE])}</div><div class="big num">${fmt(R.out)}</div>${deltaHtml}</div>
+    <div class="hero rise"><div class="l">spent ${RANGE==='all'?'· all time':'this '+({W:'week',M:'month',Y:'year'}[RANGE])}</div><div class="big num" id="hero" data-to="${R.out}">${fmt(R.out)}</div>${deltaHtml}</div>
     ${DATA.insights.length?`<div class="st"><h2>for you</h2></div><div class="insrow">${ins}</div>`:''}
     <div class="card rise"><div class="mtop"><div><div class="l">cash flow</div><div class="v num">${fmt(R.inn-R.out,{sign:true})} net</div></div>
       <div class="seg">${['W','M','Y','all'].map(r=>`<button class="${RANGE===r?'on':''}" onclick="setR('${r}')">${r==='all'?'All':r}</button>`).join('')}</div></div>
@@ -240,7 +241,18 @@ function insightsV(){let ins='';DATA.insights.forEach(c=>{const cls=c.severity>=
 let TAB='home';
 const TABS=[['home','home','Home'],['spends','invest','Spends'],['insights','trend','Insights'],['search','srch','Search']];
 function nav(){document.getElementById('nav').innerHTML=TABS.map(([k,ic,lbl])=>`<button class="${TAB===k?'on':''}" onclick="go('${k}')">${I(ic)}${lbl}</button>`).join('');}
-function draw(){const v=document.getElementById('views');v.innerHTML={home:home,spends:spends,insights:insightsV,search:search}[TAB]();nav();}
+function countUp(){
+  const el=document.getElementById('hero');if(!el)return;
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const to=+el.dataset.to;if(!to)return;const dur=650,t0=performance.now();
+  const ease=x=>1-Math.pow(1-x,3);
+  function step(now){const p=Math.min(1,(now-t0)/dur);el.textContent=fmt(Math.round(to*ease(p)));if(p<1)requestAnimationFrame(step);}
+  requestAnimationFrame(step);
+}
+function draw(){const v=document.getElementById('views');v.innerHTML={home:home,spends:spends,insights:insightsV,search:search}[TAB]();
+  let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
+  v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));
+  nav();if(TAB==='home')countUp();}
 function go(t){TAB=t;window.scrollTo(0,0);draw();}
 function setR(r){RANGE=r;draw();}
 function TT(){const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';}
