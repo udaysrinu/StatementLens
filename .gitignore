@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Internal research artifacts (may contain example PII from the author's own data)
+docs/cred-money-research-spec.json
+
+# StatementLens — NEVER commit user financial data or secrets
+out/                        # rendered dashboards (contain your transactions)
+*.html
+*.pdf
+*.db
+*.db-wal
+*.db-shm
+.statementlens/
+gmail_client_secret.json
+gmail_token.json
+*token*.json
