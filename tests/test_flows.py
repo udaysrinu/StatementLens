@@ -139,3 +139,41 @@ def test_investment_detected_by_merchant_without_category():
     assert classify_flow(txn(1, 5000, merchant="GROWW SIP")) == INVESTMENT
     assert classify_flow(txn(1, 5000, merchant="Swiggy")) == SPEND
     assert classify_flow(txn(1, 5000, Direction.CREDIT, merchant="Anyone")) == INCOMING
+
+
+def test_incoming_breakdown_never_hides_money():
+    """A breakdown that looks complete must BE complete.
+
+    Truncating to the top N silently left the shares summing to less than 1.0, so a reader had no way
+    to know income was missing from the list. The tail folds into an explicit "Other" row instead.
+    """
+    # incoming_breakdown groups by SOURCE TYPE, not by payer, so the fixture needs distinct types.
+    # Uncategorized credits fall back to their category, which is what produces many small sources.
+    # Narrations with no salary/refund/interest/channel keyword fall through to the row's category,
+    # which is how many distinct sources arise in practice.
+    txns = [txn(1, 1000 * (i + 1), Direction.CREDIT, f"PAYER{i:02d}",
+                f"credit entry {i}", cat=f"source-{i:02d}")
+            for i in range(12)]
+    rows = incoming_breakdown(txns, limit=6)
+    assert len(rows) == 6
+    assert abs(sum(r["share"] for r in rows) - 1.0) < 1e-9
+    assert sum(r["amount"] for r in rows) == sum(t.amount.minor for t in txns)
+    assert "Other" in rows[-1]["source"]
+
+
+def test_incoming_breakdown_adds_no_other_row_when_it_fits():
+    txns = [txn(1, 5000, Direction.CREDIT, desc="SALARY AUG"),
+            txn(2, 100, Direction.CREDIT, desc="UPI FROM FRIEND")]
+    rows = incoming_breakdown(txns, limit=6)
+    assert not any("Other" in r["source"] for r in rows)
+
+
+def test_monthly_series_reports_how_much_history_it_hides():
+    """A 12-month chart over years of data must not read as the whole history."""
+    txns = [txn(3, 1000, merchant="Shop", month=m) for m in range(1, 13)]
+    series = monthly_series(txns, months=6)
+    assert len(series) == 6
+    assert series[0]["months_shown"] == 6
+    assert series[0]["months_hidden"] == 6
+    full = monthly_series(txns, months=24)
+    assert full[0]["months_hidden"] == 0

@@ -424,9 +424,14 @@ function monthChart(){const S=DATA.monthly||[];if(S.length<2)return'';
   const bars=S.map(m=>{const h=Math.max(2,m.amount/peak*100),on=m.month===S[S.length-1].month;
     return `<div class="bcol"><div class="bwrap"><i class="${on?'on':''}" style="height:${h}%" title="${esc(m.month)} · ${fmt(m.amount)}"></i></div>
       <div class="blab">${esc(m.month.slice(5))}</div><div class="bval num">${fmtK(m.amount)}</div></div>`;}).join('');
-  return `<div class="card rise"><div class="mtop"><div><div class="l">past trends</div>
+  // say when the chart is a window over a longer history — an unlabelled 12-month chart next to an
+  // all-time hero number reads as "this is everything", and its average as an all-time average
+  const hidden=S[0].months_hidden||0;
+  const scope=hidden?`last ${S.length} months`:'all time';
+  return `<div class="card rise"><div class="mtop"><div><div class="l">past trends · ${scope}</div>
       <div class="v num">${fmtK(avg)} <span class="avgt">avg / month</span></div></div></div>
-    <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>${bars}</div></div>`;}
+    <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>${bars}</div>
+    ${hidden?`<div class="cardfee">${hidden} earlier month${hidden!==1?'s':''} not shown.</div>`:''}</div>`;}
 function hl(s){return esc(s).replace(/(₹[\d,]+(?:\.\d+)?(?:Cr|L|k)?)/g,'<b>$1</b>');}
 
 /* ---- spends view: tag-wise grouping, sortable ---- */

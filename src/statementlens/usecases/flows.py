@@ -214,7 +214,17 @@ def incoming_breakdown(txns: Iterable[Transaction], own_names: Iterable[str] = (
             "share": (a / total) if total else 0.0}
            for s, a in by_src.items()]
     out.sort(key=lambda r: -r["amount"])
-    return out[:limit]
+    if len(out) <= limit:
+        return out
+    # Fold the tail into an explicit "Other" row rather than dropping it. Truncating silently leaves
+    # a breakdown that LOOKS complete but doesn't add up to the incoming total — the reader has no way
+    # to know money is missing. An honest remainder row costs one line and keeps the sum exact.
+    head, tail = out[:limit - 1], out[limit - 1:]
+    head.append({"source": f"Other ({len(tail)} sources)",
+                 "amount": sum(r["amount"] for r in tail),
+                 "count": sum(r["count"] for r in tail),
+                 "share": sum(r["share"] for r in tail)})
+    return head
 
 
 _SALARY_RE = re.compile(r"(?i)(\bsalary\b|\bsal\s+for\b|\bpayroll\b|\bneft.*\bsal\b)")
@@ -309,11 +319,17 @@ def monthly_series(txns: Iterable[Transaction], own_names: Iterable[str] = (),
     for t in txns:
         if classify_flow(t, own_names) == SPEND and t.month:
             by_month[t.month] += t.amount.minor
-    keys = sorted(by_month)[-months:]
+    all_keys = sorted(by_month)
+    keys = all_keys[-months:]
     vals = [by_month[k] for k in keys]
     avg = sum(vals) // len(vals) if vals else 0
     peak = max(vals) if vals else 0
+    # `truncated` tells the caller the chart is a WINDOW, not the whole history — otherwise a 12-month
+    # chart over 7 years of statements reads as "this is everything", and its average silently means
+    # "average of the last 12 months" while sitting next to an all-time hero number.
+    truncated = len(all_keys) - len(keys)
     return [{"month": k, "amount": by_month[k], "avg": avg,
+             "months_shown": len(keys), "months_hidden": truncated,
              "share_of_peak": (by_month[k] / peak) if peak else 0.0} for k in keys]
 
 
