@@ -65,6 +65,9 @@ def main(argv=None) -> int:
     ref.add_argument("--card-last4", dest="card_last4"); ref.add_argument("--rule-text", dest="rule_text")
 
     sub.add_parser("status", help="when did it last sync, and did it work?")
+    sub.add_parser("security", help="show where credentials and data are stored")
+    dis = sub.add_parser("disconnect", help="forget the stored Gmail token")
+    dis.add_argument("--yes", action="store_true", help="don't ask for confirmation")
     sub.add_parser("stats", help="show what's stored")
 
     args = p.parse_args(argv)
@@ -122,6 +125,33 @@ def main(argv=None) -> int:
             print(f"LAST SYNC FAILED: {st.get('reason') or 'unknown reason'}", file=sys.stderr)
             print(f"  last successful sync: {st['label']}", file=sys.stderr)
         return 0 if st.get("healthy") else 2
+    if args.cmd == "security":
+        from .adapters.crypto.secret_store import SecretStore
+        from .adapters.sources.gmail_source import GmailStatementSource
+        store = SecretStore()
+        where = store.describe()
+        app = App(db_path=args.db)
+        print("StatementLens security posture\n")
+        print(f"  credentials    {where.backend}"
+              + ("  (encrypted by the OS)" if where.secure else "  ** NOT ENCRYPTED **"))
+        if where.detail:
+            print(f"                 {where.detail}")
+        print(f"  gmail token    {'stored' if store.get(GmailStatementSource.TOKEN_KEY) else 'not connected'}")
+        print(f"  transactions   {app.repo.path}")
+        print("  network        none — statements are read locally and never uploaded")
+        print("  passwords      derived in memory only; never written to disk or logs")
+        return 0 if where.secure else 2
+    if args.cmd == "disconnect":
+        from .adapters.crypto.secret_store import SecretStore
+        from .adapters.sources.gmail_source import GmailStatementSource
+        if not args.yes:
+            reply = input("Forget the stored Gmail token? Your transactions stay. [y/N] ")
+            if reply.strip().lower() not in ("y", "yes"):
+                print("cancelled")
+                return 1
+        SecretStore().delete(GmailStatementSource.TOKEN_KEY)
+        print("Gmail token removed. Run `statementlens serve` to reconnect.")
+        return 0
     if args.cmd == "stats":
         app = App(db_path=args.db)
         print(app.stats())

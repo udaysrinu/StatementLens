@@ -154,26 +154,31 @@ class _Handler(BaseHTTPRequestHandler):
         return render_onboarding(gmail_available=gmail_available())
 
     def _handle_upload(self) -> Dict[str, Any]:
-        """Accept one PDF as a raw body and ingest it from a temp dir (drag-and-drop path)."""
+        """Accept one PDF as a raw body and ingest it from a temp dir (drag-and-drop path).
+
+        Password-derivation hints come from HEADERS, not the query string: a URL carrying someone's
+        date of birth ends up in browser history, in the referrer, and in any proxy log.
+        """
         n = int(self.headers.get("Content-Length") or 0)
         if n <= 0:
             raise ValueError("empty upload")
         if n > _MAX_UPLOAD_BYTES:
             raise ValueError(f"file too large (max {_MAX_UPLOAD_BYTES // 1024 // 1024} MB)")
         qs = parse_qs(urlparse(self.path).query)
-        # `filename` is the uploaded file; `name` is the account-holder name used for password
-        # derivation. Separate params on purpose — one `name` serving both silently loses the hint.
         raw_name = (qs.get("filename") or ["upload.pdf"])[0]
         # keep only the basename: an uploaded "../../x.pdf" must not escape the temp dir
         safe = Path(raw_name).name or "upload.pdf"
         if not safe.lower().endswith(".pdf"):
             raise ValueError("only PDF files are supported")
+        hints = {k: self.headers.get(f"X-SL-{k.replace('_', '-')}", "")
+                 for k in ("name", "dob", "mobile", "card_last4", "rule_text")}
+        hints = {k: v for k, v in hints.items() if v}
         data = self.rfile.read(n)
+        # TemporaryDirectory is created 0700, so the statement is not readable by other users, and
+        # it is removed on the way out — the PDF never persists.
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / safe).write_bytes(data)
-            return self.server.sl_ingest(          # type: ignore[attr-defined]
-                [tmp], {k: v[0] for k, v in qs.items() if k in
-                        ("name", "dob", "mobile", "card_last4", "rule_text")})
+            return self.server.sl_ingest([tmp], hints)   # type: ignore[attr-defined]
 
 
 def serve(app, *, account: str, host: str = "127.0.0.1", port: int = 8770,

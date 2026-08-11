@@ -145,6 +145,32 @@ def test_upload_rejects_non_pdf_and_strips_path_traversal():
             s.close()
 
 
+def test_password_hints_are_read_from_headers_not_the_url():
+    """A URL carrying a date of birth ends up in browser history and proxy logs."""
+    with tempfile.TemporaryDirectory() as tmp:
+        seen = {}
+        app = _seeded_app(tmp)
+        s = _Server(app)
+        s.httpd.sl_ingest = lambda folders, hints: (seen.update(hints),
+                                                    {"inserted": 0, "duplicate": 0, "statements": 0,
+                                                     "failed": 0, "skipped": [], "errors": []})[1]
+        try:
+            # hints in the QUERY STRING must be ignored
+            s.post("/api/upload?filename=a.pdf&dob=01011990", b"%PDF-1.4 x")
+            assert "dob" not in seen, "a DOB in the URL must not be accepted"
+            # hints in HEADERS are used
+            req = urllib.request.Request(s.url("/api/upload?filename=a.pdf"),
+                                         data=b"%PDF-1.4 x", method="POST")
+            req.add_header("X-SL-dob", "01011990")
+            req.add_header("X-SL-card-last4", "1234")
+            with urllib.request.urlopen(req, timeout=10):
+                pass
+            assert seen.get("dob") == "01011990"
+            assert seen.get("card_last4") == "1234"
+        finally:
+            s.close()
+
+
 def test_note_requires_a_content_hash():
     with tempfile.TemporaryDirectory() as tmp:
         s = _Server(_seeded_app(tmp))

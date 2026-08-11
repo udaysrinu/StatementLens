@@ -144,8 +144,10 @@ async function upload(files){
   for(const f of pdfs){
     say('reading '+f.name+' …');
     try{
-      const r=await fetch('/api/upload?'+qs({filename:f.name,...hints()}),
-        {method:'POST',body:await f.arrayBuffer()}).then(r=>r.json());
+      // hints go in headers, never the URL — a query string with a DOB lands in browser history
+      const h={};Object.entries(hints()).forEach(([k,v])=>{h['X-SL-'+k.replace(/_/g,'-')]=v;});
+      const r=await fetch('/api/upload?'+qs({filename:f.name}),
+        {method:'POST',headers:h,body:await f.arrayBuffer()}).then(r=>r.json());
       report(r);
     }catch(e){say('✕ '+e,'bad');}
   }

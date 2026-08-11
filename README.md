@@ -156,11 +156,31 @@ app.render("SBI", "out/sbi.html")
 app.correct_tag(tag="grocery", merchant="Fresh N")
 ```
 
-## Privacy
+## Privacy & security
 
-- Runs entirely on your machine. Statements are read; nothing is sent anywhere.
-- The local store lives in `~/.statementlens/` and is never committed.
-- Password hints derive candidates in memory only.
+```bash
+statementlens security      # shows exactly where your credentials and data live
+statementlens disconnect    # forget the Gmail token
+```
+
+- **Runs entirely on your machine.** Statements are read locally; nothing is uploaded. There is no
+  server, no account, and no telemetry.
+- **Gmail tokens live in the OS keychain** — macOS Keychain, Windows DPAPI, or the Linux Secret
+  Service — not in a file. A refresh token is a long-lived key to your whole mailbox; in a file it
+  would be readable by any process running as you and copied into every backup. An existing
+  plaintext token is migrated automatically on first run, and the file is deleted only after the
+  keychain copy is verified. With no keychain available it falls back to a `0600` file and
+  `statementlens security` **says so** rather than implying you're protected.
+- **Statement passwords are derived in memory** and never written to disk or logs. The identity
+  hints that derive them travel in request headers, never in a URL — a query string containing a
+  date of birth ends up in browser history and any proxy log.
+- **Uploaded PDFs are never persisted**: they're processed in a `0700` temp directory that is
+  removed immediately after parsing. Only extracted transactions are stored.
+- The local store is `~/.statementlens/store.db`, and the dashboard is served on `127.0.0.1` only,
+  behind a per-run token, with `Cache-Control: no-store`.
+
+**Not yet done, if you plan to distribute builds:** code signing and notarization. Unsigned apps are
+blocked on first launch by macOS Gatekeeper and SmartScreen.
 
 ## Development
 

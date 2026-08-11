@@ -101,9 +101,7 @@ class GmailStatementSource:
             from googleapiclient.discovery import build
         except ImportError as e:  # pragma: no cover
             raise RuntimeError("Gmail libraries missing — pip install 'statementlens[gmail]'") from e
-        creds = None
-        if self._token.exists():
-            creds = Credentials.from_authorized_user_file(str(self._token), SCOPES)
+        creds = self._load_credentials(Credentials)
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
@@ -119,6 +117,38 @@ class GmailStatementSource:
                         port=0, open_browser=True,
                         authorization_prompt_message="",
                         success_message="Connected. You can close this tab and return to StatementLens.")
-            self._token.parent.mkdir(parents=True, exist_ok=True)
-            self._token.write_text(creds.to_json(), encoding="utf-8")
+            self._save_credentials(creds.to_json())
         return build("gmail", "v1", credentials=creds, cache_discovery=False)
+
+    # -- token storage -----------------------------------------------------
+    TOKEN_KEY = "gmail_token"
+
+    def _store(self):
+        from ..crypto.secret_store import SecretStore
+        return SecretStore()
+
+    def _load_credentials(self, Credentials):
+        """Prefer the OS keychain; migrate a legacy plaintext token file on first use.
+
+        A refresh token is a long-lived key to the whole mailbox, so it should not sit in a file that
+        any process running as this user can read and that backup tools will copy.
+        """
+        import json
+        store = self._store()
+        raw = store.get(self.TOKEN_KEY)
+        if not raw and self._token.exists():
+            from ..crypto.secret_store import migrate_file_secret
+            try:
+                migrate_file_secret(store, self.TOKEN_KEY, self._token)
+                raw = store.get(self.TOKEN_KEY)
+            except Exception:
+                raw = self._token.read_text(encoding="utf-8")   # never block on a failed migration
+        if not raw:
+            return None
+        try:
+            return Credentials.from_authorized_user_info(json.loads(raw), SCOPES)
+        except Exception:
+            return None
+
+    def _save_credentials(self, payload: str) -> None:
+        self._store().set(self.TOKEN_KEY, payload)
