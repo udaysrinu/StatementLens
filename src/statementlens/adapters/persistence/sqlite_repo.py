@@ -192,6 +192,22 @@ class SqliteTransactionRepository:
             raise ValueError("correct_tag needs either merchant= or content_hash=")
         self.save_tags(store)
 
+    def correct_many(self, *, tag: str, content_hashes) -> int:
+        """Apply one tag to an explicit set of transactions in a single write.
+
+        Per-row rather than merchant-wide on purpose: the user picked exactly these rows in the
+        multi-select, so we honour that selection instead of inferring a broader rule they did not
+        ask for. Returns the number of rows tagged.
+        """
+        refs = [h for h in content_hashes if h]
+        if not refs:
+            return 0
+        store = self.load_tags()
+        for ref in refs:
+            store.correct_one(ref, tag)
+        self.save_tags(store)
+        return len(refs)
+
     def set_note(self, content_hash: str, note: str) -> None:
         store = self.load_tags()
         store.add_note(content_hash, note)

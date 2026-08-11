@@ -154,3 +154,67 @@ def test_full_card_dataset_has_no_impossible_income():
     assert "Salary" not in sources, "salary is never credited to a credit card"
     # spend excludes both bill payments; it is the three real charges
     assert ds["flow"]["spends"] == 32600 + 3845300 + 146400
+
+
+# --- card vs bank framing ----------------------------------------------------
+
+def test_card_is_detected_structurally_not_by_label():
+    """No running balance + a bill-payment row means card, whatever the user named the account."""
+    card_rows = [card("SOME SHOP", 500), card("ONLINE TRF - PYMT RECD - THANK YOU", 5000, credit=True)]
+    assert flows.looks_like_card(card_rows) is True
+
+
+def test_a_bank_account_is_not_mistaken_for_a_card():
+    with_balance = Transaction(txn_date=date(2026, 7, 1), description="UPI/DR/1/SHOP/YESB/x@y/pay",
+                               amount=Money.of(500, "INR"), direction=Direction.DEBIT,
+                               merchant="SHOP", balance=Money.of(10000, "INR"))
+    assert flows.looks_like_card([with_balance]) is False
+    assert flows.looks_like_card([]) is False
+
+
+def test_card_flow_reports_charges_payments_refunds_and_fees_separately():
+    rows = [
+        card("SOME SHOP BENGALURU", 1000),
+        card("FINANCE CHARGES (Ref# 199)", 150),
+        card("IGST-VPS271-RATE 18.0", 27),
+        card("ONLINE TRF - PYMT RECD - THANK YOU", 800, credit=True),
+        card("SOME SHOP refund", 100, credit=True),
+        card("10% Sample CashBack", 50, credit=True),
+    ]
+    f = flows.card_flow(rows)
+    assert f.charges == 100000
+    assert f.fees == 15000 + 2700
+    assert f.payments == 80000
+    assert f.refunds == 10000
+    assert f.rewards == 5000
+
+
+def test_card_flow_reconciles_to_the_raw_total():
+    """Every rupee must land in exactly one bucket — no double counting, nothing dropped."""
+    rows = [
+        card("SHOP A", 1000), card("FINANCE CHARGES", 150),
+        card("PYMT RECD - THANK YOU", 800, credit=True),
+        card("refund from SHOP A", 100, credit=True),
+        card("5% CashBack", 50, credit=True),
+    ]
+    f = flows.card_flow(rows)
+    assert (f.charges + f.fees + f.payments + f.refunds + f.rewards
+            == sum(r.amount.minor for r in rows))
+
+
+def test_net_new_debt_is_negative_when_you_overpay():
+    rows = [card("SHOP", 1000), card("PYMT RECD - THANK YOU", 1500, credit=True)]
+    assert flows.card_flow(rows).net_new_debt == 100000 - 150000
+
+
+def test_dataset_exposes_the_card_frame_only_for_cards():
+    cat = KeywordCategorizer()
+    card_rows = [card("SHOP", 500), card("PYMT RECD - THANK YOU", 400, credit=True)]
+    ds = build_dataset([t.with_category(cat.categorize(t)) for t in card_rows], account="CARD")
+    assert ds["meta"]["is_card"] is True and ds["card"] is not None
+
+    bank_row = Transaction(txn_date=date(2026, 7, 1), description="UPI/DR/1/SHOP/YESB/x@y/pay",
+                           amount=Money.of(500, "INR"), direction=Direction.DEBIT,
+                           merchant="SHOP", balance=Money.of(9500, "INR"), category="shopping")
+    ds2 = build_dataset([bank_row], account="SBI")
+    assert ds2["meta"]["is_card"] is False and ds2["card"] is None

@@ -134,6 +134,24 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .sortb{background:var(--s1);border:1px solid var(--line);color:var(--ink2);border-radius:100px;
   padding:6px 13px;font:600 11px var(--body);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
 
+.cardfee{font-size:12px;color:var(--ink3);margin-top:10px;line-height:1.4}
+
+/* similar transactions + bulk retag */
+.simrow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.simrow:last-child{border-bottom:none}
+.simrow input[type=checkbox]{width:18px;height:18px;accent-color:var(--acc);flex:none;cursor:pointer}
+.simmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.simnm{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.simsub{font-size:11.5px;color:var(--ink3)}
+.simamt{font:500 14px/1 var(--disp);flex:none}
+.simwarn{font-size:12px;color:var(--down);background:var(--s1);border:1px solid var(--line);
+  border-left:2px solid var(--down);border-radius:10px;padding:10px 13px}
+.simbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.simsel{flex:1;min-width:150px;background:var(--s2);border:1px solid var(--line);color:var(--ink);
+  border-radius:10px;padding:10px 12px;font:500 13px var(--body)}
+.simgo{background:var(--acc);color:var(--onacc);border:none;border-radius:100px;
+  padding:11px 20px;font:600 13px var(--body);cursor:pointer}
+
 /* save-failure toast: a correction that silently didn't persist is worse than an error */
 .toast{position:fixed;left:50%;bottom:88px;transform:translate(-50%,14px);z-index:20;max-width:400px;
   background:var(--s2);color:var(--ink);border:1px solid var(--down);border-radius:12px;
@@ -305,12 +323,7 @@ function rangeRow(){return `<div class="rrow">
 
 function home(){
   const rows=rangeFilter(),R=compute(rows);
-  // hero = spent in range
-  const lastMo=[...new Set(ALL.filter(t=>t.dir==='D'&&t.mo).map(t=>t.mo))].sort();
-  let deltaHtml='';
-  if(lastMo.length>=2){const cur=ALL.filter(t=>t.dir==='D'&&t.mo===lastMo[lastMo.length-1]).reduce((s,t)=>s+t.a,0),
-    prev=ALL.filter(t=>t.dir==='D'&&t.mo===lastMo[lastMo.length-2]).reduce((s,t)=>s+t.a,0);
-    if(prev>0){const pc=Math.round((cur/prev-1)*100),up=pc>0;deltaHtml=`<div class="sub"><span class="${up?'down':'up'}">${up?'↑':'↓'} ${Math.abs(pc)}%</span> vs last month · ${fmt(prev)}</div>`;}}
+  const deltaHtml=heroDelta(R);
   // insights
   let ins='';DATA.insights.forEach(c=>{const cls=c.severity>=3?'alert':c.severity===0?'positive':'';
     ins+=`<div class="ins ${cls}"><div class="ic">${I(c.icon)}</div><div class="it">${esc(c.title)}</div><div class="cp">${hl(c.copy)}</div></div>`;});
@@ -330,16 +343,11 @@ function home(){
   const slfNote=R.slfN?`<div class="note rise">self-transfers are excluded · ${fmtK(R.slf)} across ${R.slfN} transactions</div>`:'';
 
   return `<div class="view on">
-    <div class="hero rise"><div class="l">spent ${rangeLabel()}</div><div class="big num" id="hero" data-to="${R.out}">${fmt(R.out)}</div>${deltaHtml}${avgLine}</div>
+    <div class="hero rise"><div class="l">${M.is_card?'charged':'spent'} ${rangeLabel()}</div><div class="big num" id="hero" data-to="${R.out}">${fmt(R.out)}</div>${deltaHtml}${avgLine}</div>
     ${rangeRow()}
     ${slfNote}
     ${DATA.insights.length?`<div class="st"><h2>for you</h2></div><div class="insrow">${ins}</div>`:''}
-    <div class="card rise"><div class="mtop"><div><div class="l">cash flow</div><div class="v num">${fmt(R.inn-R.out-R.inv,{sign:true})} net</div></div>
-      ${segBar()}</div>
-      <div class="flow"><div class="fc"><div class="fl">incoming</div><div class="fv fin num">${fmtK(R.inn)}</div></div>
-        <div class="fc"><div class="fl">investments</div><div class="fv finv num">${fmtK(R.inv)}</div></div>
-        <div class="fc"><div class="fl">spends</div><div class="fv fout num">${fmtK(R.out)}</div></div></div>
-      <div class="flowbar"><span class="bin" style="width:${inW}%"></span><span class="bout" style="width:${100-inW}%"></span></div></div>
+    ${M.is_card?cardFlowCard():bankFlowCard(R,inW)}
     ${monthChart()}
     <div class="st"><h2>where it went</h2><a onclick="go('spends')">see all</a></div>
     <div class="list rise">${cats||'<div class="empty">no spends in range</div>'}</div>
@@ -348,6 +356,67 @@ function home(){
     <div class="list rise">${rec2||'<div class="empty">nothing here</div>'}</div>
   </div>`;
 }
+
+/* ---- flow cards ----
+   A bank account and a credit card need different frames. On a bank account "net" is what stayed. On
+   a card the spending IS the balance owed, so a net figure is computable but meaningless — the honest
+   summary is charges, what you paid off, and what came back (refunds + rewards). */
+function bankFlowCard(R,inW){
+  return `<div class="card rise"><div class="mtop"><div><div class="l">cash flow</div>
+      <div class="v num">${fmt(R.inn-R.out-R.inv,{sign:true})} net</div></div>${segBar()}</div>
+    <div class="flow"><div class="fc"><div class="fl">incoming</div><div class="fv fin num">${fmtK(R.inn)}</div></div>
+      <div class="fc"><div class="fl">investments</div><div class="fv finv num">${fmtK(R.inv)}</div></div>
+      <div class="fc"><div class="fl">spends</div><div class="fv fout num">${fmtK(R.out)}</div></div></div>
+    <div class="flowbar"><span class="bin" style="width:${inW}%"></span><span class="bout" style="width:${100-inW}%"></span></div></div>`;}
+
+function cardFlowCard(){
+  const c=DATA.card;if(!c)return '';
+  const owed=c.net_new_debt, paidOff=owed<0;
+  const back=c.refunds+c.rewards;
+  const total=c.charges+c.fees||1, payW=Math.min(100,Math.round(c.payments/total*100));
+  return `<div class="card rise"><div class="mtop"><div><div class="l">this card</div>
+      <div class="v num">${fmtK(Math.abs(owed))} <span class="avgt">${paidOff?'paid off beyond charges':'added to balance'}</span></div></div>${segBar()}</div>
+    <div class="flow">
+      <div class="fc"><div class="fl">charges</div><div class="fv fout num">${fmtK(c.charges)}</div></div>
+      <div class="fc"><div class="fl">you paid</div><div class="fv fin num">${fmtK(c.payments)}</div></div>
+      <div class="fc"><div class="fl">back to you</div><div class="fv fin num">${fmtK(back)}</div></div></div>
+    <div class="flowbar"><span class="bin" style="width:${payW}%"></span><span class="bout" style="width:${100-payW}%"></span></div>
+    ${c.fees?`<div class="cardfee">${fmtK(c.fees)} of that was interest and fees — the avoidable part.</div>`:''}
+    ${c.rewards?`<div class="cardfee">${fmtK(c.rewards)} came back as cashback and rewards.</div>`:''}
+  </div>`;}
+
+/* ---- hero comparison ----
+   Compare LIKE WITH LIKE: the same span of days immediately before the selected range, using the
+   same flow filter as the hero (so investments, card-bill payments and self-transfers are excluded
+   from both sides). Three bugs this replaces:
+     1. the delta always compared the last two calendar months even when the hero showed all-time,
+        so an all-time total was captioned with a one-month change;
+     2. it summed every debit, counting investments and card payments as spending;
+     3. the newest month is usually partial, so a 3-day-old month vs a full one always looked like a
+        collapse. A partial period is now compared against the SAME number of days. */
+function spendBetween(from,to){
+  return ALL.filter(t=>t.d&&t.f==='s'&&t.d>=from&&t.d<=to).reduce((s,t)=>s+t.a,0);}
+function shiftDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);
+  return d.toISOString().slice(0,10);}
+function currentWindow(){
+  const dated=ALL.filter(t=>t.d).map(t=>t.d).sort();
+  if(!dated.length)return null;
+  const rows=rangeFilter().filter(t=>t.d).map(t=>t.d).sort();
+  if(!rows.length)return null;
+  return {from:rows[0], to:rows[rows.length-1], first:dated[0]};}
+function heroDelta(R){
+  const w=currentWindow();
+  if(!w)return '';
+  const days=Math.round((new Date(w.to)-new Date(w.from))/864e5)+1;
+  const prevTo=shiftDays(w.from,-1), prevFrom=shiftDays(prevTo,-(days-1));
+  // no comparable history -> say nothing rather than compare against a truncated period
+  if(prevFrom<w.first)return '';
+  const prev=spendBetween(prevFrom,prevTo);
+  if(prev<=0)return '';
+  const pc=Math.round((R.out/prev-1)*100), up=pc>0;
+  const label=days<=8?'week':days<=32?'month':days<=95?'quarter':days<=370?'year':`${days} days`;
+  return `<div class="sub"><span class="${up?'down':'up'}">${up?'↑':'↓'} ${Math.abs(pc)}%</span>`
+       + ` vs previous ${label} · ${fmt(prev)}</div>`;}
 
 /* ---- monthly bars with an AVG reference line (CRED's "past trends") ---- */
 function monthChart(){const S=DATA.monthly||[];if(S.length<2)return'';
@@ -453,7 +522,63 @@ function txnDetail(){
     <div class="note rise">tagged automatically as <b>${esc(t.c)}</b>. tap another tag if that's wrong — we'll remember it for ${esc(t.m||'this merchant')}.</div>
     <div class="card rise"><div class="tagwrap">${chips}</div>
       <textarea class="notefield" rows="2" placeholder="add a note (why was this payment made?)" oninput="setNote('${esc(t.ref)}',this.value)">${esc(NOTES[t.ref]||t.note||'')}</textarea></div>
+    <div id="simwrap"></div>
   </div>`;}
+
+/* ---- similar transactions + multi-select bulk retag ---- */
+let SIM=null, SIMSEL=new Set();
+function loadSimilar(ref){
+  const wrap=document.getElementById('simwrap');
+  if(!wrap||!API)return;
+  fetch('/api/similar?t='+encodeURIComponent(API)+'&ref='+encodeURIComponent(ref))
+    .then(r=>r.json()).then(g=>{
+      if(!g||!g.count){SIM=null;return;}
+      SIM=g;
+      // pre-select every match: the common case is "yes, all of these" — but each row can be
+      // unticked, so nothing is applied that the user did not confirm
+      SIMSEL=new Set(g.sample.map(s=>s.ref));
+      renderSimilar();
+    }).catch(()=>{});
+}
+function renderSimilar(){
+  const wrap=document.getElementById('simwrap');if(!wrap||!SIM)return;
+  const rows=SIM.sample.map(s=>`
+    <label class="simrow">
+      <input type="checkbox" ${SIMSEL.has(s.ref)?'checked':''} onchange="toggleSim('${esc(s.ref)}')">
+      <span class="simmain"><span class="simnm">${esc(s.desc)}</span>
+        <span class="simsub">${dayLabel(s.date)} · ${esc(s.tag||'untagged')}</span></span>
+      <span class="simamt num">${s.dir==='C'?'+':'−'}${fmt(s.amount).replace('-','')}</span>
+    </label>`).join('');
+  const conflict=(SIM.current_tags||[]).length>1
+    ? `<div class="simwarn">these are tagged inconsistently right now: ${SIM.current_tags.map(esc).join(', ')}</div>` : '';
+  wrap.innerHTML=`
+    <div class="st"><h2>similar transactions</h2>
+      <a onclick="simAll(${SIMSEL.size!==SIM.sample.length})">${SIMSEL.size===SIM.sample.length?'clear all':'select all'}</a></div>
+    <div class="note rise">${esc(SIM.reason)}. tick the ones that belong together, pick a tag, and they all update.</div>
+    ${conflict}
+    <div class="list rise">${rows}</div>
+    <div class="simbar">
+      <select id="simtag" class="simsel">${(DATA.tag_vocab||[]).map(v=>`<option value="${esc(v.tag)}">${esc(v.tag)}</option>`).join('')}</select>
+      <button class="simgo" onclick="applySim()">tag <span id="simn">${SIMSEL.size}</span> selected</button>
+    </div>`;
+}
+function toggleSim(ref){SIMSEL.has(ref)?SIMSEL.delete(ref):SIMSEL.add(ref);
+  const n=document.getElementById('simn');if(n)n.textContent=SIMSEL.size;
+  const link=document.querySelector('#simwrap .st a');
+  if(link)link.textContent=SIMSEL.size===SIM.sample.length?'clear all':'select all';}
+function simAll(on){SIMSEL=on?new Set(SIM.sample.map(s=>s.ref)):new Set();renderSimilar();}
+function applySim(){
+  if(!SIM||!SIMSEL.size)return toast('nothing selected');
+  const tag=document.getElementById('simtag').value;
+  const refs=[...SIMSEL];
+  post('/api/tag-many',{tag,refs}).then(r=>{
+    if(r&&r.error)return toast('could not save: '+r.error);
+    // reflect it locally so the change is visible without a reload
+    refs.forEach(ref=>{const row=ALL.find(x=>x.ref===ref);if(row)row.c=tag;});
+    toast(`tagged ${r.tagged||refs.length} transactions as ${tag}`);
+    draw();
+  });
+}
 
 /* Corrections POST to the local server so they survive reload and re-ingest. When the page is
    opened as a static file (no server) the optimistic local update still applies — the UI stays
@@ -517,7 +642,9 @@ const VIEWS={home:home,spends:spends,insights:insightsV,search:search,
 function draw(){const v=document.getElementById('views');v.innerHTML=(VIEWS[TAB]||home)();
   let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
   v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));
-  nav();showFreshness();if(TAB==='home')countUp();}
+  nav();showFreshness();if(TAB==='home')countUp();
+  // the similar-transactions list is fetched, so it renders after the view paints
+  if(TAB==='txn'&&TXNREF)loadSimilar(TXNREF);}
 function go(t){TAB=t;window.scrollTo(0,0);draw();}
 function setR(r){RANGE=r;draw();}
 function setCF(v){CF=v;RANGE='C';draw();}

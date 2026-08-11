@@ -98,6 +98,13 @@ class _Handler(BaseHTTPRequestHandler):
                               "text/html; charset=utf-8")
         if route == "/api/dataset":
             return self._json(self.app.dataset(self.account))
+        if route == "/api/similar":
+            ref = parse_qs(urlparse(self.path).query).get("ref", [""])[0]
+            if not ref:
+                return self._json({"error": "ref required"}, 400)
+            return self._json(self.app.similar_to(self.account, ref) or {"count": 0})
+        if route == "/api/conflicts":
+            return self._json({"groups": self.app.tag_conflicts(self.account)})
         if route == "/api/health":
             return self._json({"ok": True, **self.app.stats()})
         self._send(404, b"not found", "text/plain")
@@ -115,6 +122,14 @@ class _Handler(BaseHTTPRequestHandler):
                 self.app.correct_tag(tag=tag, merchant=body.get("merchant"),
                                      content_hash=body.get("content_hash"))
                 return self._json({"ok": True})
+
+            if route == "/api/tag-many":
+                body = self._read_json()
+                tag, refs = body.get("tag"), body.get("refs") or []
+                if not tag or not refs:
+                    return self._json({"error": "tag and refs required"}, 400)
+                n = self.app.correct_many(tag=tag, content_hashes=refs)
+                return self._json({"ok": True, "tagged": n})
 
             if route == "/api/note":
                 body = self._read_json()

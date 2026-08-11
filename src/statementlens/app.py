@@ -95,6 +95,25 @@ class App:
         """Persist a free-text note on one transaction."""
         self.repo.set_note(content_hash, note)
 
+    def similar_to(self, account: str, content_hash: str) -> Optional[Dict[str, Any]]:
+        """Transactions that look like the same merchant as `content_hash`, for bulk retagging."""
+        from .usecases.similar import find_similar
+        txns = self.repo.all(account)
+        target = next((t for t in txns if t.source_ref == content_hash), None)
+        if target is None:
+            return None
+        group = find_similar(target, txns)
+        return group.as_dict() if group else None
+
+    def correct_many(self, *, tag: str, content_hashes) -> int:
+        """Apply one tag to an explicit list of transactions (the multi-select path)."""
+        return self.repo.correct_many(tag=tag, content_hashes=content_hashes)
+
+    def tag_conflicts(self, account: str) -> list:
+        """Merchant groups whose rows currently carry different tags — the best fixes available."""
+        from .usecases.similar import disagreeing_groups
+        return [g.as_dict() for g in disagreeing_groups(self.repo.all(account))]
+
     def render(self, account: str, out_path: str, currency: str = "INR") -> str:
         html = AppShellRenderer().render(self.dataset(account, currency))
         p = Path(out_path)

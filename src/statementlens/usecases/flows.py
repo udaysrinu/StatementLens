@@ -96,6 +96,66 @@ def classify_flow(txn: Transaction, own_names: Iterable[str] = ()) -> str:
     return SPEND
 
 
+def looks_like_card(txns: Sequence[Transaction]) -> bool:
+    """True when these transactions come from a CREDIT CARD rather than a bank account.
+
+    Detected structurally, not by the account label the user typed. Two signals that are reliable
+    across issuers:
+      * card statements carry no running balance on any row (bank statements almost always do);
+      * card bill payments ("PYMT RECD - THANK YOU") only ever appear on a card statement.
+
+    This matters because the honest way to present a card is different: a card has charges, payments
+    and refunds — not income, investments and a net. "Net" on a card is arithmetically computable and
+    semantically meaningless, since the spending IS the balance owed.
+    """
+    rows = list(txns)
+    if not rows:
+        return False
+    if any(t.balance is not None for t in rows):
+        return False
+    return any(is_card_bill_payment(t) for t in rows)
+
+
+@dataclass(frozen=True)
+class CardFlow:
+    """A credit card's honest summary. All amounts are positive integer paise."""
+    charges: int = 0          # what you spent on the card
+    payments: int = 0         # what you paid the card from a bank account
+    refunds: int = 0          # merchant refunds and reversals
+    rewards: int = 0          # cashback and statement credits
+    fees: int = 0             # finance charges, GST on them, late fees
+
+    @property
+    def net_new_debt(self) -> int:
+        """Charges and fees minus what you paid off — the figure that actually moves your balance."""
+        return self.charges + self.fees - self.payments - self.refunds - self.rewards
+
+
+def card_flow(txns: Iterable[Transaction]) -> CardFlow:
+    """Summarize a credit card in its own terms rather than a bank account's."""
+    charges = payments = refunds = rewards = fees = 0
+    for t in txns:
+        hay = f"{t.merchant} {t.description}"
+        if is_card_bill_payment(t):
+            payments += t.amount.minor
+        elif not t.is_debit:
+            if _CASHBACK_RE.search(hay):
+                rewards += t.amount.minor
+            else:
+                refunds += t.amount.minor
+        elif _CARD_FEE_RE.search(hay):
+            fees += t.amount.minor
+        else:
+            charges += t.amount.minor
+    return CardFlow(charges, payments, refunds, rewards, fees)
+
+
+#: Card-issued costs rather than purchases — worth separating because they are avoidable.
+_CARD_FEE_RE = re.compile(
+    r"(?i)finance\s+charges?|\bigst\b|\bgst\b|late\s+payment|surcharge|annual\s+fee|"
+    r"joining\s+fee|over\s?limit|interest\s+levied|cash\s+advance\s+fee")
+
+
 @dataclass(frozen=True)
 class CashFlow:
     """Honest three-way flow for a period. All amounts are positive integer paise."""

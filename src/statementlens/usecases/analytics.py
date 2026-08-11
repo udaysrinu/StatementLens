@@ -78,6 +78,9 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
 
     # honest three-way flow + the CRED-style comparatives
     flow = flow_engine.cash_flow(txns, own_names)
+    # a credit card needs its own frame: charges/payments/refunds, not income/investments/net
+    is_card = flow_engine.looks_like_card(txns)
+    card = flow_engine.card_flow(txns) if is_card else None
     months = len({t.month for t in txns if t.month}) or 1
     salary_day = flow_engine.detect_salary_day(txns)
 
@@ -94,7 +97,11 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             "max_date": dates[-1] if dates else None,
             "months": months,
             "salary_day": salary_day,
+            "is_card": is_card,
         },
+        "card": ({"charges": card.charges, "fees": card.fees, "payments": card.payments,
+                  "refunds": card.refunds, "rewards": card.rewards,
+                  "net_new_debt": card.net_new_debt} if card else None),
         "flow": {
             "incoming": flow.incoming,
             "investments": flow.investments,
