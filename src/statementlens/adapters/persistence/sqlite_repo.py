@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
+import threading
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -24,12 +25,30 @@ def _default_path() -> str:
 
 
 class SqliteTransactionRepository:
+    """Thread-safe by giving each thread its own connection.
+
+    SQLite connection objects may only be used on the thread that created them, and the local web
+    server handles every request on a fresh thread — so a single shared connection raises
+    ProgrammingError on the first HTTP request. One connection per thread (WAL mode makes concurrent
+    readers cheap) is simpler and safer than serializing everything behind a lock.
+    """
+
     def __init__(self, path: Optional[str] = None):
         self.path = path or _default_path()
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.path)
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._local = threading.local()
         self._init()
+
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(self.path)
+            conn.execute("PRAGMA journal_mode=WAL")
+            # wait rather than fail if another thread holds a write lock
+            conn.execute("PRAGMA busy_timeout=5000")
+            self._local.conn = conn
+        return conn
 
     def _init(self) -> None:
         self._conn.executescript("""
@@ -42,6 +61,16 @@ class SqliteTransactionRepository:
             balance_minor INTEGER, category TEXT, statement_id INTEGER, content_hash TEXT UNIQUE);
         CREATE INDEX IF NOT EXISTS idx_txn_date ON txns(iso_date);
         CREATE INDEX IF NOT EXISTS idx_txn_merchant ON txns(merchant);
+
+        -- User tag corrections and notes, kept SEPARATE from txns on purpose: re-ingesting a
+        -- statement rewrites txns rows, and a correction must survive that. Storing the override
+        -- inside txns would let a refresh silently revert the user's fix.
+        CREATE TABLE IF NOT EXISTS tag_merchant(
+            merchant_key TEXT PRIMARY KEY, tag TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS tag_txn(
+            content_hash TEXT PRIMARY KEY, tag TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS txn_note(
+            content_hash TEXT PRIMARY KEY, note TEXT NOT NULL);
         """)
         self._conn.commit()
 
@@ -79,21 +108,67 @@ class SqliteTransactionRepository:
 
     def all(self, account: Optional[str] = None) -> List[Transaction]:
         q = ("SELECT iso_date,raw_date,description,merchant,minor,currency,direction,"
-             "balance_minor,category FROM txns")
+             "balance_minor,category,content_hash FROM txns")
         params: tuple = ()
         if account:
             q += " WHERE account=?"; params = (account,)
         q += " ORDER BY iso_date, id"
         out: List[Transaction] = []
         for r in self._conn.execute(q, params).fetchall():
-            iso, raw, desc, merch, minor, cur, dirn, bal, cat = r
+            iso, raw, desc, merch, minor, cur, dirn, bal, cat, chash = r
             out.append(Transaction(
                 txn_date=date.fromisoformat(iso) if iso else None,
                 description=desc or "", amount=Money(minor, cur or "INR"),
                 direction=Direction(dirn), merchant=merch or "",
                 balance=Money(bal, cur or "INR") if bal is not None else None,
-                category=cat, raw_date=raw or ""))
+                category=cat, raw_date=raw or "",
+                # the content hash IS the stable row identity: it survives re-ingest, so a tag
+                # correction keyed to it survives a statement refresh
+                source_ref=chash or ""))
         return out
+
+    # -- tag corrections + notes -------------------------------------------
+    def load_tags(self):
+        """Rehydrate the user's corrections and notes into a TagStore."""
+        from ...usecases.tagging import TagStore
+        return TagStore(
+            by_merchant=dict(self._conn.execute("SELECT merchant_key,tag FROM tag_merchant")),
+            by_ref=dict(self._conn.execute("SELECT content_hash,tag FROM tag_txn")),
+            notes=dict(self._conn.execute("SELECT content_hash,note FROM txn_note")))
+
+    def save_tags(self, store) -> Dict[str, int]:
+        """Persist a TagStore. Full replace — the store is the source of truth for corrections."""
+        c = self._conn
+        c.execute("DELETE FROM tag_merchant"); c.execute("DELETE FROM tag_txn")
+        c.execute("DELETE FROM txn_note")
+        c.executemany("INSERT INTO tag_merchant(merchant_key,tag) VALUES(?,?)",
+                      list(store.by_merchant.items()))
+        c.executemany("INSERT INTO tag_txn(content_hash,tag) VALUES(?,?)", list(store.by_ref.items()))
+        c.executemany("INSERT INTO txn_note(content_hash,note) VALUES(?,?)", list(store.notes.items()))
+        c.commit()
+        return {"merchants": len(store.by_merchant), "txns": len(store.by_ref),
+                "notes": len(store.notes)}
+
+    def correct_tag(self, *, tag: str, merchant: Optional[str] = None,
+                    content_hash: Optional[str] = None) -> None:
+        """Apply and persist one correction. Merchant-wide unless a content_hash is given."""
+        store = self.load_tags()
+        if content_hash:
+            store.correct_one(content_hash, tag)
+        elif merchant:
+            # pass the merchant's rows so a stale single-row override can't shadow this fix
+            refs = [r[0] for r in self._conn.execute(
+                "SELECT content_hash FROM txns WHERE LOWER(TRIM(merchant))=?",
+                (merchant.strip().lower(),))]
+            store.correct_merchant(merchant, tag, member_refs=refs)
+        else:
+            raise ValueError("correct_tag needs either merchant= or content_hash=")
+        self.save_tags(store)
+
+    def set_note(self, content_hash: str, note: str) -> None:
+        store = self.load_tags()
+        store.add_note(content_hash, note)
+        self.save_tags(store)
 
     def stats(self) -> Dict[str, Any]:
         s = self._conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0]

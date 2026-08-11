@@ -34,7 +34,11 @@ class App:
         return cls(db_path=db_path,
                    source=FolderStatementSource(folders, recursive=recursive, pattern=pattern))
 
-    def __init__(self, *, db_path: Optional[str] = None, source=None):
+    def __init__(self, *, db_path: Optional[str] = None, source=None,
+                 own_names: Optional[list] = None):
+        # own_names drives self-transfer exclusion: money between the user's own accounts is
+        # neither income nor spending, so counting both legs inflates every total
+        self.own_names = own_names or []
         self.repo = SqliteTransactionRepository(db_path)
         self.categorizer = KeywordCategorizer()
         self.parsers = (ParserRegistry()
@@ -54,7 +58,18 @@ class App:
 
     def dataset(self, account: str, currency: str = "INR") -> Dict[str, Any]:
         txns = self.repo.all(account)
-        return build_dataset(txns, account=account, currency=currency)
+        # user corrections are loaded from the DB, so a fixed tag survives restarts and re-ingests
+        return build_dataset(txns, account=account, currency=currency,
+                             tags=self.repo.load_tags(), own_names=self.own_names)
+
+    def correct_tag(self, *, tag: str, merchant: Optional[str] = None,
+                    content_hash: Optional[str] = None) -> None:
+        """Persist a user tag correction (merchant-wide, or a single transaction)."""
+        self.repo.correct_tag(tag=tag, merchant=merchant, content_hash=content_hash)
+
+    def set_note(self, content_hash: str, note: str) -> None:
+        """Persist a free-text note on one transaction."""
+        self.repo.set_note(content_hash, note)
 
     def render(self, account: str, out_path: str, currency: str = "INR") -> str:
         html = AppShellRenderer().render(self.dataset(account, currency))

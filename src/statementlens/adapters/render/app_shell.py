@@ -125,6 +125,12 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .notefield:focus{outline:none;border-color:var(--acc)}
 .sortb{background:var(--s1);border:1px solid var(--line);color:var(--ink2);border-radius:100px;
   padding:6px 13px;font:600 11px var(--body);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+
+/* save-failure toast: a correction that silently didn't persist is worse than an error */
+.toast{position:fixed;left:50%;bottom:88px;transform:translate(-50%,14px);z-index:20;max-width:400px;
+  background:var(--s2);color:var(--ink);border:1px solid var(--down);border-radius:12px;
+  padding:11px 16px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s var(--ease)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
 .flowbar{height:9px;border-radius:6px;background:var(--s2);overflow:hidden;display:flex}
 .flowbar .bin{background:var(--up);height:100%}.flowbar .bout{background:var(--down);height:100%;opacity:.8}
 
@@ -423,13 +429,30 @@ function txnDetail(){
       <textarea class="notefield" rows="2" placeholder="add a note (why was this payment made?)" oninput="setNote('${esc(t.ref)}',this.value)">${esc(NOTES[t.ref]||t.note||'')}</textarea></div>
   </div>`;}
 
-/* Corrections live client-side only; the CLI/app persists them via TagStore.
-   ponytail: in-memory overrides, wire to a TagStore repo when the app gets write-back. */
+/* Corrections POST to the local server so they survive reload and re-ingest. When the page is
+   opened as a static file (no server) the optimistic local update still applies — the UI stays
+   usable, it just can't persist. */
 const OVERRIDE={},NOTES={};
-function setTag(ref,tag){OVERRIDE[ref]=tag;const t=ALL.find(x=>x.ref===ref);
-  if(t){t.c=tag;ALL.forEach(o=>{if(t.m&&o.m===t.m)o.c=tag;});}   // merchant-wide, like TagStore
-  draw();}
-function setNote(ref,v){NOTES[ref]=v;const t=ALL.find(x=>x.ref===ref);if(t)t.note=v;}
+const API=(()=>{const t=new URLSearchParams(location.search).get('t');
+  return t&&location.protocol.startsWith('http')?t:null;})();
+function post(path,body){if(!API)return Promise.resolve({offline:true});
+  return fetch(path+'?t='+encodeURIComponent(API),{method:'POST',body:JSON.stringify(body)})
+    .then(r=>r.json()).catch(e=>({error:String(e)}));}
+function setTag(ref,tag){
+  OVERRIDE[ref]=tag;const t=ALL.find(x=>x.ref===ref);
+  if(t){t.c=tag;ALL.forEach(o=>{if(t.m&&o.m===t.m)o.c=tag;});}   // merchant-wide, mirroring TagStore
+  draw();
+  // persist merchant-wide when we know the merchant, else pin to this one row
+  post('/api/tag',t&&t.m?{tag,merchant:t.m}:{tag,content_hash:ref})
+    .then(r=>{if(r&&r.error)toast('could not save tag: '+r.error);});}
+function setNote(ref,v){NOTES[ref]=v;const t=ALL.find(x=>x.ref===ref);if(t)t.note=v;
+  clearTimeout(setNote._d);                     // debounce: don't POST on every keystroke
+  setNote._d=setTimeout(()=>post('/api/note',{content_hash:ref,note:v})
+    .then(r=>{if(r&&r.error)toast('could not save note: '+r.error);}),500);}
+function toast(msg){let el=document.getElementById('toast');
+  if(!el){el=document.createElement('div');el.id='toast';el.className='toast';document.body.appendChild(el);}
+  el.textContent=msg;el.classList.add('on');clearTimeout(toast._t);
+  toast._t=setTimeout(()=>el.classList.remove('on'),3200);}
 
 /* ---- recurring view ---- */
 function recurringV(){const R=DATA.recurring||[];

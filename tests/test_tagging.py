@@ -47,6 +47,24 @@ def test_correction_survives_reingest_beating_the_categorizer():
     assert row.category == "rent"
 
 
+def test_newer_merchant_correction_clears_stale_row_override():
+    # a stale per-row override must not shadow a NEW merchant-wide fix forever, or the user taps
+    # a tag chip and nothing visibly changes
+    s = TagStore()
+    s.correct_one("ref-1", "travel")
+    s.correct_merchant("Swiggy", "grocery", member_refs=["ref-1"])
+    row = apply_tags([txn(400, "Swiggy", ref="ref-1")], s)[0]
+    assert row.category == "grocery"
+    assert "ref-1" not in s.by_ref
+
+
+def test_merchant_correction_leaves_other_merchants_row_overrides_alone():
+    s = TagStore()
+    s.correct_one("ref-other", "rent")
+    s.correct_merchant("Swiggy", "grocery", member_refs=["ref-1"])
+    assert s.by_ref["ref-other"] == "rent"
+
+
 def test_single_row_correction_beats_merchant_rule():
     s = TagStore()
     s.correct_merchant("Ashu", "people")

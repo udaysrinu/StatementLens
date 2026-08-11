@@ -48,6 +48,15 @@ def main(argv=None) -> int:
     rnd.add_argument("--out", default="out/dashboard.html")
     rnd.add_argument("--currency", default="INR")
 
+    srv = sub.add_parser("serve", help="open the dashboard in your browser (local only)")
+    srv.add_argument("--account", required=True)
+    srv.add_argument("--port", type=int, default=8770)
+    srv.add_argument("--no-open", action="store_true", help="don't auto-open a browser")
+    srv.add_argument("--own-name", dest="own_names", nargs="*",
+                     help="your name(s) as they appear in narrations, to exclude self-transfers")
+    srv.add_argument("--name"); srv.add_argument("--dob"); srv.add_argument("--mobile")
+    srv.add_argument("--card-last4", dest="card_last4"); srv.add_argument("--rule-text", dest="rule_text")
+
     sub.add_parser("stats", help="show what's stored")
 
     args = p.parse_args(argv)
@@ -77,6 +86,12 @@ def main(argv=None) -> int:
         app = App(db_path=args.db)
         path = app.render(args.account, args.out, args.currency)
         print("rendered ->", path)
+        return 0
+    if args.cmd == "serve":
+        from .adapters.web.server import serve
+        app = App(db_path=args.db, own_names=getattr(args, "own_names", None))
+        serve(app, account=args.account, port=args.port,
+              open_browser=not args.no_open, hints=_hints(args))
         return 0
     if args.cmd == "stats":
         app = App(db_path=args.db)

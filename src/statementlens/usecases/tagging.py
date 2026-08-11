@@ -122,13 +122,22 @@ class TagStore:
         self.by_ref = self.by_ref or {}
         self.notes = self.notes or {}
 
-    def correct_merchant(self, merchant: str, tag: str) -> None:
-        """Fix this merchant's tag everywhere — past rows and future ingests alike."""
+    def correct_merchant(self, merchant: str, tag: str,
+                         member_refs: Optional[Iterable[str]] = None) -> None:
+        """Fix this merchant's tag everywhere — past rows and future ingests alike.
+
+        `member_refs` are the transaction refs belonging to this merchant; any single-row override
+        among them is DROPPED. Without that, an older per-row correction keeps shadowing the new
+        merchant-wide one (by_ref wins in `resolve`) and the user taps a tag to no visible effect.
+        """
         t = normalize_tag(tag)
+        key = merchant.strip().lower()
         if t == UNTAGGED:
-            self.by_merchant.pop(merchant.strip().lower(), None)
+            self.by_merchant.pop(key, None)
         else:
-            self.by_merchant[merchant.strip().lower()] = t
+            self.by_merchant[key] = t
+        for ref in (member_refs or ()):
+            self.by_ref.pop(ref, None)
 
     def correct_one(self, source_ref: str, tag: str) -> None:
         """Fix a single transaction without creating a merchant-wide rule.
