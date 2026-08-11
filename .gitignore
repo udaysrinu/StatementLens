@@ -25,3 +25,6 @@ out/                        # rendered dashboards (contain your transactions)
 gmail_client_secret.json
 gmail_token.json
 *token*.json
+
+# generated demo store for screenshots (regenerate with docs/make_screenshots.py)
+docs/screenshots/demo.db*

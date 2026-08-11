@@ -102,8 +102,12 @@ leave it, and there is no account to create.</div>
   <div class="hint" style="margin:0 0 12px">Finds statement emails automatically and keeps itself up
     to date. Read-only — StatementLens can never send or change anything.</div>
   <button class="ghost" id="gmail">Connect Gmail</button>
-  <div class="warn">Google shows an “unverified app” warning for this, and it works for a limited
-    number of people until their review completes. Dropping PDFs above has no such limit.</div>
+  <div class="warn">Google shows an “unverified app” warning, and this build's shared Google client
+    is capped at 100 people. If you hit that cap you're not stuck — create your own Google OAuth
+    client (5 minutes, one time) and save it to
+    <code>~/.statementlens/gmail_client_secret.json</code>; StatementLens uses yours instead, with no
+    cap. <a href="https://github.com/udaysrinu/statementlens#connecting-gmail" target="_blank"
+    rel="noopener">How to do that →</a></div>
 </div>
 
 <script>

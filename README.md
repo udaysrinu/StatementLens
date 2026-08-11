@@ -1,19 +1,45 @@
 # StatementLens
 
-**A local-first personal-finance engine.** Point it at your bank & credit-card statement emails and
-it reads them, categorizes every transaction, and renders a calm, CRED-Money-style dashboard —
-**fully offline, on your machine, no cloud, no account-aggregator licence.**
+**Your whole financial history, in one place, on your own machine.** Bank accounts and credit cards
+together, for as many years as you have statements — not a rolling 12-month window. No cloud, no
+account, no account-aggregator licence.
 
-> Your statements, your data. Nothing is uploaded. Passwords are derived locally and never stored.
+> Your statements, your data. Nothing is uploaded, ever. Statement passwords are derived in memory
+> and never written to disk.
+
+<p align="center">
+  <img src="docs/screenshots/home.png" width="330" alt="Home — one hero number, insight cards, honest three-way cash flow">
+  &nbsp;
+  <img src="docs/screenshots/spends.png" width="330" alt="Spends grouped by tag, sortable, with a review queue">
+</p>
+<p align="center">
+  <img src="docs/screenshots/recurring.png" width="330" alt="Recurring payments with usual day and next expected date">
+  &nbsp;
+  <img src="docs/screenshots/txn.png" width="330" alt="Transaction detail with tag correction and notes">
+</p>
+<p align="center"><em>Screenshots use synthetic demo data — regenerate with
+<code>python docs/make_screenshots.py</code>.</em></p>
 
 ---
 
 ## Why
 
-India's affluent have ~200 transactions/month scattered across banks and cards. CRED Money solved
-this with the RBI Account Aggregator framework — which needs a regulated licence. **StatementLens
-reaches the same "understand my money" outcome from the statements you already receive by email**,
-so anyone can run it.
+India's affluent have ~200 transactions/month scattered across banks and cards. CRED Money solves
+this beautifully — via the RBI Account Aggregator framework, which needs a regulated NBFC-AA licence.
+**StatementLens reaches the same "understand my money" outcome from the statements you already
+receive by email**, so anyone can run it without a licence.
+
+Three things fall out of that choice:
+
+| | CRED Money & friends | StatementLens |
+|---|---|---|
+| **History** | rolling ~12-month window | **as far back as your statements go** (tested on 7+ years) |
+| **Scope** | accounts the aggregator supports | **bank accounts + credit cards in one ledger** |
+| **Your data** | leaves your device, sits with a regulated intermediary | **never leaves your machine** |
+| **Requires** | an AA licence to build | nothing — clone and run |
+
+The long history is the part that changes what you can ask. "Am I spending more on food than I was
+two years ago?" and "what has this subscription cost me in total?" need years, not months.
 
 ## What it does
 
@@ -73,23 +99,43 @@ adding a note) are saved locally and survive both a reload and a future statemen
 The server binds to `127.0.0.1` only and requires a per-run token, so nothing on your network — or
 in another browser tab — can reach your transactions.
 
-## Two ways to bring statements in
+## Getting statements in
 
-| | Works for | Setup |
+**The app itself has no limits.** Clone it, run it, use it — no account, no server, no quota.
+
+| | Setup | Limit |
 |---|---|---|
-| **Drop PDFs / pick a folder** | anyone, any bank, any country | none |
-| **Connect Gmail** (read-only) | up to 100 users per OAuth client | a Google client, see below |
+| **Drop PDFs / pick a folder** | none | none — any bank, any country |
+| **Gmail, your own OAuth client** | ~5 min, once | none |
+| **Gmail, this build's shared client** | one click | 100 people (see below) |
 
-Gmail is the convenient path but a gated one: `gmail.readonly` is a Google **restricted scope**, so
-an app using it shows an "unverified app" warning and is limited to 100 users until it passes a
-[CASA security assessment](https://developers.google.com/workspace/guides/configure-oauth-consent).
-Folder import has no such limit, which is why it's the default.
+Most people should just drag their statement PDFs in. Banks email them monthly anyway, and it takes
+about 20 seconds. Gmail automation is convenience on top — the analysis is the same either way.
 
-To enable Gmail in your own build: create a Google Cloud project, enable the Gmail API, make
-**Desktop** OAuth credentials, then either drop the JSON at
-`~/.statementlens/gmail_client_secret.json` or set `STATEMENTLENS_GOOGLE_CLIENT_ID` /
-`STATEMENTLENS_GOOGLE_CLIENT_SECRET`. (See `adapters/sources/bundled_client.py` for why shipping an
-installed-app client secret is expected rather than a leak.)
+### Connecting Gmail
+
+`gmail.readonly` is a Google **restricted scope**. An OAuth client that hasn't passed a
+[CASA security assessment](https://developers.google.com/workspace/guides/configure-oauth-consent)
+shows an "unverified app" screen and is capped at **100 test users, each added by email address in
+the Google Cloud console.** That cap is per *client*, not per user or per install — so a shared
+client bundled into a public build runs out fast.
+
+**The fix is to bring your own client, which takes five minutes and removes the cap entirely** (it's
+your project, and you only need to authorise yourself):
+
+1. [console.cloud.google.com](https://console.cloud.google.com) → new project → enable the **Gmail API**
+2. **OAuth consent screen** → External → add scope `.../auth/gmail.readonly` → add your own email as
+   a test user
+3. **Credentials** → Create credentials → OAuth client ID → **Desktop app** → download the JSON
+4. Save it as `~/.statementlens/gmail_client_secret.json`
+
+StatementLens uses your client if that file exists, and falls back to the bundled one otherwise.
+You'll still see the "unverified app" screen — that's Google telling you *your own* app is
+unverified, which is fine for a tool only you use. Click *Advanced → Continue*.
+
+Packagers can instead bake a client in at build time via `STATEMENTLENS_GOOGLE_CLIENT_ID` /
+`STATEMENTLENS_GOOGLE_CLIENT_SECRET`. See `adapters/sources/bundled_client.py` for why shipping an
+installed-app client secret is expected practice rather than a leak.
 
 ## CLI
 
