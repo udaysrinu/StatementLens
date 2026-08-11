@@ -103,14 +103,35 @@ in another browser tab — can reach your transactions.
 
 **The app itself has no limits.** Clone it, run it, use it — no account, no server, no quota.
 
-| | Setup | Limit |
-|---|---|---|
-| **Drop PDFs / pick a folder** | none | none — any bank, any country |
-| **Gmail, your own OAuth client** | ~5 min, once | none |
-| **Gmail, this build's shared client** | one click | 100 people (see below) |
+| | Setup | Limit | Works with |
+|---|---|---|---|
+| **Drop PDFs / pick a folder** | none | none | any bank, any country |
+| **Any mailbox over IMAP** | app password, ~2 min | **none** | Gmail, Outlook, Yahoo, Zoho, corporate |
+| **Gmail, your own OAuth client** | ~5 min, once | none | Gmail |
+| **Gmail, this build's shared client** | one click | 100 people | Gmail |
 
-Most people should just drag their statement PDFs in. Banks email them monthly anyway, and it takes
-about 20 seconds. Gmail automation is convenience on top — the analysis is the same either way.
+```bash
+# IMAP — no Google Cloud project, no OAuth, no review queue, no cap
+statementlens ingest --account HDFC --email you@gmail.com \
+    --name "Your Name" --dob 12111998 --mobile 9999912345
+```
+
+The app password is read from a no-echo prompt or `STATEMENTLENS_APP_PASSWORD` — never a CLI flag,
+since arguments show up in `ps` and shell history. The mailbox is opened **read-only**, so the server
+itself refuses any modification and messages aren't even marked as read.
+
+Most people should just drag their PDFs in. Banks email them monthly anyway and it takes 20 seconds.
+Automation is convenience — the analysis is identical either way.
+
+### Credit cards
+
+Cards are the strongest case for reading statements rather than an API: a monthly card statement PDF
+is **guaranteed** — issuers are required to send one — while Account Aggregator coverage for card
+issuers is still patchy. Four card layouts are supported, including formats where the amount isn't
+trailing (`… 5,000.00 DR 5268XXXXXXXX1234`) and where a `+` marks payments and cashbacks.
+
+Bank accounts and cards land in **one ledger, one categorizer, one insight engine** — so a duplicate
+charge or a forgotten subscription is found across all of them at once, not per-app.
 
 ### Connecting Gmail
 

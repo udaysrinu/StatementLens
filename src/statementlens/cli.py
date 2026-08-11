@@ -15,6 +15,20 @@ import sys
 from typing import Any, Dict
 
 
+def _app_password() -> str:
+    """Read the mail app password without it landing in shell history.
+
+    Env var first (for scripts and launchd), otherwise a no-echo prompt. Never a CLI flag: anything
+    passed as an argument is visible in `ps` and saved to .bash_history / .zsh_history.
+    """
+    import getpass
+    import os
+    pw = os.getenv("STATEMENTLENS_APP_PASSWORD")
+    if pw:
+        return pw
+    return getpass.getpass("Mail app password (not your normal password): ")
+
+
 def _hints(args) -> Dict[str, Any]:
     h: Dict[str, Any] = {}
     for k in ("name", "dob", "mobile", "card_last4", "rule_text"):
@@ -36,6 +50,8 @@ def main(argv=None) -> int:
     ing.add_argument("--account", required=True)
     ing.add_argument("--folder", nargs="*",
                      help="read PDFs from local folder(s) instead of Gmail (no OAuth needed)")
+    ing.add_argument("--email", help="fetch over IMAP with an app password (any mail provider)")
+    ing.add_argument("--imap-host", dest="imap_host", help="override the IMAP host")
     ing.add_argument("--no-recursive", action="store_true", help="with --folder: don't descend")
     ing.add_argument("--pattern", help="with --folder: filename filter, e.g. sbi")
     ing.add_argument("--name"); ing.add_argument("--dob"); ing.add_argument("--mobile")
@@ -78,6 +94,9 @@ def main(argv=None) -> int:
             app = App.from_folder(args.folder, db_path=args.db,
                                   recursive=not args.no_recursive, pattern=args.pattern)
             print("scanning:", app._source.describe())
+        elif args.email:
+            app = App.from_email(args.email, _app_password(), db_path=args.db,
+                                 host=args.imap_host)
         else:
             from .adapters.sources.gmail_source import GmailStatementSource
             app = App(db_path=args.db, source=GmailStatementSource())

@@ -34,6 +34,21 @@ class App:
         return cls(db_path=db_path,
                    source=FolderStatementSource(folders, recursive=recursive, pattern=pattern))
 
+    @classmethod
+    def from_email(cls, address: str, app_password: str, *, db_path: Optional[str] = None,
+                   host: Optional[str] = None, months: int = 24,
+                   own_names: Optional[list] = None) -> "App":
+        """Wire the app to read statements over IMAP with an app-specific password.
+
+        Works with any provider (Gmail, Outlook, Yahoo, Zoho, corporate) and needs no Google Cloud
+        project, no OAuth client and no restricted-scope review — so unlike the Gmail adapter it has
+        no 100-user cap.
+        """
+        from .adapters.sources.imap_source import ImapCredentials, ImapStatementSource
+        creds = ImapCredentials(address, app_password, host=host)
+        return cls(db_path=db_path, own_names=own_names,
+                   source=ImapStatementSource(creds, months=months))
+
     def __init__(self, *, db_path: Optional[str] = None, source=None,
                  own_names: Optional[list] = None):
         # own_names drives self-transfer exclusion: money between the user's own accounts is
