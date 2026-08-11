@@ -29,7 +29,21 @@ class ImportProblem:
     NO_TEXT_LAYER = "no_text_layer"
     WEB_PRINTOUT = "web_printout"
     NO_ROWS_MATCHED = "no_rows_matched"
+    SUMMARY_ONLY = "summary_only"
     ENCRYPTED = "encrypted"
+
+
+#: A statement that carries only totals — dues, limits, minimum payment — and no transaction table.
+#: Banks send these for a cycle with no activity, or as a separate summary document.
+_SUMMARY_MARKERS = re.compile(r"""(?ix)
+      total\s+amount\s+due | minimum\s+(?:amount\s+)?due | available\s+credit\s+limit
+    | previous\s+statement\s+dues | statement\s+summary | opening\s+balance
+""")
+
+#: Any plausible "<date> … <amount>" row. Absence of these plus summary wording means there is
+#: genuinely nothing to import, which is different from a layout we can't read.
+_ANY_TXN_ROW = re.compile(
+    r"\d{1,2}[-/\s](?:\d{1,2}|[A-Za-z]{3})[-/,\s]\s?\d{2,4}.{0,80}?\d[\d,]*\.\d{2}")
 
 
 @dataclass(frozen=True)
@@ -70,6 +84,16 @@ def diagnose(text: str, *, source_name: str = "") -> Optional[Diagnosis]:
             "importing it would produce wrong totals. Please use the official e-statement PDF.",
             detail="matched OnlineSBI 'Find Transactions' layout: single amount column, "
                    "no balance and no debit/credit indicator")
+
+    # A summary/dues document with no date+amount rows has nothing to import — saying "unsupported
+    # bank" there implies a bug in us and sends the user hunting for a fix that doesn't exist.
+    if _SUMMARY_MARKERS.search(stripped) and not _ANY_TXN_ROW.search(stripped):
+        return Diagnosis(
+            ImportProblem.SUMMARY_ONLY,
+            f"{source_name or 'This PDF'} is a summary of dues and limits — it doesn't list any "
+            "transactions, so there's nothing to import. That's normal for a billing cycle with no "
+            "activity.",
+            detail="summary wording present, no date+amount rows found")
 
     return Diagnosis(
         ImportProblem.NO_ROWS_MATCHED,
