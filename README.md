@@ -60,30 +60,68 @@ pip install -e ".[all]"        # gmail + pdf + ocr extras
 # or pick extras: .[gmail] .[pdf] .[ocr] .[dev]
 ```
 
-## Usage
+## Quick start
 
 ```bash
-# 1) fetch + parse + store (hints derive PDF passwords locally; never stored)
+statementlens serve --account SBI
+```
+
+That's it. It opens in your browser. If you have no data yet you get a setup page — **drop your
+statement PDFs on it** and the dashboard appears. Corrections you make (re-tagging a transaction,
+adding a note) are saved locally and survive both a reload and a future statement refresh.
+
+The server binds to `127.0.0.1` only and requires a per-run token, so nothing on your network — or
+in another browser tab — can reach your transactions.
+
+## Two ways to bring statements in
+
+| | Works for | Setup |
+|---|---|---|
+| **Drop PDFs / pick a folder** | anyone, any bank, any country | none |
+| **Connect Gmail** (read-only) | up to 100 users per OAuth client | a Google client, see below |
+
+Gmail is the convenient path but a gated one: `gmail.readonly` is a Google **restricted scope**, so
+an app using it shows an "unverified app" warning and is limited to 100 users until it passes a
+[CASA security assessment](https://developers.google.com/workspace/guides/configure-oauth-consent).
+Folder import has no such limit, which is why it's the default.
+
+To enable Gmail in your own build: create a Google Cloud project, enable the Gmail API, make
+**Desktop** OAuth credentials, then either drop the JSON at
+`~/.statementlens/gmail_client_secret.json` or set `STATEMENTLENS_GOOGLE_CLIENT_ID` /
+`STATEMENTLENS_GOOGLE_CLIENT_SECRET`. (See `adapters/sources/bundled_client.py` for why shipping an
+installed-app client secret is expected rather than a leak.)
+
+## CLI
+
+```bash
+# import from a folder — no Google account involved
+statementlens ingest --account SBI --folder ~/Documents/Statements \
+    --name "Full Name" --dob 12111998 --mobile 9999912345
+
+# or from Gmail
 statementlens ingest --account SBI --name "Full Name" --dob 12111998 --mobile 9999912345
 
-# 2) render the dashboard
-statementlens render --account SBI --out out/sbi.html && open out/sbi.html
-
+statementlens serve  --account SBI          # browse it
+statementlens render --account SBI --out out/sbi.html   # static export
 statementlens stats
 ```
 
-One-time Gmail setup: a Google Cloud project with the Gmail API enabled and OAuth *Desktop*
-credentials saved to `~/.statementlens/gmail_client_secret.json`. First run opens a consent screen.
+Identity hints only ever **derive** statement passwords in memory — they are never stored or sent.
+`ingest` exits non-zero and explains itself if nothing was imported, so a broken import can't
+masquerade as "no spending".
 
 Library use:
 
 ```python
 from statementlens.app import App
-from statementlens.adapters.sources.gmail_source import GmailStatementSource
 
-app = App(source=GmailStatementSource())
+# folder import — no OAuth
+app = App.from_folder("~/Documents/Statements")
 app.ingest(account="SBI", hints={"name": "Full Name", "dob": "12111998", "mobile": "9999912345"})
 app.render("SBI", "out/sbi.html")
+
+# fix a wrong tag; the correction outlives future re-ingests
+app.correct_tag(tag="grocery", merchant="Fresh N")
 ```
 
 ## Privacy

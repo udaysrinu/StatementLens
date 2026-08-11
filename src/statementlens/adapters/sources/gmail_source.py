@@ -79,6 +79,20 @@ class GmailStatementSource:
             userId="me", messageId=msg_id, id=attachment_id).execute()
         return base64.urlsafe_b64decode(att["data"].encode("utf-8"))
 
+    def _client_config(self) -> Optional[dict]:
+        """OAuth client config: the user's own file if present, else the app's bundled client.
+
+        Shipping the client id/secret is the normal pattern for *installed* apps — the "secret"
+        cannot be kept confidential in a distributed binary, which is why the loopback flow does not
+        rely on it for security. Bundling it is what makes onboarding one click instead of "go create
+        a Google Cloud project".
+        """
+        import json
+        if self._secret.exists():
+            return json.loads(self._secret.read_text(encoding="utf-8"))
+        from .bundled_client import bundled_client_config
+        return bundled_client_config()
+
     def _authorize(self):
         try:
             from google.oauth2.credentials import Credentials
@@ -94,12 +108,17 @@ class GmailStatementSource:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                if not self._secret.exists():
+                config = self._client_config()
+                if config is None:
                     raise RuntimeError(
-                        f"Gmail client secret not found at {self._secret}. Create a Google Cloud "
-                        "project, enable Gmail API, make OAuth Desktop creds, and save the JSON there.")
-                creds = InstalledAppFlow.from_client_secrets_file(
-                    str(self._secret), SCOPES).run_local_server(port=0)
+                        "Gmail isn't set up in this build. Either ship a bundled OAuth client "
+                        f"(see bundled_client.py) or save Desktop OAuth credentials at {self._secret}. "
+                        "You can import statements from a folder instead — no Google setup needed.")
+                creds = InstalledAppFlow.from_client_config(
+                    config, SCOPES).run_local_server(
+                        port=0, open_browser=True,
+                        authorization_prompt_message="",
+                        success_message="Connected. You can close this tab and return to StatementLens.")
             self._token.parent.mkdir(parents=True, exist_ok=True)
             self._token.write_text(creds.to_json(), encoding="utf-8")
         return build("gmail", "v1", credentials=creds, cache_discovery=False)

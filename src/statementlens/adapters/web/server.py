@@ -14,7 +14,9 @@ Endpoints:
     POST /api/tag               {"tag","merchant"|"content_hash"} -> persist a tag correction
     POST /api/note              {"content_hash","note"}           -> persist a note
     POST /api/ingest            {"folder":[...]}                  -> import PDFs from folder(s)
-    POST /api/upload            raw PDF body, ?name=…             -> import one uploaded PDF
+    POST /api/upload            raw PDF body, ?filename=…&name=…  -> import one uploaded PDF
+                                (`filename` = the file; `name` = account holder, for passwords)
+    POST /api/gmail             run OAuth consent, then import
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
 from ..render.app_shell import AppShellRenderer
+from .onboarding import render_onboarding
 
 _MAX_UPLOAD_BYTES = 25 * 1024 * 1024   # a statement PDF is well under this; refuse anything larger
 
@@ -84,8 +87,15 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._authorized():
             return self._send(403, b"forbidden", "text/plain")
         if route == "/":
+            # first run (nothing stored yet) -> onboarding instead of an empty dashboard
+            if self.app.stats().get("transactions", 0) == 0:
+                return self._send(200, self._onboarding().encode("utf-8"),
+                                  "text/html; charset=utf-8")
             html = AppShellRenderer().render(self.app.dataset(self.account))
             return self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/setup":
+            return self._send(200, self._onboarding().encode("utf-8"),
+                              "text/html; charset=utf-8")
         if route == "/api/dataset":
             return self._json(self.app.dataset(self.account))
         if route == "/api/health":
@@ -124,11 +134,20 @@ class _Handler(BaseHTTPRequestHandler):
 
             if route == "/api/upload":
                 return self._json(self._handle_upload())
+
+            if route == "/api/gmail":
+                body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
+                r = self.server.sl_gmail(body.get("hints") or {})   # type: ignore[attr-defined]
+                return self._json(r)
         except ValueError as e:
             return self._json({"error": str(e)}, 400)
         except Exception as e:                       # a bad request must not kill the server
             return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
         self._send(404, b"not found", "text/plain")
+
+    def _onboarding(self) -> str:
+        from ..sources.bundled_client import gmail_available
+        return render_onboarding(gmail_available=gmail_available())
 
     def _handle_upload(self) -> Dict[str, Any]:
         """Accept one PDF as a raw body and ingest it from a temp dir (drag-and-drop path)."""
@@ -137,17 +156,19 @@ class _Handler(BaseHTTPRequestHandler):
             raise ValueError("empty upload")
         if n > _MAX_UPLOAD_BYTES:
             raise ValueError(f"file too large (max {_MAX_UPLOAD_BYTES // 1024 // 1024} MB)")
-        name = parse_qs(urlparse(self.path).query).get("name", ["upload.pdf"])[0]
+        qs = parse_qs(urlparse(self.path).query)
+        # `filename` is the uploaded file; `name` is the account-holder name used for password
+        # derivation. Separate params on purpose — one `name` serving both silently loses the hint.
+        raw_name = (qs.get("filename") or ["upload.pdf"])[0]
         # keep only the basename: an uploaded "../../x.pdf" must not escape the temp dir
-        safe = Path(name).name or "upload.pdf"
+        safe = Path(raw_name).name or "upload.pdf"
         if not safe.lower().endswith(".pdf"):
             raise ValueError("only PDF files are supported")
         data = self.rfile.read(n)
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / safe).write_bytes(data)
-            hints = parse_qs(urlparse(self.path).query)
             return self.server.sl_ingest(          # type: ignore[attr-defined]
-                [tmp], {k: v[0] for k, v in hints.items() if k in
+                [tmp], {k: v[0] for k, v in qs.items() if k in
                         ("name", "dob", "mobile", "card_last4", "rule_text")})
 
 
@@ -173,6 +194,23 @@ def serve(app, *, account: str, host: str = "127.0.0.1", port: int = 8770,
                 "failed": r.failed, "skipped": r.skipped, "errors": r.errors[:5]}
 
     httpd.sl_ingest = _ingest               # type: ignore[attr-defined]
+
+    def _gmail(extra_hints) -> Dict[str, Any]:
+        """Run the OAuth loopback flow and import. Blocks on the user's browser consent."""
+        try:
+            from ..sources.gmail_source import GmailStatementSource
+        except Exception as e:
+            return {"error": f"Gmail support not installed: {e}"}
+        try:
+            app._source = GmailStatementSource()
+            r = app.ingest(account=account, hints={**base_hints, **(extra_hints or {})})
+        except Exception as e:
+            # surface the real reason (missing client secret, denied consent, offline)
+            return {"error": f"{type(e).__name__}: {e}"}
+        return {"statements": r.statements, "inserted": r.inserted, "duplicate": r.duplicate,
+                "failed": r.failed, "skipped": r.skipped, "errors": r.errors[:5]}
+
+    httpd.sl_gmail = _gmail                 # type: ignore[attr-defined]
 
     url = f"http://{host}:{port}/?t={token}"
     if open_browser:
