@@ -32,8 +32,12 @@ def main(argv=None) -> int:
     p.add_argument("--db", help="SQLite path (default ~/.statementlens/store.db)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    ing = sub.add_parser("ingest", help="fetch statements from Gmail, parse, categorize, store")
+    ing = sub.add_parser("ingest", help="fetch statements (folder or Gmail), parse, categorize, store")
     ing.add_argument("--account", required=True)
+    ing.add_argument("--folder", nargs="*",
+                     help="read PDFs from local folder(s) instead of Gmail (no OAuth needed)")
+    ing.add_argument("--no-recursive", action="store_true", help="with --folder: don't descend")
+    ing.add_argument("--pattern", help="with --folder: filename filter, e.g. sbi")
     ing.add_argument("--name"); ing.add_argument("--dob"); ing.add_argument("--mobile")
     ing.add_argument("--card-last4", dest="card_last4"); ing.add_argument("--rule-text", dest="rule_text")
     ing.add_argument("--custom", nargs="*", help="explicit password(s) to try first")
@@ -50,12 +54,24 @@ def main(argv=None) -> int:
     from .app import App
 
     if args.cmd == "ingest":
-        from .adapters.sources.gmail_source import GmailStatementSource
-        app = App(db_path=args.db, source=GmailStatementSource())
+        if args.folder:
+            app = App.from_folder(args.folder, db_path=args.db,
+                                  recursive=not args.no_recursive, pattern=args.pattern)
+            print("scanning:", app._source.describe())
+        else:
+            from .adapters.sources.gmail_source import GmailStatementSource
+            app = App(db_path=args.db, source=GmailStatementSource())
         r = app.ingest(account=args.account, hints=_hints(args), limit=args.limit)
-        print(f"statements={r.statements} inserted={r.inserted} duplicate={r.duplicate} failed={r.failed}")
+        print(f"statements={r.statements} inserted={r.inserted} duplicate={r.duplicate} "
+              f"failed={r.failed} skipped={len(r.skipped)}")
         for e in r.errors[:10]:
             print("  !", e)
+        for s in r.skipped[:10]:
+            print(f"  - {s['source']}: {s['message']}")
+        if not r.ok:
+            # never exit 0 on a silent no-op; onboarding and cron both need to see this
+            print("\nNothing was imported. See the reasons above.", file=sys.stderr)
+            return 2
         return 0
     if args.cmd == "render":
         app = App(db_path=args.db)

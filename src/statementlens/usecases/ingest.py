@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 from ..domain.models import Statement
 from ..domain.ports import (Categorizer, Decryptor, StatementSource,
                             TextExtractor, TransactionRepository)
+from .diagnose import diagnose
 
 
 @dataclass
@@ -22,6 +23,13 @@ class IngestResult:
     duplicate: int = 0
     failed: int = 0
     errors: List[str] = field(default_factory=list)
+    #: Per-document explanations for anything that yielded no transactions. Never let a document
+    #: disappear silently — an empty dashboard with no reason is the worst possible outcome.
+    skipped: List[Dict[str, str]] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return self.inserted > 0 or self.duplicate > 0
 
 
 class IngestStatements:
@@ -43,6 +51,13 @@ class IngestStatements:
                 text = self._extractor.extract(decrypted)
                 stmt = self._parsers.parse(text, account=account,
                                            source_id=raw.source_id, source_name=raw.source_name)
+                if not stmt.transactions:
+                    # parsed "successfully" but empty — say why instead of counting a silent win
+                    d = diagnose(text, source_name=raw.source_name)
+                    if d:
+                        result.skipped.append({"source": raw.source_name, "problem": d.problem,
+                                               "message": d.message, "detail": d.detail})
+                        continue
                 stmt = self._categorize(stmt)
                 counts = self._repo.save_statement(stmt)
                 result.statements += 1

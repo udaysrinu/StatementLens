@@ -21,6 +21,19 @@ from .usecases.ingest import IngestResult, IngestStatements
 
 
 class App:
+    @classmethod
+    def from_folder(cls, folders, *, db_path: Optional[str] = None,
+                    recursive: bool = True, pattern: Optional[str] = None) -> "App":
+        """Wire the app to read statements from local folders — no Gmail, no OAuth, no approval gate.
+
+        This is the ungated onboarding path: `gmail.readonly` is a Google *restricted* scope, so the
+        Gmail adapter is capped at 100 users until a CASA assessment passes. Folder/upload import has
+        no such limit and works for any bank in any country.
+        """
+        from .adapters.sources.folder_source import FolderStatementSource
+        return cls(db_path=db_path,
+                   source=FolderStatementSource(folders, recursive=recursive, pattern=pattern))
+
     def __init__(self, *, db_path: Optional[str] = None, source=None):
         self.repo = SqliteTransactionRepository(db_path)
         self.categorizer = KeywordCategorizer()
