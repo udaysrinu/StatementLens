@@ -135,6 +135,10 @@ class _Handler(BaseHTTPRequestHandler):
             if route == "/api/upload":
                 return self._json(self._handle_upload())
 
+            if route == "/api/refresh":
+                r = self.server.sl_refresh()            # type: ignore[attr-defined]
+                return self._json(r)
+
             if route == "/api/gmail":
                 body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
                 r = self.server.sl_gmail(body.get("hints") or {})   # type: ignore[attr-defined]
@@ -211,6 +215,16 @@ def serve(app, *, account: str, host: str = "127.0.0.1", port: int = 8770,
                 "failed": r.failed, "skipped": r.skipped, "errors": r.errors[:5]}
 
     httpd.sl_gmail = _gmail                 # type: ignore[attr-defined]
+
+    def _refresh() -> Dict[str, Any]:
+        """Re-check the last-used source. Only Gmail can self-refresh; folders need a re-import."""
+        if app._source is None:
+            return {"ok": False, "reason": "Nothing to refresh from yet — import statements first."}
+        a = app.refresh(account=account, hints=base_hints, force=True)
+        return {"ok": a.ok, "inserted": a.inserted, "duplicate": a.duplicate,
+                "failed": a.failed, "reason": a.reason}
+
+    httpd.sl_refresh = _refresh             # type: ignore[attr-defined]
 
     url = f"http://{host}:{port}/?t={token}"
     if open_browser:

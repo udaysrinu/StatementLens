@@ -34,7 +34,8 @@ _FLOW_CODE = {
 
 def build_dataset(txns: List[Transaction], *, account: str = "Account",
                   currency: str = "INR", own_names: List[str] = None,
-                  tags: "tag_engine.TagStore" = None) -> Dict[str, Any]:
+                  tags: "tag_engine.TagStore" = None,
+                  sync: Dict[str, Any] = None) -> Dict[str, Any]:
     """Transaction list -> embeddable dataset for the app-shell renderer.
 
     `own_names` enables self-transfer exclusion: money moved between the owner's own accounts is
@@ -85,6 +86,7 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
         "meta": {
             "account": account,
             "currency": currency,
+            "sync": sync or {},
             "txn_count": len(rows),
             "verify_debit": debit_total,
             "verify_credit": credit_total,

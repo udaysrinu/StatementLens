@@ -57,6 +57,14 @@ def main(argv=None) -> int:
     srv.add_argument("--name"); srv.add_argument("--dob"); srv.add_argument("--mobile")
     srv.add_argument("--card-last4", dest="card_last4"); srv.add_argument("--rule-text", dest="rule_text")
 
+    ref = sub.add_parser("refresh", help="check for new statements and record the outcome")
+    ref.add_argument("--account", required=True)
+    ref.add_argument("--folder", nargs="*", help="refresh from folder(s) instead of Gmail")
+    ref.add_argument("--force", action="store_true", help="ignore the minimum interval")
+    ref.add_argument("--name"); ref.add_argument("--dob"); ref.add_argument("--mobile")
+    ref.add_argument("--card-last4", dest="card_last4"); ref.add_argument("--rule-text", dest="rule_text")
+
+    sub.add_parser("status", help="when did it last sync, and did it work?")
     sub.add_parser("stats", help="show what's stored")
 
     args = p.parse_args(argv)
@@ -93,6 +101,27 @@ def main(argv=None) -> int:
         serve(app, account=args.account, port=args.port,
               open_browser=not args.no_open, hints=_hints(args))
         return 0
+    if args.cmd == "refresh":
+        if args.folder:
+            app = App.from_folder(args.folder, db_path=args.db)
+        else:
+            from .adapters.sources.gmail_source import GmailStatementSource
+            app = App(db_path=args.db, source=GmailStatementSource())
+        a = app.refresh(account=args.account, hints=_hints(args), force=args.force)
+        print(f"ok={a.ok} inserted={a.inserted} duplicate={a.duplicate} failed={a.failed}")
+        if a.reason:
+            print(" ", a.reason)
+        # non-zero on failure so launchd/cron surfaces a broken connector instead of hiding it
+        return 0 if a.ok else 2
+    if args.cmd == "status":
+        st = App(db_path=args.db).sync_status()
+        if st.get("healthy"):
+            print(st["label"] + ("  [STALE]" if st.get("stale") else ""))
+        else:
+            # lead with the problem; the last-success time is context, not the headline
+            print(f"LAST SYNC FAILED: {st.get('reason') or 'unknown reason'}", file=sys.stderr)
+            print(f"  last successful sync: {st['label']}", file=sys.stderr)
+        return 0 if st.get("healthy") else 2
     if args.cmd == "stats":
         app = App(db_path=args.db)
         print(app.stats())

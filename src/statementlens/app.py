@@ -40,6 +40,12 @@ class App:
         # neither income nor spending, so counting both legs inflates every total
         self.own_names = own_names or []
         self.repo = SqliteTransactionRepository(db_path)
+        # The sync log lives beside the database so it stays writable if the DB is the problem.
+        # Derived from the db FILENAME, not just its folder — `with_name()` alone would give every
+        # database in a directory the same log, so two accounts would clobber each other's history.
+        from .usecases.refresh import SyncLog
+        db = Path(self.repo.path)
+        self.sync_log = SyncLog(str(db.with_name(f"{db.stem}.sync.json")))
         self.categorizer = KeywordCategorizer()
         self.parsers = (ParserRegistry()
                         .register(SavingsStatementParser())
@@ -60,7 +66,8 @@ class App:
         txns = self.repo.all(account)
         # user corrections are loaded from the DB, so a fixed tag survives restarts and re-ingests
         return build_dataset(txns, account=account, currency=currency,
-                             tags=self.repo.load_tags(), own_names=self.own_names)
+                             tags=self.repo.load_tags(), own_names=self.own_names,
+                             sync=self.sync_log.status())
 
     def correct_tag(self, *, tag: str, merchant: Optional[str] = None,
                     content_hash: Optional[str] = None) -> None:
@@ -80,3 +87,15 @@ class App:
 
     def stats(self) -> Dict[str, Any]:
         return self.repo.stats()
+
+    def refresh(self, *, account: str, hints: Dict[str, Any], force: bool = False,
+                limit: int = 100):
+        """Re-run ingest and record the outcome so a broken connector is visible, not silent."""
+        from .usecases.refresh import RefreshStatements
+        return RefreshStatements(
+            lambda: self.ingest(account=account, hints=hints, limit=limit),
+            log=self.sync_log).run(force=force)
+
+    def sync_status(self) -> Dict[str, Any]:
+        """Freshness for the UI — "updated 36 mins ago", or why it hasn't."""
+        return self.sync_log.status()

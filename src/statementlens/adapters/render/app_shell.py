@@ -49,7 +49,12 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .top{display:flex;justify-content:space-between;align-items:center;padding-top:8px}
 .hi{font-size:13px;color:var(--ink2)}.nm{font:600 19px/1.15 var(--disp);margin-top:2px}
 .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,var(--acc),#8fbf3a);display:grid;place-items:center;color:#08080a;font-weight:700;cursor:pointer}
-.acct{display:inline-flex;align-items:center;gap:7px;background:var(--s1);border:1px solid var(--line);border-radius:100px;padding:6px 13px;font-size:12.5px;color:var(--ink2);align-self:flex-start}
+.acctrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.acct{display:inline-flex;align-items:center;gap:7px;background:var(--s1);border:1px solid var(--line);border-radius:100px;padding:6px 13px;font-size:12.5px;color:var(--ink2)}
+/* freshness stamp: an aggregator's credibility rests on how current the data is */
+.fresh{font-size:12px;color:var(--ink3);display:inline-flex;align-items:center;gap:7px}
+.fresh.stale{color:var(--down)}
+.fresh button{background:none;border:none;color:var(--acc);font:600 12px var(--body);cursor:pointer;padding:0;text-decoration:underline}
 .acct .d{width:7px;height:7px;border-radius:50%;background:var(--acc)}
 
 /* hero */
@@ -186,7 +191,10 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
     <div><div class="hi" id="greet">welcome back,</div><div class="nm">__LABEL__</div></div>
     <button class="av" onclick="TT()" title="theme">◐</button>
   </div>
-  <span class="acct"><span class="d"></span> <span id="acctlbl">account</span></span>
+  <div class="acctrow">
+    <span class="acct"><span class="d"></span> <span id="acctlbl">account</span></span>
+    <span class="fresh" id="fresh"></span>
+  </div>
   <div id="views"></div>
  </div>
  <div class="nav" id="nav"></div>
@@ -195,6 +203,22 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 <script>
 const DATA=JSON.parse(document.getElementById('data').textContent),M=DATA.meta,ALL=DATA.txns,CUR=M.currency;
 document.getElementById('acctlbl').textContent=M.account+' · '+(M.txn_count)+' transactions';
+/* freshness + refresh. A stale dashboard that looks current is worse than one that admits it.
+   Defined as a function and called from draw() — running it inline here would touch `esc` and
+   `API` before their `const` declarations are initialized. */
+function showFreshness(){const s=M.sync||{},el=document.getElementById('fresh');if(!el)return;
+  const parts=[];
+  if(s.label)parts.push(esc(s.label));
+  if(s.reason)parts.push(esc(s.reason));
+  el.className='fresh'+(s.stale?' stale':'');
+  el.innerHTML=parts.join(' · ')+(API?' <button onclick="doRefresh(this)">refresh</button>':'');}
+function doRefresh(b){if(!API)return;b.disabled=true;b.textContent='checking…';
+  post('/api/refresh',{}).then(r=>{
+    if(r&&r.error){b.disabled=false;b.textContent='refresh';return toast(r.error);}
+    if(r&&r.reason&&!r.ok){b.disabled=false;b.textContent='refresh';return toast(r.reason);}
+    if(r&&(r.inserted||r.duplicate))location.reload();
+    else{b.textContent='up to date';setTimeout(()=>{b.disabled=false;b.textContent='refresh';},2200);}
+  });}
 
 function fmt(p,o){o=o||{};let neg=p<0;p=Math.abs(Math.round(p));let w=Math.floor(p/100),f=String(p%100).padStart(2,'0');
   let s=String(w),out;if(s.length>3){let h=s.slice(0,-3),t=s.slice(-3),ps=[];while(h.length>2){ps.unshift(h.slice(-2));h=h.slice(0,-2);}if(h)ps.unshift(h);out=ps.join(',')+','+t;}else out=s;
@@ -491,7 +515,7 @@ const VIEWS={home:home,spends:spends,insights:insightsV,search:search,
 function draw(){const v=document.getElementById('views');v.innerHTML=(VIEWS[TAB]||home)();
   let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
   v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));
-  nav();if(TAB==='home')countUp();}
+  nav();showFreshness();if(TAB==='home')countUp();}
 function go(t){TAB=t;window.scrollTo(0,0);draw();}
 function setR(r){RANGE=r;draw();}
 function setCF(v){CF=v;RANGE='C';draw();}

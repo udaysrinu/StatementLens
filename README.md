@@ -110,6 +110,38 @@ Identity hints only ever **derive** statement passwords in memory — they are n
 `ingest` exits non-zero and explains itself if nothing was imported, so a broken import can't
 masquerade as "no spending".
 
+## Staying up to date
+
+```bash
+statementlens refresh --account SBI    # check for new statements
+statementlens status                   # "updated 4 hours ago", or why not
+```
+
+The dashboard shows when it last synced and offers a refresh button, because a stale dashboard that
+looks current is worse than one that admits it. Both commands **exit non-zero on failure**, so a
+scheduled run surfaces a broken connector instead of hiding it.
+
+To refresh automatically each morning (macOS):
+
+```bash
+cat > ~/Library/LaunchAgents/com.statementlens.refresh.plist <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.statementlens.refresh</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/local/bin/statementlens</string><string>refresh</string>
+         <string>--account</string><string>SBI</string></array>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>9</integer></dict>
+  <key>StandardErrorPath</key><string>/tmp/statementlens.err</string>
+</dict></plist>
+PLIST
+launchctl load ~/Library/LaunchAgents/com.statementlens.refresh.plist
+```
+
+Refresh is safe to run as often as you like — content-hash dedup makes re-import a no-op, and a
+minimum interval stops it from hammering Gmail.
+
 Library use:
 
 ```python
