@@ -14,6 +14,12 @@ from ...domain.models import Direction, Transaction
 from . import upi
 
 DEFAULT_RULES: List[Tuple[str, str]] = [
+    # Card-statement rows first: a cashback line mentioning "Swiggy" is money IN, not a Swiggy order,
+    # and a bill payment is an internal transfer rather than a purchase. Both must win over the
+    # merchant rules below, which would otherwise match on the brand name inside them.
+    ("Card payment",   r"(?i)pymt\s+rec|payment\s+received|thank\s*you|bppy\s+cc\s+payment|"
+                       r"tele\s+transfer\s+credit|online\s+trf\s*-\s*pymt"),
+    ("Cashback & rewards", r"(?i)cash\s?back|cashback|reward\s?point|statement\s+credit|milestone\s+benefit"),
     ("Card bills",     r"(?i)cred\s?club|cred\.club|cred\s?ccbp|credit card|cc\s?payment|billdesk.*card|\bslice\b|onecard|jupiter|uni\s?card"),
     ("Investments",    r"(?i)zerodha|groww|kite|upstox|indiancl|bsestarmf|nse|bse|mutual fund|smallcase|coin\b|indmoney|paytm money|nsccl|iccl|sip\b|elss|\bnps\b|npscams|liquiloans|lendbox|ndxp2p|faircent|12%\s?club|wintwealth|jiraaf"),
     ("Loans & EMI",    r"(?i)loan\s?rep|\bemi\b|loan\s?emi|repayment|hdb\s?fin|bajaj\s?fin|nationalpe|home\s?loan|personal\s?loan"),
@@ -22,16 +28,32 @@ DEFAULT_RULES: List[Tuple[str, str]] = [
     ("Salary/Income",  r"(?i)\bsalary\b|sal-a|pfs salary|payroll|stipend"),
     ("Interest",       r"(?i)interest credit|int\.pd|cr int|savings interest"),
     ("Dividends",      r"(?i)dividend|fnldiv|achcr.*div"),
+    # Insurance before Bills: "LIFE INSURANCE CORPORAT" would otherwise fall through to untagged.
+    ("Insurance",      r"(?i)insuranc|policybazaar|policy\s?bazaar|\blic\b|life\s+insurance|"
+                       r"hdfc\s?life|icici\s?pru|max\s?life|star\s?health|niva\s?bupa|acko|digit\b|"
+                       r"tata\s?aig|bajaj\s?allianz|sbi\s?life|term\s?plan|premium\b"),
     ("Fuel",           r"(?i)\bfuel\b|petrol|diesel|hpcl|iocl|bharat petro|indian oil|hp pay|shell"),
     ("Bills & Utilities", r"(?i)electric|airtel|jio|vodafone|\bvi\b|bescom|mygate|gas|cylinder|broadband|wifi|water bill|dth|recharge|postpaid|bbps"),
     ("Groceries",      r"(?i)fresh|grocer|\bveg\b|vegetable|blinkit|zepto|bigbasket|dmart|d-mart|instamart|jiomart|super\s?market|kirana|milk|dairy|amazon\s?f|licious|country\s?deli"),
-    ("Food & Dining",  r"(?i)swiggy|zomato|restaurant|cafe|hotel|biryani|biriyani|kfc|mcd|dominos|pizza|bakery|barbeque|\bfood\b|dhaba|shawarma|dosa|eatclub|smartq|chai|tea\b|juice|sweets|hotel"),
-    ("Shopping",       r"(?i)amazon|flipkart|myntra|ajio|meesho|nykaa|reliance|lifestyle|decathlon|ikea|croma|\bstore\b|retail|hennes|maurit|aditya\s?birla|zudio|westside|trends"),
-    ("Health",         r"(?i)pharma|apollo|medplus|hospital|clinic|diagnostic|medical|1mg|pharmeasy|netmeds|health|aesthet"),
-    ("Travel",         r"(?i)irctc|uber|ola|rapido|redbus|makemytrip|goibibo|flight|indigo|airlines|\btravel\b|metro|toll|fastag"),
+    ("Food & Dining",  r"(?i)swiggy|bundl\s?tech|zomato|eternal\s?ltd|restaurant|cafe|hotel|biryani|biriyani|kfc|mcd|dominos|pizza|bakery|barbeque|\bfood\b|dhaba|shawarma|dosa|eatclub|smartq|chai|tea\b|juice|sweets|hotel"),
+    ("Shopping",       r"(?i)amazon|flipkart|myntra|ajio|meesho|nykaa|reliance|lifestyle|decathlon|ikea|"
+                       r"croma|\bstore\b|retail|hennes|maurit|aditya\s?birla|zudio|westside|trends|"
+                       r"snitch|bewakoof|apparel|garment|fashion|clothing|footwear|jewel|tanishq|"
+                       r"lenskart|titan\b|puma|adidas|nike|levi|uniqlo|shoppers\s?stop"),
+    ("Health",         r"(?i)pharma|apollo|medplus|hospital|clinic|diagnostic|medical|1mg|pharmeasy|"
+                       r"netmeds|health|aesthet|dental|\bdr\.?\s|lab\b|pathology|wellness|optical|"
+                       r"physio|ayurved|nephro|cardio"),
+    ("Travel",         r"(?i)irctc|uber|ola|rapido|redbus|make\s?my\s?trip|makemytrip|goibibo|flight|"
+                       r"indigo|airlines|\btravel\b|metro|toll|fastag|airbnb|agoda|booking\.com|"
+                       r"oyo\b|cleartrip|easemytrip|yatra|ixigo|goa\s?miles|vistara|air\s?india|"
+                       r"spicejet|akasa|hotel|resort|\bstay\b|zoomcar|blusmart"),
     ("Entertainment",  r"(?i)bookmyshow|netflix|spotify|prime video|hotstar|pvr|inox|movie|\bgame\b|\bbar\b|\bpub\b|liquor|wine"),
     ("Cash/ATM",       r"(?i)\batm\b|cash wdl|cash withdrawal|by cash"),
-    ("Fees & Charges", r"(?i)\bcharge|\bfee\b|gst|penalty|min bal|amc|annual fee|sms alert"),
+    ("Fees & Charges", r"(?i)\bcharge|\bfee\b|gst|penalty|min bal|amc|annual fee|sms alert|igst|"
+                       r"finance\s+charges?|late\s+payment|surcharge|interest\s+levied"),
+    # A wallet/aggregator line hides the real merchant; naming the intermediary beats "untagged".
+    ("Wallets & gateways", r"(?i)ppsl\*|paytm|phonepe|one\s?97|razorpay|\braz\*|payu|billdesk|"
+                       r"mobikwik|freecharge|amazon\s?pay|\bcas\*|\brsp\*|\btps\*"),
 ]
 _TRANSFER = re.compile(r"(?i)IMPS|NEFT|RTGS|^UPI/")
 

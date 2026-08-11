@@ -88,8 +88,22 @@ def test_self_transfer_gets_its_own_category():
 
 
 def test_aggregator_handle_is_a_merchant_not_a_person():
+    """A QR/aggregator handle means a business, whichever rule names it.
+
+    "Wallets & gateways" (matched on the paytmqr handle) and "Merchants (uncategorized)" (the UPI
+    fallback) both mean "a business we can't name" — the point of the test is that it is NOT filed as
+    a person-to-person transfer.
+    """
     t = txn("UPI/DR/1/UNKNOWN/YESB/paytmqr2810/Payment")
-    assert KeywordCategorizer().categorize(t) == "Merchants (uncategorized)"
+    got = KeywordCategorizer().categorize(t)
+    assert got in ("Merchants (uncategorized)", "Wallets & gateways"), got
+    assert got != "Transfers (people)"
+
+
+def test_a_handle_free_person_payment_is_still_a_person():
+    # guard the other direction: the new wallet rule must not swallow genuine P2P
+    t = txn("UPI/DR/1/SOMEONE/SBIN/someone@ybl/Payment")
+    assert KeywordCategorizer().categorize(t) == "Transfers (people)"
 
 
 def test_bank_account_handle_is_an_account_transfer():

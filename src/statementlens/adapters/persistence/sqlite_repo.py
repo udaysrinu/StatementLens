@@ -58,7 +58,8 @@ class SqliteTransactionRepository:
         CREATE TABLE IF NOT EXISTS txns(
             id INTEGER PRIMARY KEY AUTOINCREMENT, account TEXT, iso_date TEXT, raw_date TEXT,
             description TEXT, merchant TEXT, minor INTEGER, currency TEXT, direction TEXT,
-            balance_minor INTEGER, category TEXT, statement_id INTEGER, content_hash TEXT UNIQUE);
+            balance_minor INTEGER, category TEXT, statement_id INTEGER, content_hash TEXT UNIQUE,
+            provisional INTEGER DEFAULT 0);
         CREATE INDEX IF NOT EXISTS idx_txn_date ON txns(iso_date);
         CREATE INDEX IF NOT EXISTS idx_txn_merchant ON txns(merchant);
 
@@ -72,7 +73,14 @@ class SqliteTransactionRepository:
         CREATE TABLE IF NOT EXISTS txn_note(
             content_hash TEXT PRIMARY KEY, note TEXT NOT NULL);
         """)
+        self._migrate()
         self._conn.commit()
+
+    def _migrate(self) -> None:
+        """Add columns that older databases predate. Users must not have to delete their store."""
+        have = {r[1] for r in self._conn.execute("PRAGMA table_info(txns)")}
+        if "provisional" not in have:
+            self._conn.execute("ALTER TABLE txns ADD COLUMN provisional INTEGER DEFAULT 0")
 
     @staticmethod
     def _hash(t: Transaction, account: str) -> str:
@@ -96,10 +104,12 @@ class SqliteTransactionRepository:
             try:
                 self._conn.execute(
                     "INSERT INTO txns(account,iso_date,raw_date,description,merchant,minor,currency,"
-                    "direction,balance_minor,category,statement_id,content_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "direction,balance_minor,category,statement_id,content_hash,provisional)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (statement.account, t.txn_date.isoformat() if t.txn_date else None, t.raw_date,
                      t.description, t.merchant, t.amount.minor, t.amount.currency, t.direction.value,
-                     t.balance.minor if t.balance is not None else None, t.category, sid, h))
+                     t.balance.minor if t.balance is not None else None, t.category, sid, h,
+                     1 if t.provisional else 0))
                 inserted += 1
             except sqlite3.IntegrityError:
                 duplicate += 1
@@ -108,14 +118,14 @@ class SqliteTransactionRepository:
 
     def all(self, account: Optional[str] = None) -> List[Transaction]:
         q = ("SELECT iso_date,raw_date,description,merchant,minor,currency,direction,"
-             "balance_minor,category,content_hash FROM txns")
+             "balance_minor,category,content_hash,COALESCE(provisional,0) FROM txns")
         params: tuple = ()
         if account:
             q += " WHERE account=?"; params = (account,)
         q += " ORDER BY iso_date, id"
         out: List[Transaction] = []
         for r in self._conn.execute(q, params).fetchall():
-            iso, raw, desc, merch, minor, cur, dirn, bal, cat, chash = r
+            iso, raw, desc, merch, minor, cur, dirn, bal, cat, chash, prov = r
             out.append(Transaction(
                 txn_date=date.fromisoformat(iso) if iso else None,
                 description=desc or "", amount=Money(minor, cur or "INR"),
@@ -124,8 +134,25 @@ class SqliteTransactionRepository:
                 category=cat, raw_date=raw or "",
                 # the content hash IS the stable row identity: it survives re-ingest, so a tag
                 # correction keyed to it survives a statement refresh
-                source_ref=chash or ""))
+                source_ref=chash or "",
+                provisional=bool(prov)))
         return out
+
+    def purge_provisional(self, account: str, ranges) -> int:
+        """Delete provisional rows inside statement-covered date ranges. Returns rows removed.
+
+        Called after a statement import: once the bank's settled record covers a period, the
+        alert-derived rows for that period are noise that would double-count.
+        """
+        removed = 0
+        for start, end in ranges:
+            cur = self._conn.execute(
+                "DELETE FROM txns WHERE account=? AND COALESCE(provisional,0)=1"
+                " AND iso_date IS NOT NULL AND iso_date BETWEEN ? AND ?",
+                (account, start.isoformat(), end.isoformat()))
+            removed += cur.rowcount or 0
+        self._conn.commit()
+        return removed
 
     # -- tag corrections + notes -------------------------------------------
     def load_tags(self):

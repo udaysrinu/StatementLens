@@ -102,6 +102,34 @@ class App:
         p.write_text(html, encoding="utf-8")
         return str(p.resolve())
 
+    def ingest_alerts(self, *, account: str, source=None, currency: str = "INR",
+                      days: int = 45) -> Dict[str, Any]:
+        """Read transaction-ALERT emails and store them as provisional rows.
+
+        Rows landing inside a period an existing statement already covers are discarded immediately —
+        the settled record wins, so a swipe is never counted twice.
+        """
+        from .adapters.sources.alert_email_source import alerts_to_transactions
+        from .domain.models import Statement
+        from .usecases.supersede import coverage_from_transactions, is_covered
+
+        if source is None:
+            raise RuntimeError("pass an alert source (ImapAlertSource or GmailAlertSource)")
+        messages = source.messages()
+        txns = alerts_to_transactions(messages, currency=currency)
+
+        settled = [t for t in self.repo.all(account) if not t.provisional]
+        cov = coverage_from_transactions(settled, account)
+        ranges = [(cov.start, cov.end)] if cov else []
+        fresh = [t for t in txns if not is_covered(t.txn_date, ranges)]
+        skipped = len(txns) - len(fresh)
+
+        tagged = tuple(t.with_category(self.categorizer.categorize(t)) for t in fresh)
+        counts = self.repo.save_statement(
+            Statement(account, "alerts", "transaction alerts", "live", tagged))
+        return {"emails": len(messages), "parsed": len(txns), "inserted": counts["inserted"],
+                "duplicate": counts["duplicate"], "already_in_statement": skipped}
+
     def stats(self) -> Dict[str, Any]:
         return self.repo.stats()
 

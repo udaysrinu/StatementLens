@@ -14,6 +14,7 @@ from ..domain.models import Statement
 from ..domain.ports import (Categorizer, Decryptor, StatementSource,
                             TextExtractor, TransactionRepository)
 from .diagnose import diagnose
+from .supersede import coverage_from_transactions
 
 
 @dataclass
@@ -22,6 +23,8 @@ class IngestResult:
     inserted: int = 0
     duplicate: int = 0
     failed: int = 0
+    #: provisional alert rows removed because a statement now covers their period
+    superseded: int = 0
     errors: List[str] = field(default_factory=list)
     #: Per-document explanations for anything that yielded no transactions. Never let a document
     #: disappear silently — an empty dashboard with no reason is the worst possible outcome.
@@ -63,10 +66,23 @@ class IngestStatements:
                 result.statements += 1
                 result.inserted += counts["inserted"]
                 result.duplicate += counts["duplicate"]
+                # this statement is now the authoritative record for the period it covers, so any
+                # provisional alert rows in that window would double-count
+                result.superseded += self._supersede(stmt)
             except Exception as e:  # one bad statement shouldn't abort the batch
                 result.failed += 1
                 result.errors.append(f"{raw.source_name}: {e}")
         return result
+
+    def _supersede(self, stmt: Statement) -> int:
+        """Remove provisional rows covered by this statement, if the repo supports it."""
+        purge = getattr(self._repo, "purge_provisional", None)
+        if purge is None:
+            return 0
+        cov = coverage_from_transactions(stmt.transactions, stmt.account)
+        if cov is None:
+            return 0
+        return purge(stmt.account, [(cov.start, cov.end)])
 
     def _categorize(self, stmt: Statement) -> Statement:
         tagged = tuple(t.with_category(self._categorizer.categorize(t)) for t in stmt.transactions)

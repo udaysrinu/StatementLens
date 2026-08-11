@@ -22,7 +22,7 @@ class AppShellRenderer:
 
 
 _PAGE = r"""<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__LABEL__ · Money</title><link rel="icon" href="data:,">
@@ -32,23 +32,26 @@ _PAGE = r"""<!DOCTYPE html>
 :root{
   --bg:#08080a;--s1:#101013;--s2:#17171b;--ink:#f4f4f0;--ink2:#9a9aa2;--ink3:#5c5c64;
   --line:rgba(255,255,255,.07);--acc:#c6f24e;--up:#8fe08f;--down:#ff8f8f;
+  --page:#050507;--onacc:#08080a;--glow:198,242,78;--navbg:rgba(8,8,10,.86);--acc2:#8fbf3a;
   --disp:'Fraunces',Georgia,serif;--body:'Instrument Sans',system-ui,sans-serif;--ease:cubic-bezier(.2,.7,.3,1);
 }
-[data-theme=light]{--bg:#f1ede4;--s1:#faf8f2;--s2:#efe9dd;--ink:#1a1712;--ink2:#5f584c;--ink3:#9a917f;
-  --line:rgba(40,30,15,.1);--acc:#5c8a1f;--up:#3f7d43;--down:#c0503a;}
+/* Warm editorial (default) — the palette from the Stitch design system: parchment surfaces, a single
+   terracotta accent, espresso ink. Amber reads as "considered" where lime-on-black reads as "app". */
+[data-theme=light]{--bg:#efe7db;--s1:#faf8f2;--s2:#f2ede2;--ink:#241a12;--ink2:#5f584c;--ink3:#94816d;
+  --line:rgba(36,26,18,.12);--acc:#b5702a;--up:#3f7d43;--down:#c0503a;
+  --page:#e7dccb;--onacc:#fffaf2;--glow:181,112,42;--navbg:rgba(250,248,242,.92);--acc2:#8f5620;}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;justify-content:center;padding:0}
-[data-theme=light] body{background:#e6ddcd}
+body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;justify-content:center;padding:0}
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 .app{width:100%;max-width:460px;background:var(--bg);min-height:100vh;position:relative;
-  background-image:radial-gradient(58% 34% at 50% 0%,rgba(198,242,78,.06),transparent 62%)}
+  background-image:radial-gradient(58% 34% at 50% 0%,rgba(var(--glow),.07),transparent 62%)}
 .wrap{padding:20px 20px 108px;display:flex;flex-direction:column;gap:22px}
 
 /* top */
 .top{display:flex;justify-content:space-between;align-items:center;padding-top:8px}
 .hi{font-size:13px;color:var(--ink2)}.nm{font:600 19px/1.15 var(--disp);margin-top:2px}
-.av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,var(--acc),#8fbf3a);display:grid;place-items:center;color:#08080a;font-weight:700;cursor:pointer}
+.av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,var(--acc),var(--acc2));display:grid;place-items:center;color:var(--onacc);font-weight:700;cursor:pointer}
 .acctrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .acct{display:inline-flex;align-items:center;gap:7px;background:var(--s1);border:1px solid var(--line);border-radius:100px;padding:6px 13px;font-size:12.5px;color:var(--ink2)}
 /* freshness stamp: an aggregator's credibility rests on how current the data is */
@@ -73,7 +76,7 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .insrow{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 6px;scroll-snap-type:x mandatory;scrollbar-width:none}
 .insrow::-webkit-scrollbar{display:none}
 .ins{scroll-snap-align:start;flex:0 0 84%;background:linear-gradient(160deg,var(--s1),var(--s2));border:1px solid var(--line);border-radius:22px;padding:19px;animation:rise .5s var(--ease) both}
-.ins .ic{width:34px;height:34px;border-radius:10px;background:rgba(198,242,78,.13);display:grid;place-items:center;margin-bottom:13px;color:var(--acc)}
+.ins .ic{width:34px;height:34px;border-radius:10px;background:rgba(var(--glow),.13);display:grid;place-items:center;margin-bottom:13px;color:var(--acc)}
 .ins .ic svg{width:18px;height:18px}
 .ins.alert .ic{background:rgba(255,143,143,.14);color:var(--down)}
 .ins.positive .ic{background:rgba(143,224,143,.14);color:var(--up)}
@@ -88,7 +91,7 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .mtop .v{font:500 22px/1 var(--disp);margin-top:7px}
 .seg{display:flex;background:var(--s2);border-radius:100px;padding:3px}
 .seg button{border:none;background:transparent;color:var(--ink2);padding:6px 13px;border-radius:100px;font:600 12px var(--body);cursor:pointer}
-.seg button.on{background:var(--acc);color:#08080a}
+.seg button.on{background:var(--acc);color:var(--onacc)}
 .flow{display:flex;gap:8px;margin-bottom:14px}
 .fc{flex:1;min-width:0;background:var(--s2);border-radius:14px;padding:12px 12px}
 .fc .fl{font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -104,7 +107,7 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .rrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .chip{background:var(--s1);border:1px solid var(--line);color:var(--ink2);border-radius:100px;
   padding:7px 14px;font:600 12px var(--body);cursor:pointer}
-.chip.on{background:var(--acc);color:#08080a;border-color:var(--acc)}
+.chip.on{background:var(--acc);color:var(--onacc);border-color:var(--acc)}
 .rrow input[type=date]{background:var(--s2);border:1px solid var(--line);color:var(--ink);
   border-radius:10px;padding:6px 9px;font:500 12px var(--body);font-variant-numeric:tabular-nums}
 .rrow .to{color:var(--ink3);font-size:12px}
@@ -124,7 +127,7 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .tagwrap{display:flex;flex-wrap:wrap;gap:8px}
 .tagchip{background:transparent;border:1px solid var(--line);color:var(--ink2);border-radius:8px;
   padding:9px 12px;font:600 11px var(--body);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
-.tagchip.on{background:var(--acc);color:#08080a;border-color:var(--acc)}
+.tagchip.on{background:var(--acc);color:var(--onacc);border-color:var(--acc)}
 .notefield{width:100%;background:var(--s2);border:1px solid var(--line);border-radius:10px;
   color:var(--ink);font:400 13px var(--body);padding:10px 12px;margin-top:10px;resize:vertical}
 .notefield:focus{outline:none;border-color:var(--acc)}
@@ -161,8 +164,7 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .due{color:var(--acc);font-weight:600;font-size:12px}
 
 /* tabs */
-.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;height:70px;z-index:5;background:rgba(8,8,10,.86);backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;padding-bottom:6px}
-[data-theme=light] .nav{background:rgba(241,237,228,.9)}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;height:70px;z-index:5;background:var(--navbg);backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;padding-bottom:6px}
 .nav button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink3);font-size:10.5px;cursor:pointer;font-family:var(--body)}
 .nav button.on{color:var(--acc)}.nav button svg{width:21px;height:21px}
 .rise{animation:rise .5s var(--ease) both;animation-delay:calc(var(--i,0) * .06s)}

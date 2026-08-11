@@ -83,6 +83,12 @@ _LEGACY_ALIASES = {
     # categories added when the UPI decoder split the old catch-all
     "self transfer": SELF_TRANSFER_TAG,
     "account transfer": SELF_TRANSFER_TAG,
+    # paying your card bill moves money between your own accounts — same bucket as a self transfer,
+    # so it is excluded from spend totals instead of counted on both statements
+    "card payment": SELF_TRANSFER_TAG,
+    "cashback & rewards": UNTAGGED,      # money in, so it never belongs in a spend category
+    "insurance": "insurance",
+    "wallets & gateways": UNTAGGED,      # the real merchant is hidden; do not pretend to know it
     "merchants (uncategorized)": "shopping",
     "loans & emi": "loans",
     "taxes": "government and taxes",

@@ -33,6 +33,18 @@ INVESTMENT = "investment"
 SPEND = "spend"
 SELF_TRANSFER = "self"
 
+#: Paying your credit-card bill moves money between two accounts you own. On the BANK statement it
+#: looks like a debit; on the CARD statement the same money looks like a credit. Counting it as
+#: spending on one side and income on the other double-counts it twice over — so it is classified as
+#: a self-transfer and excluded from both, exactly like moving cash between your own accounts.
+_CARD_BILL_PAYMENT = re.compile(
+    r"""(?ix)
+      \bpymt\s+rec(?:ei)?v?e?d\b | \bpayment\s+received\b | \bthank\s*you\b
+    | \bbppy\s+cc\s+payment\b | \bcc\s+payment\b | \bcredit\s+card\s+payment\b
+    | \btele\s+transfer\s+credit\b | \bonline\s+trf\s*-\s*pymt\b
+    | \bautopay\b.*\bcard\b | \bneft\s+cr\b.*\bcard\b
+    """)
+
 #: Categories that represent moving money into an asset rather than consuming it.
 _INVESTMENT_CATEGORIES = {"investments", "investment", "mutual funds", "stocks", "sip"}
 
@@ -62,9 +74,18 @@ def is_self_transfer(txn: Transaction, own_names: Iterable[str]) -> bool:
     return False
 
 
+def is_card_bill_payment(txn: Transaction) -> bool:
+    """True when this row is a credit-card bill payment (an internal transfer, not income/spend)."""
+    return bool(_CARD_BILL_PAYMENT.search(f"{txn.merchant} {txn.description}"))
+
+
 def classify_flow(txn: Transaction, own_names: Iterable[str] = ()) -> str:
     """Bucket one transaction into incoming / investment / spend / self."""
     if own_names and is_self_transfer(txn, own_names):
+        return SELF_TRANSFER
+    # checked before the debit/credit split, because the same payment appears as a credit on the card
+    # statement and a debit on the bank statement — both legs must land in the same bucket
+    if is_card_bill_payment(txn):
         return SELF_TRANSFER
     if not txn.is_debit:
         return INCOMING
@@ -137,7 +158,10 @@ def incoming_breakdown(txns: Iterable[Transaction], own_names: Iterable[str] = (
 
 
 _SALARY_RE = re.compile(r"(?i)(\bsalary\b|\bsal\s+for\b|\bpayroll\b|\bneft.*\bsal\b)")
-_REFUND_RE = re.compile(r"(?i)\b(refund|reversal|cashback|rev\b)\b")
+_REFUND_RE = re.compile(r"(?i)\b(refund|reversal|rev\b|chargeback)\b")
+#: Card rewards are earnings of a sort but not a refund of anything — on a card statement they are
+#: often the single most frequent credit, so lumping them into "Refunds" hides both.
+_CASHBACK_RE = re.compile(r"(?i)(cashback|cash\s?back|reward\s?point|statement\s+credit|\bmilestone\b)")
 _INTEREST_RE = re.compile(r"(?i)\b(int\.?\s*pd|interest|int\s*cr)\b")
 
 
@@ -146,6 +170,8 @@ def _guess_income_source(txn: Transaction) -> Optional[str]:
     hay = f"{txn.merchant} {txn.description}"
     if _SALARY_RE.search(hay):
         return "Salary"
+    if _CASHBACK_RE.search(hay):
+        return "Cashback & rewards"
     if _REFUND_RE.search(hay):
         return "Refunds"
     if _INTEREST_RE.search(hay):

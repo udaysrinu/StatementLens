@@ -33,6 +33,10 @@ class Transaction:
     category: Optional[str] = None
     raw_date: str = ""            # the date exactly as printed, for provenance
     source_ref: str = ""          # statement id / hash for traceability
+    #: True when this row came from a transaction-ALERT email rather than a statement. Alerts arrive
+    #: instantly but are lossy and can describe an authorisation that never settles, so the statement
+    #: covering the same period always wins. See `usecases.supersede`.
+    provisional: bool = False
 
     @property
     def is_debit(self) -> bool:
@@ -46,7 +50,7 @@ class Transaction:
         """Return a copy tagged with a category (frozen -> return new instance)."""
         return Transaction(
             self.txn_date, self.description, self.amount, self.direction, self.merchant,
-            self.balance, category, self.raw_date, self.source_ref)
+            self.balance, category, self.raw_date, self.source_ref, self.provisional)
 
 
 @dataclass(frozen=True)
