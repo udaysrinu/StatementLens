@@ -11,19 +11,22 @@ import re
 from typing import List, Tuple
 
 from ...domain.models import Direction, Transaction
+from . import upi
 
 DEFAULT_RULES: List[Tuple[str, str]] = [
-    ("Card bills",     r"(?i)cred\s?club|cred\.club|credit card|cc\s?payment|billdesk.*card"),
-    ("Investments",    r"(?i)zerodha|groww|kite|upstox|indiancl|bsestarmf|nse|bse|mutual fund|smallcase|coin\b|indmoney|paytm money"),
+    ("Card bills",     r"(?i)cred\s?club|cred\.club|cred\s?ccbp|credit card|cc\s?payment|billdesk.*card|\bslice\b|onecard|jupiter|uni\s?card"),
+    ("Investments",    r"(?i)zerodha|groww|kite|upstox|indiancl|bsestarmf|nse|bse|mutual fund|smallcase|coin\b|indmoney|paytm money|nsccl|iccl|sip\b|elss|\bnps\b|npscams|liquiloans|lendbox|ndxp2p|faircent|12%\s?club|wintwealth|jiraaf"),
+    ("Loans & EMI",    r"(?i)loan\s?rep|\bemi\b|loan\s?emi|repayment|hdb\s?fin|bajaj\s?fin|nationalpe|home\s?loan|personal\s?loan"),
+    ("Taxes",          r"(?i)sbitin@|income\s?tax|itns|gst\s?pay|tin2\.|cbdt|advance\s?tax|tds\b"),
     ("Rent",           r"(?i)\brent\b"),
     ("Salary/Income",  r"(?i)\bsalary\b|sal-a|pfs salary|payroll|stipend"),
     ("Interest",       r"(?i)interest credit|int\.pd|cr int|savings interest"),
     ("Dividends",      r"(?i)dividend|fnldiv|achcr.*div"),
     ("Fuel",           r"(?i)\bfuel\b|petrol|diesel|hpcl|iocl|bharat petro|indian oil|hp pay|shell"),
     ("Bills & Utilities", r"(?i)electric|airtel|jio|vodafone|\bvi\b|bescom|mygate|gas|cylinder|broadband|wifi|water bill|dth|recharge|postpaid|bbps"),
-    ("Groceries",      r"(?i)fresh|grocer|\bveg\b|vegetable|blinkit|zepto|bigbasket|dmart|d-mart|instamart|jiomart|super\s?market|kirana|milk|dairy"),
-    ("Food & Dining",  r"(?i)swiggy|zomato|restaurant|cafe|hotel|biryani|biriyani|kfc|mcd|dominos|pizza|bakery|barbeque|\bfood\b|dhaba|shawarma|dosa|eatclub|smartq"),
-    ("Shopping",       r"(?i)amazon|flipkart|myntra|ajio|meesho|nykaa|reliance|lifestyle|decathlon|ikea|croma|\bstore\b|retail"),
+    ("Groceries",      r"(?i)fresh|grocer|\bveg\b|vegetable|blinkit|zepto|bigbasket|dmart|d-mart|instamart|jiomart|super\s?market|kirana|milk|dairy|amazon\s?f|licious|country\s?deli"),
+    ("Food & Dining",  r"(?i)swiggy|zomato|restaurant|cafe|hotel|biryani|biriyani|kfc|mcd|dominos|pizza|bakery|barbeque|\bfood\b|dhaba|shawarma|dosa|eatclub|smartq|chai|tea\b|juice|sweets|hotel"),
+    ("Shopping",       r"(?i)amazon|flipkart|myntra|ajio|meesho|nykaa|reliance|lifestyle|decathlon|ikea|croma|\bstore\b|retail|hennes|maurit|aditya\s?birla|zudio|westside|trends"),
     ("Health",         r"(?i)pharma|apollo|medplus|hospital|clinic|diagnostic|medical|1mg|pharmeasy|netmeds|health|aesthet"),
     ("Travel",         r"(?i)irctc|uber|ola|rapido|redbus|makemytrip|goibibo|flight|indigo|airlines|\btravel\b|metro|toll|fastag"),
     ("Entertainment",  r"(?i)bookmyshow|netflix|spotify|prime video|hotstar|pvr|inox|movie|\bgame\b|\bbar\b|\bpub\b|liquor|wine"),
@@ -32,16 +35,49 @@ DEFAULT_RULES: List[Tuple[str, str]] = [
 ]
 _TRANSFER = re.compile(r"(?i)IMPS|NEFT|RTGS|^UPI/")
 
+#: A UPI handle belonging to a payment aggregator means the counterparty is a BUSINESS even when the
+#: truncated name is unrecognisable — "paytm.s1c3", "razorpay", "mab0450001".
+_MERCHANT_HANDLE = re.compile(
+    r"(?i)razorpay|\brzp\b|payu|paytm\.|paytmqr|billdesk|ccavenue|cashfree|phonepe\.|\bpg\b|"
+    r"mab\d{5,}|instamojo|easebuzz|juspay|pinelabs|bharatpe|okbizaxis|\.ifsc|\bmerchant\b|"
+    r"\bqr\d{3,}|zomato|swiggy|\bstore@|shop@|retail")
+
 
 class KeywordCategorizer:
-    def __init__(self, rules: List[Tuple[str, str]] | None = None):
+    """Rule-based categorizer that reads decoded UPI fields, not just the raw narration.
+
+    `own_names` enables a distinct "Self transfer" category. Without it, money the user moves between
+    their own accounts lands in the person-to-person bucket and inflates apparent spending — on a real
+    45-statement set that was ₹11.7L of the largest category.
+    """
+
+    def __init__(self, rules: List[Tuple[str, str]] | None = None,
+                 own_names: List[str] | None = None):
         self._rules = [(cat, re.compile(pat)) for cat, pat in (rules or DEFAULT_RULES)]
+        self._own = list(own_names or [])
 
     def categorize(self, txn: Transaction) -> str:
+        parts = upi.parse_upi(txn.description)
+        # The bank truncates the payee name to ~8 chars, so include the VPA handle and note —
+        # "cred.club@" is matchable where "CRED Clu" is not.
         blob = f"{txn.description} {txn.merchant}"
+        if parts:
+            blob = f"{blob} {parts.searchable}"
+
+        if self._own and upi.is_self_transfer_narration(txn.description, self._own):
+            return "Self transfer"
+
         for cat, pat in self._rules:
             if pat.search(blob):
                 return cat
+
         if _TRANSFER.search(txn.description):
-            return "Transfers (in)" if txn.direction is Direction.CREDIT else "Transfers (people)"
+            if txn.direction is Direction.CREDIT:
+                return "Transfers (in)"
+            # split the old catch-all: an aggregator handle or a bank-account handle is not a person
+            if parts and (_MERCHANT_HANDLE.search(parts.vpa) or _MERCHANT_HANDLE.search(parts.note)):
+                return "Merchants (uncategorized)"
+            if parts and parts.is_bank_transfer:
+                return "Account transfer"
+            return "Transfers (people)"
         return "Other income" if txn.direction is Direction.CREDIT else "Other"

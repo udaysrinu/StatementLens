@@ -40,13 +40,15 @@ class App:
         # neither income nor spending, so counting both legs inflates every total
         self.own_names = own_names or []
         self.repo = SqliteTransactionRepository(db_path)
+        # the categorizer needs the holder's name too, so self-transfers get their own tag rather
+        # than inflating person-to-person spending
         # The sync log lives beside the database so it stays writable if the DB is the problem.
         # Derived from the db FILENAME, not just its folder — `with_name()` alone would give every
         # database in a directory the same log, so two accounts would clobber each other's history.
         from .usecases.refresh import SyncLog
         db = Path(self.repo.path)
         self.sync_log = SyncLog(str(db.with_name(f"{db.stem}.sync.json")))
-        self.categorizer = KeywordCategorizer()
+        self.categorizer = KeywordCategorizer(own_names=self.own_names)
         self.parsers = (ParserRegistry()
                         .register(SavingsStatementParser())
                         .register(CardStatementParser()))
