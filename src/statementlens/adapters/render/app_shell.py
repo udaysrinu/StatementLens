@@ -84,10 +84,47 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .seg{display:flex;background:var(--s2);border-radius:100px;padding:3px}
 .seg button{border:none;background:transparent;color:var(--ink2);padding:6px 13px;border-radius:100px;font:600 12px var(--body);cursor:pointer}
 .seg button.on{background:var(--acc);color:#08080a}
-.flow{display:flex;gap:10px;margin-bottom:14px}
-.fc{flex:1;background:var(--s2);border-radius:14px;padding:13px 15px}
-.fc .fl{font-size:11.5px;color:var(--ink3)}.fc .fv{font:500 19px/1 var(--disp);margin-top:6px}
-.fin{color:var(--up)}.fout{color:var(--ink)}
+.flow{display:flex;gap:8px;margin-bottom:14px}
+.fc{flex:1;min-width:0;background:var(--s2);border-radius:14px;padding:12px 12px}
+.fc .fl{font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc .fv{font:500 17px/1 var(--disp);margin-top:6px}
+.fin{color:var(--up)}.fout{color:var(--ink)}.finv{color:var(--ink2)}
+
+/* hero avg sub-line + disclosure note */
+.hero .avg{font-size:12px;color:var(--ink3);margin-top:3px}
+.note{font-size:12px;color:var(--ink3);background:var(--s1);border:1px solid var(--line);
+  border-radius:12px;padding:10px 13px;line-height:1.4}
+
+/* period control */
+.rrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{background:var(--s1);border:1px solid var(--line);color:var(--ink2);border-radius:100px;
+  padding:7px 14px;font:600 12px var(--body);cursor:pointer}
+.chip.on{background:var(--acc);color:#08080a;border-color:var(--acc)}
+.rrow input[type=date]{background:var(--s2);border:1px solid var(--line);color:var(--ink);
+  border-radius:10px;padding:6px 9px;font:500 12px var(--body);font-variant-numeric:tabular-nums}
+.rrow .to{color:var(--ink3);font-size:12px}
+
+/* monthly bars + avg reference line */
+.chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:132px;padding-top:6px}
+.bcol{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%}
+.bwrap{flex:1;width:100%;display:flex;align-items:flex-end}
+.bwrap i{display:block;width:100%;border-radius:5px 5px 2px 2px;background:var(--s2)}
+.bwrap i.on{background:var(--acc)}
+.blab{font-size:9.5px;color:var(--ink3);letter-spacing:.04em}
+.bval{font-size:9px;color:var(--ink3)}
+.avgline{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--up);opacity:.55;z-index:1}
+.avgt{font-size:11px;color:var(--ink3);font-family:var(--body);font-weight:400}
+
+/* tag chips (correction UI) */
+.tagwrap{display:flex;flex-wrap:wrap;gap:8px}
+.tagchip{background:transparent;border:1px solid var(--line);color:var(--ink2);border-radius:8px;
+  padding:9px 12px;font:600 11px var(--body);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+.tagchip.on{background:var(--acc);color:#08080a;border-color:var(--acc)}
+.notefield{width:100%;background:var(--s2);border:1px solid var(--line);border-radius:10px;
+  color:var(--ink);font:400 13px var(--body);padding:10px 12px;margin-top:10px;resize:vertical}
+.notefield:focus{outline:none;border-color:var(--acc)}
+.sortb{background:var(--s1);border:1px solid var(--line);color:var(--ink2);border-radius:100px;
+  padding:6px 13px;font:600 11px var(--body);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
 .flowbar{height:9px;border-radius:6px;background:var(--s2);overflow:hidden;display:flex}
 .flowbar .bin{background:var(--up);height:100%}.flowbar .bout{background:var(--down);height:100%;opacity:.8}
 
@@ -113,7 +150,7 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .due{color:var(--acc);font-weight:600;font-size:12px}
 
 /* tabs */
-.nav{position:fixed;bottom:0;width:100%;max-width:460px;height:70px;background:rgba(8,8,10,.86);backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;padding-bottom:6px}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;height:70px;z-index:5;background:rgba(8,8,10,.86);backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;padding-bottom:6px}
 [data-theme=light] .nav{background:rgba(241,237,228,.9)}
 .nav button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink3);font-size:10.5px;cursor:pointer;font-family:var(--body)}
 .nav button.on{color:var(--acc)}.nav button svg{width:21px;height:21px}
@@ -125,6 +162,15 @@ body{background:#050507;color:var(--ink);font-family:var(--body);font-size:15px;
 .search:focus{outline:none;border-color:var(--acc)}
 .empty{text-align:center;padding:40px;color:var(--ink3)}
 .view{display:none}.view.on{display:flex;flex-direction:column;gap:22px}
+
+/* sticky day headers on the ledger */
+.dayh{position:sticky;top:0;z-index:2;background:var(--bg);padding:8px 2px 6px;
+  font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+.trow{cursor:pointer}
+.back{color:var(--acc);cursor:pointer;text-decoration:none}
+.card .l{font-size:11.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em}
+.card .dv{font:600 16px/1.3 var(--body);margin-top:7px}
+.card .dsub{font-size:12px;color:var(--ink3);margin-top:5px;word-break:break-word}
 </style>
 </head>
 <body>
@@ -167,22 +213,63 @@ function catIcon(c){c=(c||'').toLowerCase();if(/food|dining/.test(c))return'food
   if(/rent|home/.test(c))return'home';if(/bill|utilit/.test(c))return'bill';if(/invest/.test(c))return'invest';
   if(/card/.test(c))return'card';if(/cash|atm/.test(c))return'cash';if(/transfer|people/.test(c))return'transfer';return'dot';}
 
-/* ---- compute (integer paise) ---- */
+/* ---- compute (integer paise) ----
+   Three-way flow, mirroring the server: self-transfers ('x') are excluded from BOTH sides, and
+   investments ('v') are kept out of `out` so "spent" never counts money you still own. */
 function inRange(t,f,tt){return (!f||t.d>=f)&&(!tt||t.d<=tt);}
-function compute(rows){let inn=0,out=0;const catT={},catC={},merT={},merC={},recMon={},recAmt={},moOut={};
-  for(const t of rows){if(t.dir==='C')inn+=t.a;else{out+=t.a;catT[t.c]=(catT[t.c]||0)+t.a;catC[t.c]=(catC[t.c]||0)+1;
-    if(t.mo)moOut[t.mo]=(moOut[t.mo]||0)+t.a;
-    if(t.m){merT[t.m]=(merT[t.m]||0)+t.a;merC[t.m]=(merC[t.m]||0)+1;(recMon[t.m]=recMon[t.m]||new Set()).add(t.mo);(recAmt[t.m]=recAmt[t.m]||[]).push(t.a);}}}
+function compute(rows){let inn=0,out=0,inv=0,slf=0,slfN=0;
+  const catT={},catC={},merT={},merC={},recMon={},recAmt={},moOut={},merName={};
+  for(const t of rows){
+    if(t.f==='x'){slf+=t.a;slfN++;continue;}
+    if(t.f==='i'){inn+=t.a;continue;}
+    if(t.f==='v')inv+=t.a;
+    else{out+=t.a;if(t.mo)moOut[t.mo]=(moOut[t.mo]||0)+t.a;}
+    catT[t.c]=(catT[t.c]||0)+t.a;catC[t.c]=(catC[t.c]||0)+1;
+    // merchant keys are case-folded so "ZERODHA"/"Zerodha" stay one payee, as on the server
+    if(t.m){const mk=t.m.trim().toLowerCase();
+      merT[mk]=(merT[mk]||0)+t.a;merC[mk]=(merC[mk]||0)+1;merName[mk]=merName[mk]||t.m;
+      (recMon[mk]=recMon[mk]||new Set()).add(t.mo);(recAmt[mk]=recAmt[mk]||[]).push(t.a);}}
   const cats=Object.keys(catT).map(c=>({c,a:catT[c],n:catC[c]})).sort((x,y)=>y.a-x.a);
+  // denominator for category shares: everything the categories actually contain (spend+investment)
+  const catTotal=cats.reduce((s,c)=>s+c.a,0);
   const med=a=>{const s=a.slice().sort((x,y)=>x-y),n=s.length;return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):0;};
-  const recurring=Object.keys(recMon).filter(m=>recMon[m].size>=3).map(m=>({m,months:recMon[m].size,med:med(recAmt[m]),total:merT[m]})).sort((a,b)=>b.total-a.total).slice(0,6);
+  const recurring=Object.keys(recMon).filter(m=>recMon[m].size>=3)
+    .map(m=>({m:merName[m],months:recMon[m].size,med:med(recAmt[m]),total:merT[m]}))
+    .sort((a,b)=>b.total-a.total).slice(0,6);
   const bal=rows.filter(t=>t.b!=null).slice(-1)[0];
-  return {inn,out,cats,recurring,closing:bal?bal.b:null,count:rows.length};}
+  const nMo=Object.keys(moOut).length||1;
+  return {inn,out,inv,slf,slfN,cats,catTotal,recurring,closing:bal?bal.b:null,count:rows.length,
+          moOut,months:nMo,avgOut:Math.round(out/nMo),avgIn:Math.round(inn/nMo)};}
 
-/* ---- home view ---- */
-let RANGE='all';
+/* ---- period control ---- */
+let RANGE='all',CF='',CT='',SORT='high';
 function monthsBack(n){if(!M.max_date)return'';const d=new Date(M.max_date+'T00:00:00Z');d.setUTCMonth(d.getUTCMonth()-n);return d.toISOString().slice(0,10);}
-function rangeFilter(){if(RANGE==='all')return ALL;const map={W:0.25,M:1,Y:12};const f=RANGE==='M'?monthsBack(1):RANGE==='Y'?monthsBack(12):monthsBack(0.25);return ALL.filter(t=>t.d&&t.d>=f);}
+/* salary cycle: the window your money actually resets on, not the calendar month */
+function salaryCycle(){if(!M.salary_day||!M.max_date)return null;
+  const d=new Date(M.max_date+'T00:00:00Z'),day=M.salary_day;
+  const clamp=(y,m)=>{let dd=Math.min(day,new Date(Date.UTC(y,m+1,0)).getUTCDate());return new Date(Date.UTC(y,m,dd));};
+  let s=clamp(d.getUTCFullYear(),d.getUTCMonth());
+  if(d<s)s=clamp(d.getUTCFullYear(),d.getUTCMonth()-1);
+  const iso=x=>x.toISOString().slice(0,10);return {f:iso(s),t:M.max_date};}
+function rangeFilter(){
+  if(RANGE==='C')return ALL.filter(t=>t.d&&inRange(t,CF,CT));
+  if(RANGE==='S'){const c=salaryCycle();return c?ALL.filter(t=>t.d&&inRange(t,c.f,c.t)):ALL;}
+  if(RANGE==='all')return ALL;
+  const f=RANGE==='M'?monthsBack(1):RANGE==='Y'?monthsBack(12):monthsBack(0.25);
+  return ALL.filter(t=>t.d&&t.d>=f);}
+function rangeLabel(){if(RANGE==='C')return (CF||'start')+' → '+(CT||'now');
+  if(RANGE==='S'){const c=salaryCycle();return c?'salary cycle · from '+c.f:'salary cycle';}
+  return RANGE==='all'?'· all time':'this '+({W:'week',M:'month',Y:'year'}[RANGE]);}
+function segBar(){const opts=[['W','W'],['M','M'],['Y','Y'],['all','All']];
+  if(M.salary_day)opts.push(['S','Cycle']);
+  return `<div class="seg">${opts.map(([k,l])=>`<button class="${RANGE===k?'on':''}" onclick="setR('${k}')">${l}</button>`).join('')}</div>`;}
+/* native date inputs — no picker library needed */
+function rangeRow(){return `<div class="rrow">
+  <button class="chip ${RANGE==='C'?'on':''}" onclick="setR('C')">custom range</button>
+  ${RANGE==='C'?`<input type="date" value="${CF}" max="${M.max_date||''}" onchange="setCF(this.value)">
+   <span class="to">→</span>
+   <input type="date" value="${CT}" max="${M.max_date||''}" onchange="setCT(this.value)">`:''}
+  </div>`;}
 
 function home(){
   const rows=rangeFilter(),R=compute(rows);
@@ -199,38 +286,165 @@ function home(){
   const tot=R.inn+R.out||1,inW=Math.round(R.inn/tot*100);
   // categories top5
   let cats='';R.cats.slice(0,5).forEach(c=>{const f=c.a/(R.cats[0].a||1);
-    cats+=`<div class="crow"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(f*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/R.out*100).toFixed(0)}%</div></div></div>`;});
+    cats+=`<div class="crow" onclick="openTag('${esc(c.c).replace(/'/g,"")}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(f*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(0)}%</div></div></div>`;});
   // recurring
   let rec='';R.recurring.slice(0,4).forEach(r=>{rec+=`<div class="trow"><div class="ti">${(r.m||'?').slice(0,2).toUpperCase()}</div><div class="tm"><div class="tn">${esc(r.m)}</div><div class="td">seen ${r.months} months</div></div><div class="tv num">${fmt(r.med)}</div></div>`;});
   // recent
-  let rec2='';rows.slice().reverse().slice(0,4).forEach(t=>{rec2+=`<div class="trow"><div class="ti">${(t.m||t.c||'?').slice(0,2).toUpperCase()}</div><div class="tm"><div class="tn">${esc(t.m||t.desc)}</div><div class="td">${esc(t.d)} · ${esc(t.c)}</div></div><div class="tv num ${t.dir==='C'?'in':''}">${t.dir==='C'?'+':'−'}${fmt(t.a).replace('-','')}</div></div>`;});
+  let rec2='';rows.slice().reverse().slice(0,4).forEach(t=>{rec2+=txRow(t,true);});
+
+  // avg-per-month sub-line: the comparative CRED puts under every total
+  const avgLine=R.months>1?`<div class="avg num">avg per month ${fmtK(R.avgOut)}</div>`:'';
+  // self-transfer disclosure — never silently drop money from the totals
+  const slfNote=R.slfN?`<div class="note rise">self-transfers are excluded · ${fmtK(R.slf)} across ${R.slfN} transactions</div>`:'';
 
   return `<div class="view on">
-    <div class="hero rise"><div class="l">spent ${RANGE==='all'?'· all time':'this '+({W:'week',M:'month',Y:'year'}[RANGE])}</div><div class="big num" id="hero" data-to="${R.out}">${fmt(R.out)}</div>${deltaHtml}</div>
+    <div class="hero rise"><div class="l">spent ${rangeLabel()}</div><div class="big num" id="hero" data-to="${R.out}">${fmt(R.out)}</div>${deltaHtml}${avgLine}</div>
+    ${rangeRow()}
+    ${slfNote}
     ${DATA.insights.length?`<div class="st"><h2>for you</h2></div><div class="insrow">${ins}</div>`:''}
-    <div class="card rise"><div class="mtop"><div><div class="l">cash flow</div><div class="v num">${fmt(R.inn-R.out,{sign:true})} net</div></div>
-      <div class="seg">${['W','M','Y','all'].map(r=>`<button class="${RANGE===r?'on':''}" onclick="setR('${r}')">${r==='all'?'All':r}</button>`).join('')}</div></div>
-      <div class="flow"><div class="fc"><div class="fl">money in</div><div class="fv fin num">${fmtK(R.inn)}</div></div><div class="fc"><div class="fl">money out</div><div class="fv fout num">${fmtK(R.out)}</div></div></div>
+    <div class="card rise"><div class="mtop"><div><div class="l">cash flow</div><div class="v num">${fmt(R.inn-R.out-R.inv,{sign:true})} net</div></div>
+      ${segBar()}</div>
+      <div class="flow"><div class="fc"><div class="fl">incoming</div><div class="fv fin num">${fmtK(R.inn)}</div></div>
+        <div class="fc"><div class="fl">investments</div><div class="fv finv num">${fmtK(R.inv)}</div></div>
+        <div class="fc"><div class="fl">spends</div><div class="fv fout num">${fmtK(R.out)}</div></div></div>
       <div class="flowbar"><span class="bin" style="width:${inW}%"></span><span class="bout" style="width:${100-inW}%"></span></div></div>
+    ${monthChart()}
     <div class="st"><h2>where it went</h2><a onclick="go('spends')">see all</a></div>
     <div class="list rise">${cats||'<div class="empty">no spends in range</div>'}</div>
-    ${rec?`<div class="st"><h2>recurring</h2></div><div class="list rise">${rec}</div>`:''}
+    ${rec?`<div class="st"><h2>recurring</h2><a onclick="go('recurring')">see all</a></div><div class="list rise">${rec}</div>`:''}
     <div class="st"><h2>recent</h2><a onclick="go('search')">view all</a></div>
     <div class="list rise">${rec2||'<div class="empty">nothing here</div>'}</div>
   </div>`;
 }
+
+/* ---- monthly bars with an AVG reference line (CRED's "past trends") ---- */
+function monthChart(){const S=DATA.monthly||[];if(S.length<2)return'';
+  const peak=Math.max(...S.map(m=>m.amount))||1,avg=S[0].avg||0,avgPct=Math.min(100,avg/peak*100);
+  const bars=S.map(m=>{const h=Math.max(2,m.amount/peak*100),on=m.month===S[S.length-1].month;
+    return `<div class="bcol"><div class="bwrap"><i class="${on?'on':''}" style="height:${h}%" title="${esc(m.month)} · ${fmt(m.amount)}"></i></div>
+      <div class="blab">${esc(m.month.slice(5))}</div><div class="bval num">${fmtK(m.amount)}</div></div>`;}).join('');
+  return `<div class="card rise"><div class="mtop"><div><div class="l">past trends</div>
+      <div class="v num">${fmtK(avg)} <span class="avgt">avg / month</span></div></div></div>
+    <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>${bars}</div></div>`;}
 function hl(s){return esc(s).replace(/(₹[\d,]+(?:\.\d+)?(?:Cr|L|k)?)/g,'<b>$1</b>');}
 
-/* ---- spends view (all categories) ---- */
-function spends(){const R=compute(ALL);let rows='';R.cats.forEach(c=>{const f=c.a/(R.cats[0].a||1);
-  rows+=`<div class="crow"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(f*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/R.out*100).toFixed(0)}% · ${c.n}×</div></div></div>`;});
-  return `<div class="view on"><div class="hero rise"><div class="l">total spent · all time</div><div class="big num">${fmt(R.out)}</div></div><div class="st"><h2>all categories</h2></div><div class="list rise">${rows}</div></div>`;}
+/* ---- spends view: tag-wise grouping, sortable ---- */
+function spends(){const rows0=rangeFilter(),R=compute(rows0);
+  let cats=R.cats.slice();
+  if(SORT==='low')cats.reverse();
+  else if(SORT==='count')cats.sort((a,b)=>b.n-a.n);
+  const maxA=Math.max(...cats.map(c=>c.a),1);
+  let rows='';cats.forEach(c=>{
+    rows+=`<div class="crow" onclick="openTag('${esc(c.c).replace(/'/g,"")}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(c.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(1)}% · ${c.n}×</div></div></div>`;});
+  const nextSort={high:'low',low:'count',count:'high'}[SORT],
+        sortLbl={high:'high to low',low:'low to high',count:'most frequent'}[SORT];
+  return `<div class="view on">
+    <div class="hero rise"><div class="l">spent ${rangeLabel()}</div><div class="big num">${fmt(R.out)}</div>
+      ${R.months>1?`<div class="avg num">avg per month ${fmtK(R.avgOut)}</div>`:''}</div>
+    ${rangeRow()}
+    <div class="st"><h2>by tag</h2><button class="sortb" onclick="setSort('${nextSort}')">${sortLbl} ⇅</button></div>
+    <div class="list rise">${rows||'<div class="empty">no spends in range</div>'}</div>
+    ${(DATA.review_queue||[]).length?`<div class="st"><h2>needs a tag</h2></div>
+      <div class="note rise">${DATA.untagged} transactions couldn't be tagged automatically. fixing the biggest ones sharpens every number above.</div>
+      <div class="list rise">${DATA.review_queue.slice(0,6).map(r=>`<div class="trow" onclick="openMerchant('${esc(r.merchant).replace(/'/g,"")}')"><div class="ti">${esc((r.merchant||'?').slice(0,2)).toUpperCase()}</div><div class="tm"><div class="tn">${esc(r.merchant)}</div><div class="td">${r.count}× · untagged</div></div><div class="tv num">${fmt(r.amount)}</div></div>`).join('')}</div>`:''}
+  </div>`;}
+
+/* ---- one tag's transactions (drill-down from the tag list) ---- */
+let TAGVIEW='',MERVIEW='';
+function openTag(t){TAGVIEW=t;MERVIEW='';TAB='tagdetail';window.scrollTo(0,0);draw();}
+function openMerchant(m){MERVIEW=m;TAGVIEW='';TAB='tagdetail';window.scrollTo(0,0);draw();}
+function tagDetail(){
+  const key=TAGVIEW||MERVIEW,byTag=!!TAGVIEW;
+  const rows=rangeFilter().filter(t=>byTag?t.c===key:(t.m||'')===key);
+  const tot=rows.filter(t=>t.f!=='i'&&t.f!=='x').reduce((s,t)=>s+t.a,0);
+  // merchant roll-up with count + average — merchant identity, not a flat list
+  const byMer={},cnt={};rows.forEach(t=>{if(t.f==='i'||t.f==='x')return;const m=t.m||t.desc;byMer[m]=(byMer[m]||0)+t.a;cnt[m]=(cnt[m]||0)+1;});
+  const mers=Object.keys(byMer).map(m=>({m,a:byMer[m],n:cnt[m]})).sort((a,b)=>b.a-a.a);
+  const maxA=Math.max(...mers.map(m=>m.a),1);
+  const merRows=mers.slice(0,12).map(m=>`<div class="crow"><div class="ci">${I(catIcon(key))}</div><div class="cm"><div class="cn">${esc(m.m)}</div><div class="cb"><i style="width:${(m.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(m.a)}</div><div class="cp">${m.n}× · ~${fmtK(Math.round(m.a/m.n))} avg</div></div></div>`).join('');
+  const txRows=dayGrouped(rows.slice().reverse().slice(0,60));
+  return `<div class="view on">
+    <div class="hero rise"><div class="l"><a class="back" onclick="go('spends')">‹ back</a> · ${esc(key)}</div>
+      <div class="big num">${fmt(tot)}</div><div class="avg">${rows.length} transactions</div></div>
+    <div class="st"><h2>top ${byTag?'merchants':'activity'}</h2></div>
+    <div class="list rise">${merRows||'<div class="empty">nothing here</div>'}</div>
+    <div class="st"><h2>transactions</h2></div>${txRows}
+  </div>`;}
+
+/* day-grouped ledger under sticky date headers */
+function dayGrouped(rows){if(!rows.length)return'<div class="empty">nothing here</div>';
+  let out='',day='';
+  rows.forEach(t=>{if(t.d!==day){if(day)out+='</div>';day=t.d;out+=`<div class="dayh">${dayLabel(t.d)}</div><div class="list rise">`;}
+    out+=txRow(t);});
+  return out+'</div>';}
+function dayLabel(d){if(!d||!M.max_date)return esc(d);
+  const a=new Date(d+'T00:00:00Z'),b=new Date(M.max_date+'T00:00:00Z'),diff=Math.round((b-a)/864e5);
+  if(diff===0)return'today';if(diff===1)return'yesterday';
+  return a.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});}
+/* `withDate` is for lists with no day header of their own (e.g. home's "recent") */
+function txRow(t,withDate){const isIn=t.f==='i';
+  const sub=[withDate?dayLabel(t.d):null,t.c,t.f==='x'?'self':null,t.note?'📝':null].filter(Boolean).join(' · ');
+  return `<div class="trow" onclick="openTxn('${esc(t.ref)}')"><div class="ti">${esc((t.m||t.c||'?').slice(0,2)).toUpperCase()}</div>
+    <div class="tm"><div class="tn">${esc(t.m||t.desc)}</div><div class="td">${esc(sub)}</div></div>
+    <div class="tv num ${isIn?'in':''}">${isIn?'+':'−'}${fmt(t.a).replace('-','')}</div></div>`;}
 
 /* ---- search / ledger view ---- */
-function search(){let rows='';ALL.slice().reverse().slice(0,600).forEach(t=>{
-  rows+=`<div class="trow"><div class="ti">${(t.m||t.c||'?').slice(0,2).toUpperCase()}</div><div class="tm"><div class="tn">${esc(t.m||t.desc)}</div><div class="td">${esc(t.d)} · ${esc(t.c)}</div></div><div class="tv num ${t.dir==='C'?'in':''}">${t.dir==='C'?'+':'−'}${fmt(t.a).replace('-','')}</div></div>`;});
-  return `<div class="view on"><div class="st"><h2>all transactions</h2></div><input class="search" placeholder="search merchant or category…" oninput="ft(this)"><div class="list rise" id="led">${rows}</div></div>`;}
-function ft(i){const q=i.value.toLowerCase();document.querySelectorAll('#led .trow').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});}
+function search(){const rows=rangeFilter().slice().reverse().slice(0,600);
+  return `<div class="view on"><div class="st"><h2>all transactions</h2></div>
+    <input class="search" placeholder="search merchant or tag…" oninput="ft(this)">
+    ${rangeRow()}
+    <div id="led">${dayGrouped(rows)}</div></div>`;}
+function ft(i){const q=i.value.toLowerCase();
+  document.querySelectorAll('#led .trow').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});
+  // hide a day header whose rows are all filtered out, so no orphan dates remain
+  document.querySelectorAll('#led .list').forEach(l=>{
+    const any=[...l.querySelectorAll('.trow')].some(r=>r.style.display!=='none');
+    l.style.display=any?'':'none';const h=l.previousElementSibling;
+    if(h&&h.classList.contains('dayh'))h.style.display=any?'':'none';});}
+
+/* ---- transaction detail: tag correction + note (the manual-fix path) ---- */
+let TXNREF='';
+function openTxn(ref){if(!ref)return;TXNREF=ref;TAB='txn';window.scrollTo(0,0);draw();}
+function txnDetail(){
+  const t=ALL.find(x=>x.ref===TXNREF);
+  if(!t)return `<div class="view on"><div class="empty">transaction not found</div></div>`;
+  const cur=OVERRIDE[t.ref]||t.c,isIn=t.f==='i';
+  const chips=(DATA.tag_vocab||[]).map(v=>`<button class="tagchip ${v.tag===cur?'on':''}" onclick="setTag('${esc(t.ref)}','${esc(v.tag)}')">${esc(v.tag)}</button>`).join('');
+  return `<div class="view on">
+    <div class="hero rise"><div class="l"><a class="back" onclick="go('search')">‹ back</a></div>
+      <div class="big num">${isIn?'+':''}${fmt(t.a)}</div>
+      <div class="avg">${isIn?'credit':'debit'} · ${dayLabel(t.d)}</div></div>
+    <div class="card rise"><div class="l">merchant</div><div class="dv">${esc(t.m||'—')}</div>
+      <div class="dsub">${esc(t.desc)}</div></div>
+    ${t.b!=null?`<div class="card rise"><div class="mtop"><div class="l">balance after</div><div class="v num">${fmt(t.b)}</div></div></div>`:''}
+    <div class="st"><h2>tag</h2></div>
+    <div class="note rise">tagged automatically as <b>${esc(t.c)}</b>. tap another tag if that's wrong — we'll remember it for ${esc(t.m||'this merchant')}.</div>
+    <div class="card rise"><div class="tagwrap">${chips}</div>
+      <textarea class="notefield" rows="2" placeholder="add a note (why was this payment made?)" oninput="setNote('${esc(t.ref)}',this.value)">${esc(NOTES[t.ref]||t.note||'')}</textarea></div>
+  </div>`;}
+
+/* Corrections live client-side only; the CLI/app persists them via TagStore.
+   ponytail: in-memory overrides, wire to a TagStore repo when the app gets write-back. */
+const OVERRIDE={},NOTES={};
+function setTag(ref,tag){OVERRIDE[ref]=tag;const t=ALL.find(x=>x.ref===ref);
+  if(t){t.c=tag;ALL.forEach(o=>{if(t.m&&o.m===t.m)o.c=tag;});}   // merchant-wide, like TagStore
+  draw();}
+function setNote(ref,v){NOTES[ref]=v;const t=ALL.find(x=>x.ref===ref);if(t)t.note=v;}
+
+/* ---- recurring view ---- */
+function recurringV(){const R=DATA.recurring||[];
+  const live=R.filter(r=>r.active),dead=R.filter(r=>!r.active);
+  const row=r=>`<div class="trow"><div class="ti">${esc((r.merchant||'?').slice(0,2)).toUpperCase()}</div>
+    <div class="tm"><div class="tn">${esc(r.merchant)}</div>
+      <div class="td">seen ${r.months} months · usually the ${ord(r.usual_day)}${r.next_expected?` · next ~${dayLabel(r.next_expected)}`:' · stopped'}</div></div>
+    <div class="tv num">${fmt(r.median)}</div></div>`;
+  return `<div class="view on">
+    <div class="st"><h2>recurring payments</h2></div>
+    <div class="note rise">detected from your statements — ${live.length} still active.</div>
+    <div class="list rise">${live.map(row).join('')||'<div class="empty">none detected</div>'}</div>
+    ${dead.length?`<div class="st"><h2>stopped</h2></div><div class="list rise">${dead.slice(0,8).map(row).join('')}</div>`:''}
+  </div>`;}
+function ord(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
 
 /* ---- insights view ---- */
 function insightsV(){let ins='';DATA.insights.forEach(c=>{const cls=c.severity>=3?'alert':c.severity===0?'positive':'';
@@ -239,7 +453,7 @@ function insightsV(){let ins='';DATA.insights.forEach(c=>{const cls=c.severity>=
 
 /* ---- nav + routing ---- */
 let TAB='home';
-const TABS=[['home','home','Home'],['spends','invest','Spends'],['insights','trend','Insights'],['search','srch','Search']];
+const TABS=[['home','home','Home'],['spends','invest','Spends'],['recurring','repeat','Recurring'],['search','srch','Search']];
 function nav(){document.getElementById('nav').innerHTML=TABS.map(([k,ic,lbl])=>`<button class="${TAB===k?'on':''}" onclick="go('${k}')">${I(ic)}${lbl}</button>`).join('');}
 function countUp(){
   const el=document.getElementById('hero');if(!el)return;
@@ -249,12 +463,17 @@ function countUp(){
   function step(now){const p=Math.min(1,(now-t0)/dur);el.textContent=fmt(Math.round(to*ease(p)));if(p<1)requestAnimationFrame(step);}
   requestAnimationFrame(step);
 }
-function draw(){const v=document.getElementById('views');v.innerHTML={home:home,spends:spends,insights:insightsV,search:search}[TAB]();
+const VIEWS={home:home,spends:spends,insights:insightsV,search:search,
+             recurring:recurringV,tagdetail:tagDetail,txn:txnDetail};
+function draw(){const v=document.getElementById('views');v.innerHTML=(VIEWS[TAB]||home)();
   let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
   v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));
   nav();if(TAB==='home')countUp();}
 function go(t){TAB=t;window.scrollTo(0,0);draw();}
 function setR(r){RANGE=r;draw();}
+function setCF(v){CF=v;RANGE='C';draw();}
+function setCT(v){CT=v;RANGE='C';draw();}
+function setSort(s){SORT=s;draw();}
 function TT(){const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';}
 draw();
 </script>
