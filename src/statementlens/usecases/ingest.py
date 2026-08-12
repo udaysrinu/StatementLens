@@ -14,7 +14,7 @@ from ..domain.models import Statement
 from ..domain.ports import (Categorizer, Decryptor, StatementSource,
                             TextExtractor, TransactionRepository)
 from .diagnose import diagnose
-from .supersede import coverage_from_transactions
+from .supersede import coverage_blocks, merge_coverages
 
 
 @dataclass
@@ -79,10 +79,12 @@ class IngestStatements:
         purge = getattr(self._repo, "purge_provisional", None)
         if purge is None:
             return 0
-        cov = coverage_from_transactions(stmt.transactions, stmt.account)
-        if cov is None:
+        # per-month blocks, not a min..max hull: one carry-forward row would otherwise stretch the
+        # range back weeks and irreversibly delete alert rows for months this statement never covered
+        ranges = merge_coverages(coverage_blocks(stmt.transactions, stmt.account)).get(stmt.account, [])
+        if not ranges:
             return 0
-        return purge(stmt.account, [(cov.start, cov.end)])
+        return purge(stmt.account, ranges)
 
     def _categorize(self, stmt: Statement) -> Statement:
         tagged = tuple(t.with_category(self._categorizer.categorize(t)) for t in stmt.transactions)

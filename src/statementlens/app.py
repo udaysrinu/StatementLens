@@ -130,7 +130,7 @@ class App:
         """
         from .adapters.sources.alert_email_source import alerts_to_transactions
         from .domain.models import Statement
-        from .usecases.supersede import coverage_from_transactions, is_covered
+        from .usecases.supersede import coverage_blocks, is_covered, merge_coverages
 
         if source is None:
             raise RuntimeError("pass an alert source (ImapAlertSource or GmailAlertSource)")
@@ -138,8 +138,9 @@ class App:
         txns = alerts_to_transactions(messages, currency=currency)
 
         settled = [t for t in self.repo.all(account) if not t.provisional]
-        cov = coverage_from_transactions(settled, account)
-        ranges = [(cov.start, cov.end)] if cov else []
+        # per-month blocks: with a hull, an account holding statements for non-adjacent months
+        # would claim the gap months and silently drop those alerts before they were ever stored
+        ranges = merge_coverages(coverage_blocks(settled, account)).get(account, [])
         fresh = [t for t in txns if not is_covered(t.txn_date, ranges)]
         skipped = len(txns) - len(fresh)
 

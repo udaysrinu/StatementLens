@@ -201,3 +201,96 @@ def test_statement_ingest_supersedes_stored_alerts_end_to_end():
         left = repo.all("A")
         assert sorted(t.amount.minor for t in left) == [70000, 150800]
         assert sum(t.amount.minor for t in left) == 220800   # no double count
+
+
+# --- coverage must never claim a month with no statement rows -----------------
+
+def test_a_gap_month_between_two_statements_is_not_claimed():
+    """The data-loss bug: coverage was min(date)..max(date), one hull over everything.
+
+    With statements for January and March, the hull covered February too, so February's alert row —
+    the ONLY record of that spend — was deleted as "superseded" by statements that never covered it.
+    """
+    settled = [txn(10, 100, month=1), txn(20, 100, month=1),
+               txn(5, 100, month=3), txn(25, 100, month=3)]
+    feb_alert = txn(14, 500, provisional=True, month=2)
+    r = supersede(settled + [feb_alert], account="A")
+    assert r.dropped == [], "February had no statement, so its alert must survive"
+    assert feb_alert in r.kept
+
+
+def test_a_carry_forward_row_does_not_stretch_coverage_backwards():
+    """One out-of-cycle row used to drag the hull back weeks and delete alerts in between."""
+    stmt = [txn(2, 100, month=4),            # a carry-forward / late-posted line
+            txn(3, 100, month=6), txn(17, 100, month=6), txn(28, 100, month=6)]
+    may_alert = txn(9, 700, provisional=True, month=5)
+    apr_alert = txn(20, 300, provisional=True, month=4)
+    r = supersede(stmt + [may_alert, apr_alert], account="A")
+    kept_refs = {t.source_ref for t in r.kept}
+    assert may_alert.source_ref in kept_refs, "May has no statement rows at all"
+    # April DOES have a row, so that month is legitimately covered
+    assert apr_alert.source_ref not in kept_refs
+
+
+def test_adjacent_months_still_merge_into_one_range():
+    from statementlens.usecases.supersede import coverage_blocks, merge_coverages
+    rows = [txn(15, 100, month=1), txn(15, 100, month=2), txn(15, 100, month=3)]
+    ranges = merge_coverages(coverage_blocks(rows, "A"))["A"]
+    assert len(ranges) == 1, "a contiguous run must behave as one range"
+    # the newest month stops at its last settled row, so later activity stays the live tail
+    assert ranges[0][0] == date(2026, 1, 1) and ranges[0][1] == date(2026, 3, 15)
+
+
+def test_earlier_months_cover_their_quiet_days_but_the_newest_stops_at_its_last_row():
+    from statementlens.usecases.supersede import coverage_blocks
+    blocks = coverage_blocks([txn(15, 100, month=2), txn(10, 100, month=4)], "A")
+    assert len(blocks) == 2
+    # February is not the newest month, so it is covered end-to-end including quiet days
+    assert blocks[0].start == date(2026, 2, 1) and blocks[0].end == date(2026, 2, 28)
+    assert blocks[0].contains(date(2026, 2, 3))
+    # April IS the newest, so coverage stops at the last settled row — the rest is the live tail
+    assert blocks[1].end == date(2026, 4, 10)
+    assert not blocks[1].contains(date(2026, 4, 25))
+
+
+def test_december_month_end_does_not_roll_into_next_year():
+    from statementlens.usecases.supersede import coverage_blocks
+    rows = [Transaction(txn_date=date(2025, 12, 5), description="x",
+                        amount=Money.of(100, "INR"), direction=Direction.DEBIT)]
+    # December as the ONLY (and newest) month clamps to its last row, not the 31st
+    assert coverage_blocks(rows, "A")[0].end == date(2025, 12, 5)
+    # as an earlier month it covers to the 31st without rolling into January
+    rows2 = rows + [Transaction(txn_date=date(2026, 2, 3), description="x",
+                               amount=Money.of(100, "INR"), direction=Direction.DEBIT)]
+    assert coverage_blocks(rows2, "A")[0].end == date(2025, 12, 31)
+
+
+def test_ingest_purge_uses_month_blocks_not_the_hull():
+    """End-to-end: a statement with a carry-forward row must not purge the gap month from the store."""
+    from statementlens.usecases.ingest import IngestStatements
+
+    class Src:
+        def fetch(self, limit=100):
+            return [type("R", (), {"source_id": "s1", "source_name": "s.pdf", "data": b"x"})()]
+
+    class Pass:
+        def decrypt(self, d, h): return d
+        def extract(self, d): return "t"
+
+    class Reg:
+        def parse(self, text, *, account, source_id, source_name):
+            return Statement(account, source_id, source_name, "p",
+                             (txn(2, 100, month=4), txn(10, 100, month=6)))
+
+    class Cat:
+        def categorize(self, t): return "shopping"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = _repo(tmp)
+        repo.save_statement(Statement("A", "alerts", "alerts", "live",
+                                      (txn(9, 700, provisional=True, month=5),)))
+        IngestStatements(source=Src(), decryptor=Pass(), extractor=Pass(),
+                         parser_registry=Reg(), categorizer=Cat(),
+                         repository=repo).run(account="A", hints={})
+        left = {(t.txn_date.month, t.provisional) for t in repo.all("A")}
+        assert (5, True) in left, "the May alert was in no statement's month and must survive"

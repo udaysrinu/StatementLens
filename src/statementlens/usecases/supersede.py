@@ -22,7 +22,7 @@ Alerts OUTSIDE any statement's coverage survive — that's the live tail, which 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from ..domain.models import Transaction
@@ -40,18 +40,51 @@ class Coverage:
 
 
 def coverage_from_transactions(txns: Sequence[Transaction], account: str) -> Optional[Coverage]:
-    """Infer a statement's coverage from the transactions it produced.
+    """The single hull min(date)..max(date) over these transactions.
 
-    Uses the min/max transaction date rather than a parsed "statement period", because the period
-    header is not reliably present across layouts while the rows always are. This slightly
-    UNDER-claims coverage (a statement whose first days had no activity), which is the safe
-    direction: under-claiming keeps a provisional row that a later statement will clear, whereas
-    over-claiming would delete a real transaction.
+    Kept for callers that genuinely want one span, but **prefer `coverage_blocks`**: a hull claims
+    every gap inside it. Two statements for January and March produce a hull covering February, and
+    February's provisional rows then get deleted although no statement covers them.
     """
     dates = [t.txn_date for t in txns if t.txn_date]
     if not dates:
         return None
     return Coverage(account, min(dates), max(dates))
+
+
+def coverage_blocks(txns: Sequence[Transaction], account: str) -> List[Coverage]:
+    """Coverage as one block per CALENDAR MONTH that actually has rows.
+
+    A month with at least one transaction is treated as covered end-to-end — a statement covers its
+    whole cycle even on days with no activity, so this is the intended slight over-claim within a
+    month. What it will not do is claim a month with NO rows: that is the case that silently deleted
+    alert-derived rows, because
+      * `min..max` over two non-adjacent statements swallows the months between them, and
+      * one carry-forward or late-posted row stretches a single statement's hull backwards by weeks.
+
+    The NEWEST month is clamped to its last settled date instead of the month end. Anything after
+    that date is the live tail — spending that happened since the statement closed — and claiming to
+    the month end would delete exactly the rows alerts exist to provide.
+
+    Adjacent months merge naturally in `merge_coverages`, so a contiguous run still behaves as one
+    range and nothing about the common case changes.
+    """
+    dates = sorted({t.txn_date for t in txns if t.txn_date})
+    if not dates:
+        return []
+    last = dates[-1]
+    months = sorted({(d.year, d.month) for d in dates})
+    out: List[Coverage] = []
+    for y, m in months:
+        end = last if (y, m) == (last.year, last.month) else _month_end(y, m)
+        out.append(Coverage(account, date(y, m, 1), end))
+    return out
+
+
+def _month_end(year: int, month: int) -> date:
+    if month == 12:
+        return date(year, 12, 31)
+    return date(year, month + 1, 1) - timedelta(days=1)
 
 
 def merge_coverages(coverages: Iterable[Coverage]) -> Dict[str, List[Tuple[date, date]]]:
@@ -64,7 +97,10 @@ def merge_coverages(coverages: Iterable[Coverage]) -> Dict[str, List[Tuple[date,
         ranges.sort()
         merged: List[Tuple[date, date]] = []
         for start, end in ranges:
-            if merged and start <= merged[-1][1]:
+            # `<= prev_end + 1 day` so ADJOINING ranges join too: consecutive month blocks abut
+            # (Jan 31 -> Feb 1) without overlapping, and testing only for overlap left a contiguous
+            # run of months as separate ranges.
+            if merged and start <= merged[-1][1] + timedelta(days=1):
                 merged[-1] = (merged[-1][0], max(merged[-1][1], end))
             else:
                 merged.append((start, end))
@@ -104,8 +140,9 @@ def supersede(txns: Sequence[Transaction], *,
     provisional = [t for t in txns if t.provisional]
 
     if coverage is None:
-        inferred = coverage_from_transactions(settled, account or "")
-        coverage = {account or "": [(inferred.start, inferred.end)]} if inferred else {}
+        # per-month blocks, never the min..max hull: a hull claims gap months and would delete
+        # alert rows for periods no statement covers
+        coverage = merge_coverages(coverage_blocks(settled, account or ""))
 
     ranges = coverage.get(account or "", [])
     if not ranges:
