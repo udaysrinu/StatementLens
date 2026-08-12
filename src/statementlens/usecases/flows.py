@@ -96,13 +96,19 @@ def classify_flow(txn: Transaction, own_names: Iterable[str] = ()) -> str:
     return SPEND
 
 
-def looks_like_card(txns: Sequence[Transaction]) -> bool:
+def looks_like_card(txns: Sequence[Transaction], account: str = "") -> bool:
     """True when these transactions come from a CREDIT CARD rather than a bank account.
 
-    Detected structurally, not by the account label the user typed. Two signals that are reliable
-    across issuers:
-      * card statements carry no running balance on any row (bank statements almost always do);
-      * card bill payments ("PYMT RECD - THANK YOU") only ever appear on a card statement.
+    A running balance on ANY row rules a card out — bank statements carry one, card statements do not.
+    Beyond that, any ONE of these confirms a card:
+      * a bill-payment row ("PYMT RECD - THANK YOU"), which only appears on a card statement;
+      * a finance-charge / IGST / late-fee row, which banks do not levy this way;
+      * a masked card number in the account label (e.g. "ICICI ••4007").
+
+    Requiring a bill-payment row was wrong: a card paid by autopay from another bank shows no payment
+    line on its OWN statement, so two real ICICI cards were being presented as bank accounts — with
+    income/investments/net headings that mean nothing for a card. That only became visible once
+    accounts were split; while everything was merged, one card's payment rows covered for the others.
 
     This matters because the honest way to present a card is different: a card has charges, payments
     and refunds — not income, investments and a net. "Net" on a card is arithmetically computable and
@@ -113,7 +119,14 @@ def looks_like_card(txns: Sequence[Transaction]) -> bool:
         return False
     if any(t.balance is not None for t in rows):
         return False
-    return any(is_card_bill_payment(t) for t in rows)
+    if _CARD_LABEL.search(account or ""):
+        return True
+    return any(is_card_bill_payment(t) or _CARD_FEE_RE.search(f"{t.merchant} {t.description}")
+               for t in rows)
+
+
+#: A masked card tail in an account label, as `account_id.account_label` produces for cards.
+_CARD_LABEL = re.compile(r"••\s*\d{2,4}\s*$")
 
 
 @dataclass(frozen=True)

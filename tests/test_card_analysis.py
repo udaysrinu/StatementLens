@@ -218,3 +218,34 @@ def test_dataset_exposes_the_card_frame_only_for_cards():
                            merchant="SHOP", balance=Money.of(9500, "INR"), category="shopping")
     ds2 = build_dataset([bank_row], account="SBI")
     assert ds2["meta"]["is_card"] is False and ds2["card"] is None
+
+
+def test_a_card_paid_by_autopay_is_still_recognised_as_a_card():
+    """Requiring a bill-payment row was wrong.
+
+    A card paid by autopay from another bank shows NO payment line on its own statement, so two real
+    ICICI cards were presented as bank accounts — with income/investments/net headings that mean
+    nothing for a card. Only visible once accounts were split; while everything shared one label, a
+    different card's payment rows were covering for them.
+    """
+    rows = [card("SOME SHOP BENGALURU", 1500), card("ANOTHER SHOP", 900)]
+    assert not any(flows.is_card_bill_payment(t) for t in rows)
+    assert flows.looks_like_card(rows, "ICICI ••4007") is True
+
+
+def test_a_fee_row_alone_confirms_a_card():
+    rows = [card("SOME SHOP", 500), card("FINANCE CHARGES (Ref# 1)", 150)]
+    assert flows.looks_like_card(rows) is True          # no label needed
+
+
+def test_a_bank_label_with_a_masked_tail_is_not_treated_as_a_card():
+    """"SBI ••5111" also ends in a masked tail, so the balance check must win."""
+    with_balance = Transaction(txn_date=date(2026, 7, 1), description="UPI/DR/1/SHOP/YESB/x@y/pay",
+                               amount=Money.of(500, "INR"), direction=Direction.DEBIT,
+                               merchant="SHOP", balance=Money.of(10000, "INR"))
+    assert flows.looks_like_card([with_balance], "SBI ••5111") is False
+
+
+def test_an_unlabelled_purchase_only_statement_is_not_guessed():
+    """With no balance, no fee, no payment row and no card-shaped label, do not claim to know."""
+    assert flows.looks_like_card([card("SHOP", 100)], "Imported") is False

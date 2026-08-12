@@ -85,7 +85,7 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
     # Only SETTLED rows feed the card heuristic: alert rows always carry balance=None, which is the
     # first signal looks_like_card() tests, so a handful of alerts on a bank account would flip the
     # whole dashboard into credit-card framing.
-    is_card = flow_engine.looks_like_card([t for t in txns if not t.provisional])
+    is_card = flow_engine.looks_like_card([t for t in txns if not t.provisional], account)
     card = flow_engine.card_flow(txns) if is_card else None
     months = len({t.month for t in txns if t.month}) or 1
     salary_day = flow_engine.detect_salary_day(txns)
