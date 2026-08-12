@@ -26,9 +26,16 @@ _PATTERNS = [
     # a credit (payment/cashback); its absence means a purchase.
     re.compile(r"(?P<date>\d{2}/\d{2}/\d{4})\s*\|\s*\d{2}:\d{2}\s+(?P<desc>.+?)\s+"
                r"(?P<plus>\+\s*)?[A-Za-z₹]\s*(?P<amt>[\d,]+\.\d{2})(?:\s+\S{1,3})?\s*$"),
-    re.compile(r"(?P<date>\d{2}[/-]\d{2}[/-]\d{4})\s+(?P<desc>.+?)\s+(?P<amt>[\d,]+\.\d{2})(?:\s*(?P<cr>Cr))?\s*$"),
-    re.compile(r"(?P<date>\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+(?P<desc>.+?)\s+(?P<amt>[\d,]+\.\d{2})(?:\s*(?P<cr>Cr))?\s*$"),
-    re.compile(r"(?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})\s+(?P<desc>.+?)\s+(?P<amt>[\d,]+\.\d{2})(?:\s*(?P<cr>Cr))?\s*$"),
+    # Every trailing-amount layout accepts an optional DR/CR flag and a case-insensitive "Cr".
+    # Previously only the hyphenated-month pattern took a flag, and "Cr" was matched
+    # case-sensitively, so a numeric-date row ending in "DR"/"cr" matched NOTHING and the
+    # transaction silently vanished from the statement.
+    re.compile(r"(?P<date>\d{2}[/-]\d{2}[/-]\d{4})\s+(?P<desc>.+?)\s+(?P<amt>[\d,]+\.\d{2})"
+               r"(?:\s*(?P<flag>DR|CR))?(?:\s*(?P<cr>Cr))?\s*$", re.IGNORECASE),
+    re.compile(r"(?P<date>\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+(?P<desc>.+?)\s+(?P<amt>[\d,]+\.\d{2})"
+               r"(?:\s*(?P<flag>DR|CR))?(?:\s*(?P<cr>Cr))?\s*$", re.IGNORECASE),
+    re.compile(r"(?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})\s+(?P<desc>.+?)\s+(?P<amt>[\d,]+\.\d{2})"
+               r"(?:\s*(?P<flag>DR|CR))?(?:\s*(?P<cr>Cr))?\s*$", re.IGNORECASE),
 ]
 
 

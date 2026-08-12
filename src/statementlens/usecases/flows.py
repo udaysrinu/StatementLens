@@ -387,7 +387,9 @@ def recurring_payments(txns: Iterable[Transaction], own_names: Iterable[str] = (
 
 def _next_on_day(after: date, day: int) -> date:
     y, m = (after.year + 1, 1) if after.month == 12 else (after.year, after.month + 1)
-    d = min(day, 28) if day > 28 else day
+    # No pre-clamp to 28: the loop below already backs off to the real month length, so clamping
+    # first predicted the 28th for every 29/30/31 payee even in months that have those days.
+    d = day
     while d > 1:
         try:
             return date(y, m, d)

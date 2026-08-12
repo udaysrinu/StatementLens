@@ -138,6 +138,14 @@ _ANY_BANK = re.compile(
 _SPENT_WORDING = re.compile(
     r"(?i)\b(?:was\s+)?(?:spent|charged|purchase[d]?|swiped|paid)\b")
 
+#: A figure introduced by one of these is a BALANCE or a LIMIT, not the transaction amount. The
+#: bank-agnostic pattern uses re.search, which returns the EARLIEST match — so "Avl Bal Rs 1,00,000.
+#: Rs 250 debited..." captured the balance and booked a ₹1,00,000 transaction.
+_BALANCE_CONTEXT = re.compile(
+    r"(?i)(?:avl\.?\s*bal|available\s+balance|balance\s+(?:is|:)|closing\s+balance|"
+    r"a/?c\s+bal|bal\s*:|credit\s+limit|available\s+limit|total\s+limit)"
+    r"[^\d]{0,12}$")
+
 #: The spend-wording shape itself, so these alerts parse instead of being dropped:
 #:   "Rs. 2500.00 was spent on your HDFC Bank Credit Card ending 1234 at SOME SHOP on 05/08/2026"
 #:   "INR 899.00 charged to your Credit Card 5678 at A SHOP on 06/08/2026"
@@ -223,6 +231,31 @@ def _amount_context(body: str) -> str:
     return body[(start + 1) if start != -1 else lo:end]
 
 
+def _first_real_match(rx: "re.Pattern[str]", body: str):
+    """First match whose amount is not a balance or a credit limit.
+
+    `re.search` returns the EARLIEST match, and banks print the running balance or the credit limit
+    before the transaction sentence often enough that the earliest money figure is frequently the
+    wrong one. Iterating and skipping balance-introduced amounts costs nothing and stops a
+    ₹1,00,000 balance being booked as a ₹1,00,000 transaction.
+    """
+    pos = 0
+    for _ in range(6):                      # bounded: a few balance figures at most
+        m = rx.search(body, pos)
+        if not m:
+            return None
+        g = m.groupdict()
+        start = m.start("amt2") if g.get("amt2") else (
+            m.start("amt") if g.get("amt") else m.start())
+        if not _BALANCE_CONTEXT.search(body[max(0, start - 40):start]):
+            return m
+        # this amount was a balance/limit — resume the search AFTER it so a later, real amount
+        # can still match. Advancing only past the amount (not the whole match) matters because the
+        # match may span the rest of the sentence.
+        pos = start + 1
+    return None
+
+
 def parse_alert(text: str, *, subject: str = "") -> Optional[AlertTxn]:
     """Extract one transaction from an alert email, or None if it isn't one.
 
@@ -242,7 +275,7 @@ def parse_alert(text: str, *, subject: str = "") -> Optional[AlertTxn]:
                      ("sbi", _SBI), ("sbi_for", _SBI_HAS_FOR), ("sbi_by", _SBI_HAS_BY),
                      ("yono", _YONO_TRANSFER), ("spent_on", _SPENT_ON), ("generic", _GENERIC),
                      ("any_bank", _ANY_BANK)):
-        m = rx.search(body)
+        m = _first_real_match(rx, body)
         if not m:
             continue
         g = m.groupdict()

@@ -177,3 +177,16 @@ def test_monthly_series_reports_how_much_history_it_hides():
     assert series[0]["months_hidden"] == 6
     full = monthly_series(txns, months=24)
     assert full[0]["months_hidden"] == 0
+
+
+def test_next_expected_uses_the_real_month_length():
+    """A 29/30/31 payee was always predicted for the 28th.
+
+    `min(day, 28)` ran before the loop that already backs off to the real month length, so the
+    pre-clamp was dead weight that made every month-end payee 1-3 days early.
+    """
+    from statementlens.usecases.flows import _next_on_day
+    assert _next_on_day(date(2024, 7, 30), 30) == date(2024, 8, 30)
+    assert _next_on_day(date(2024, 5, 31), 31) == date(2024, 6, 30)   # June has 30
+    assert _next_on_day(date(2024, 1, 31), 31) == date(2024, 2, 29)   # 2024 is a leap year
+    assert _next_on_day(date(2025, 1, 31), 31) == date(2025, 2, 28)   # 2025 is not

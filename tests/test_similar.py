@@ -173,3 +173,28 @@ def test_bulk_corrections_survive_a_reload_and_apply_to_the_dataset():
         fresh = SqliteTransactionRepository(db)          # new connection
         ds = build_dataset(fresh.all("A"), account="A", tags=fresh.load_tags())
         assert {r["c"] for r in ds["txns"]} == {"grocery"}
+
+
+def test_brand_star_descriptor_does_not_lose_the_brand():
+    """On card statements the shape is often BRAND*DESCRIPTOR, not GATEWAY*MERCHANT.
+
+    A blanket "strip anything before a *" deleted the identifying half, so every `*STORE` merchant
+    collapsed to one key and a bulk retag would have hit all of them.
+    """
+    keys = {merchant_key(txn(d)) for d in
+            ("UBER*RIDES", "OLA*RIDES", "APPLE*STORE", "NIKE*STORE")}
+    assert len(keys) == 4, keys
+
+
+def test_known_gateway_codes_are_still_stripped():
+    # the real gateway prefixes must keep collapsing to the merchant behind them
+    assert merchant_key(txn("RAZ*SWIGGY Bengaluru")) == "swiggy"
+    assert merchant_key(txn("CAS*Swiggy Bengaluru")) == "swiggy"
+    assert merchant_key(txn("PYU*Swiggy Bangalore")) == "swiggy"
+
+
+def test_entity_aliases_match_exactly_not_as_a_prefix():
+    """"bundl" is an ordinary word stem, so a prefix match rewrote unrelated merchants."""
+    assert merchant_key(txn("BUNDL TECHNOLOGIES BENGALURU")) == "swiggy"
+    assert merchant_key(txn("BUNDLE OF JOY STORE")) != "swiggy"
+    assert merchant_key(txn("ETERNAL FITNESS GYM")) != "zomato"

@@ -68,6 +68,9 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             "f": _FLOW_CODE[flow_engine.classify_flow(t, own_names)],
             "ref": t.source_ref,
             "note": tags.note_for(t),
+            # unsettled alert rows must be distinguishable downstream; omitted when false to keep
+            # the embedded payload small
+            "p": 1 if t.provisional else None,
         })
 
     # insight cards (crown jewel)
@@ -79,7 +82,10 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
     # honest three-way flow + the CRED-style comparatives
     flow = flow_engine.cash_flow(txns, own_names)
     # a credit card needs its own frame: charges/payments/refunds, not income/investments/net
-    is_card = flow_engine.looks_like_card(txns)
+    # Only SETTLED rows feed the card heuristic: alert rows always carry balance=None, which is the
+    # first signal looks_like_card() tests, so a handful of alerts on a bank account would flip the
+    # whole dashboard into credit-card framing.
+    is_card = flow_engine.looks_like_card([t for t in txns if not t.provisional])
     card = flow_engine.card_flow(txns) if is_card else None
     months = len({t.month for t in txns if t.month}) or 1
     salary_day = flow_engine.detect_salary_day(txns)
@@ -115,7 +121,14 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
         "incoming_sources": flow_engine.incoming_breakdown(txns, own_names),
         "monthly": flow_engine.monthly_series(txns, own_names, months=12),
         "recurring": flow_engine.recurring_payments(txns, own_names),
-        "tags": tag_engine.group_by_tag(txns),
+        # Same predicate as the cash flow: group_by_tag only drops rows literally tagged
+        # "self transfer", while classify_flow also routes card-bill payments and own-name matches
+        # there. Using the raw list made tag shares disagree with the spend/investment totals
+        # printed beside them.
+        "tags": tag_engine.group_by_tag(
+            [t for t in txns
+             if flow_engine.classify_flow(t, own_names) in (flow_engine.SPEND,
+                                                            flow_engine.INVESTMENT)]),
         "tag_vocab": [{"tag": t, "icon": i} for t, i in tag_engine.TAGS],
         "review_queue": tag_engine.review_queue(txns, tags),
         "untagged": tag_engine.untagged_count(txns),

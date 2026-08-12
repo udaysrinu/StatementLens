@@ -36,8 +36,13 @@ _GATEWAY_PREFIX = re.compile(
         pos | nfs | ach | ins | mmt | ibl | inb | neft | imps | rtgs | emi
     )\s*\*+\s*""")
 
-#: Any leftover `WORD*` token at the start (a gateway we don't have listed).
-_ANY_STAR_PREFIX = re.compile(r"^\s*[A-Za-z0-9]{2,10}\s*\*+\s*")
+#: Deliberately NOT a wildcard "strip anything before a *". On card statements the shape is just as
+#: often `BRAND*DESCRIPTOR` (UBER*RIDES, APPLE*STORE) as `GATEWAY*MERCHANT`, and there is no reliable
+#: way to tell them apart by shape — both are short uppercase tokens. Stripping blindly deleted the
+#: identifying half, so every `*STORE` merchant collapsed to one key and a bulk retag would have hit
+#: all of them. `_GATEWAY_PREFIX` above lists the real processor codes; an unlisted one simply stays
+#: in the key, which only means slightly less grouping — the safe direction.
+_ANY_STAR_PREFIX = re.compile(r"(?!)")      # never matches; kept so the strip loop reads uniformly
 
 #: Leading transaction-TYPE words that sit in front of the gateway prefix, e.g. "EMI RAZ*SWIGGY".
 #: Stripped repeatedly with the gateway prefix so any order of the two resolves.
@@ -79,6 +84,7 @@ _CITY_RE = re.compile(r"(?i)(" + "|".join(sorted(_CITIES, key=len, reverse=True)
 #: an alias table that guesses would silently merge unrelated merchants.
 _ENTITY_ALIASES = {
     "bundl": "swiggy",
+    "bundltechnologies": "swiggy",      # the full collapsed form as it appears on card statements
     "eternal": "zomato",
     "one97": "paytm",
     "onecommunicat": "paytm",
@@ -91,6 +97,9 @@ _ENTITY_ALIASES = {
 _WEB_WRAPPER = re.compile(r"(?ix) ^\s*w{3}[\s.]* | [\s.]*\b(?:in|com|co\.?in|net|org)\b\s*$")
 
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
+
+#: Aliases pre-collapsed to key form, matched exactly (see merchant_key).
+_ALIAS_KEYS = {re.sub(r"[^a-z0-9]+", "", k): v for k, v in _ENTITY_ALIASES.items()}
 
 
 def group_key(txn: Transaction) -> str:
@@ -140,10 +149,11 @@ def merchant_key(txn: Transaction) -> str:
     key = _NON_ALNUM.sub("", s.lower())
 
     # collapse a known legal-entity name onto the consumer brand
-    for entity, brand in _ENTITY_ALIASES.items():
-        e = _NON_ALNUM.sub("", entity)
-        if key.startswith(e):
-            return brand
+    # EXACT match, not a prefix: "bundl" is an ordinary word stem, so startswith() rewrote
+    # "BUNDLE OF JOY" to swiggy and "ETERNAL FITNESS" to zomato — a bulk retag on Swiggy would then
+    # land on unrelated merchants.
+    if key in _ALIAS_KEYS:
+        return _ALIAS_KEYS[key]
     # a key that is only digits identifies nothing
     return "" if key.isdigit() else key
 
