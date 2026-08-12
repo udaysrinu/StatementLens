@@ -120,11 +120,33 @@ _GENERIC = re.compile(
 # pattern always wins. This is what lets a bank nobody has written a rule for still work — the named
 # patterns above only exist because they extract merchant/account more reliably.
 _CCY = r"(?:Rs\.?|INR|₹|USD|GBP|EUR|AED|\$|£|€)"
+#: Only the PAST-PARTICIPLE forms count as a direction word here. The bare nouns "debit"/"credit"
+#: appear inside "Credit Card", "Debit Card", "credit limit" and "credit score", so accepting them
+#: made "Rs. 2,500 was spent on your Credit Card" parse as INCOME — a spend booked the wrong way,
+#: which is the worst error this parser can make. A card noun is explicitly excluded below.
+_DIRWORD = r"(?:debited|credited)"
 _ANY_BANK = re.compile(
-    r"(?:(?P<dir>debited|credited|debit|credit)\b.{0,60}?" + _CCY + r"\s*(?P<amt>[\d,]+(?:\.\d{1,2})?)"
-    r"|" + _CCY + r"\s*(?P<amt2>[\d,]+(?:\.\d{1,2})?).{0,60}?\b(?P<dir2>debited|credited|debit|credit)\b)"
+    r"(?:(?P<dir>" + _DIRWORD + r")\b.{0,60}?" + _CCY + r"\s*(?P<amt>[\d,]+(?:\.\d{1,2})?)"
+    r"|" + _CCY + r"\s*(?P<amt2>[\d,]+(?:\.\d{1,2})?).{0,60}?\b(?P<dir2>" + _DIRWORD + r")\b)"
     r".{0,120}?\b(?:on|dated)\s+(?P<d>\d{1,2})[\s./-](?P<m>[A-Za-z]{3,9}|\d{1,2})[\s./,-]+(?P<y>\d{2,4})"
     r"(?:.{0,40}?\b(?:to|at|towards|from)\s+(?P<merchant>[A-Za-z0-9*@.& -]{2,45}?)\s*(?:\.|,|$))?",
+    re.IGNORECASE | re.DOTALL)
+
+#: Wording that means money LEFT the account even though no "debited" appears — common on card alerts
+#: ("was spent on your Credit Card", "charged to your card"). Without this, such alerts either fall
+#: through unparsed or, worse, match a stray "credit" from the card noun.
+_SPENT_WORDING = re.compile(
+    r"(?i)\b(?:was\s+)?(?:spent|charged|purchase[d]?|swiped|paid)\b")
+
+#: The spend-wording shape itself, so these alerts parse instead of being dropped:
+#:   "Rs. 2500.00 was spent on your HDFC Bank Credit Card ending 1234 at SOME SHOP on 05/08/2026"
+#:   "INR 899.00 charged to your Credit Card 5678 at A SHOP on 06/08/2026"
+#: Always a debit — the direction is in the verb, not in a participle.
+_SPENT_ON = re.compile(
+    _AMOUNT + r"\s+(?:was\s+)?(?:spent|charged|swiped|debited)\s+(?:on|to|at|from)\s+"
+    r"(?:your\s+)?(?P<acct>.{0,50}?)(?:ending\s+)?(?P<last4>\d{4})?\s*"
+    r"(?:\s+(?:at|towards|to)\s+(?P<merchant>.+?))?"
+    r"\s+on\s+(?P<d>\d{1,2})[\s./-](?P<m>[A-Za-z]{3,9}|\d{1,2})[\s./,-]+(?P<y>\d{2,4})",
     re.IGNORECASE | re.DOTALL)
 
 _MONTHS = {m.lower(): i for i, m in enumerate(
@@ -218,7 +240,7 @@ def parse_alert(text: str, *, subject: str = "") -> Optional[AlertTxn]:
 
     for name, rx in (("hdfc", _HDFC), ("hdfc_at", _HDFC_TXN_AT),
                      ("sbi", _SBI), ("sbi_for", _SBI_HAS_FOR), ("sbi_by", _SBI_HAS_BY),
-                     ("yono", _YONO_TRANSFER), ("generic", _GENERIC),
+                     ("yono", _YONO_TRANSFER), ("spent_on", _SPENT_ON), ("generic", _GENERIC),
                      ("any_bank", _ANY_BANK)):
         m = rx.search(body)
         if not m:
@@ -231,9 +253,15 @@ def parse_alert(text: str, *, subject: str = "") -> Optional[AlertTxn]:
         # Some formats carry no direction word: a card purchase and an outgoing fund transfer are
         # both always debits. The bank-agnostic pattern may capture the word in either of two spots.
         word = (g.get("dir") or g.get("dir2") or "")
-        direction = (Direction.DEBIT if name in ("hdfc_at", "yono")
-                     else Direction.CREDIT if word.lower().startswith("credit")
-                     else Direction.DEBIT)
+        if name in ("hdfc_at", "yono", "spent_on"):
+            direction = Direction.DEBIT
+        elif _SPENT_WORDING.search(body):
+            # "was spent on" / "charged to" states the direction in plain words; trust it over a
+            # participle that might have come from elsewhere in the sentence
+            direction = Direction.DEBIT
+        else:
+            direction = (Direction.CREDIT if word.lower().startswith("credit")
+                         else Direction.DEBIT)
         amount = _minor(g.get("amt") or g.get("amt2") or "0")
         if amount <= 0:
             return None

@@ -78,9 +78,14 @@ class SecretStore:
                 subprocess.run(["secret-tool", "clear", "service", self._service, "account", name],
                                capture_output=True, check=False)
         finally:
-            path = self._path(name)
-            if path.exists():
-                path.unlink()
+            # Remove EVERY on-disk form. The DPAPI blob uses a .dpapi suffix, so deleting only the
+            # .json fallback left a working Gmail token on disk after "disconnect" on Windows.
+            for path in (self._path(name), self._path(name).with_suffix(".dpapi")):
+                try:
+                    if path.exists():
+                        path.unlink()
+                except OSError:
+                    pass
 
     def describe(self) -> StoreResult:
         """Which backend WOULD be used — for showing the user where their token lives."""
@@ -105,11 +110,15 @@ class SecretStore:
 
     def _macos(self, name: str, value: Optional[str], *, write: bool):
         if write:
-            # -U updates an existing item instead of erroring on a duplicate
+            # -w with NO argument makes `security` read the secret from stdin instead of argv, so the
+            # Gmail refresh token is never visible to `ps`. It prompts TWICE (enter + confirm), so the
+            # value must be written twice; sending it once fails with "passwords don't match".
+            # -U updates an existing item instead of erroring on a duplicate.
+            secret = value or ""
             r = subprocess.run(
                 ["security", "add-generic-password", "-U", "-s", self._service,
-                 "-a", name, "-w", value or "", "-D", "statementlens token"],
-                capture_output=True, text=True)
+                 "-a", name, "-D", "statementlens token", "-w"],
+                input=f"{secret}\n{secret}\n", capture_output=True, text=True)
             return r.returncode == 0
         r = subprocess.run(["security", "find-generic-password", "-s", self._service,
                             "-a", name, "-w"], capture_output=True, text=True)

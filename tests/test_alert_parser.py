@@ -204,3 +204,40 @@ def test_impossible_date_does_not_crash():
             "Credit Card ending 1111 towards X on 31 Feb, 2026 at 09:00:00")
     a = parse_alert(body)
     assert a is not None and a.txn_date is None     # amount kept, bogus date dropped
+
+
+# --- direction must never invert -------------------------------------------
+
+SPENT_ON_CARD = ("Dear Customer, Rs. 2500.00 was spent on your HDFC Bank Credit Card ending 1234 "
+                 "at SAMPLE SHOP on 05/08/2026.")
+CHARGED_TO_CARD = "INR 899.00 charged to your Credit Card 5678 at A SAMPLE SHOP on 06/08/2026."
+
+
+def test_the_words_credit_card_do_not_turn_a_spend_into_income():
+    """The worst possible parser error: money moving the wrong way.
+
+    "Credit Card" contains "credit", and the bank-agnostic pattern used to accept the bare noun as a
+    direction word — so a ₹2,500 purchase was booked as ₹2,500 of INCOME.
+    """
+    a = parse_alert(SPENT_ON_CARD)
+    assert a is not None, "a real card spend must not be dropped"
+    assert a.direction is Direction.DEBIT, "a spend is money OUT"
+    assert a.amount_minor == 250000
+    assert a.txn_date == date(2026, 8, 5)
+
+
+def test_charged_to_card_is_also_a_debit():
+    a = parse_alert(CHARGED_TO_CARD)
+    assert a is not None and a.direction is Direction.DEBIT
+    assert a.amount_minor == 89900
+
+
+def test_genuine_credits_still_parse_as_credits():
+    """The fix must not swing the other way and make every alert a debit."""
+    a = parse_alert("Rs 460.00 credited to your account 1234 on 13/07/26 from SOMEONE.")
+    assert a is not None and a.direction is Direction.CREDIT and a.amount_minor == 46000
+
+
+def test_credit_limit_wording_is_still_rejected():
+    body = "Your credit limit is Rs 1,70,000 and your available limit is Rs 1,40,000."
+    assert parse_alert(body) is None
