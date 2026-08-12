@@ -213,6 +213,33 @@ class SqliteTransactionRepository:
         store.add_note(content_hash, note)
         self.save_tags(store)
 
+    def statement_rows(self):
+        """(id, source_name, account, txn_count) per stored statement."""
+        return self._conn.execute(
+            "SELECT s.id, s.source_name, s.account,"
+            " (SELECT COUNT(*) FROM txns t WHERE t.statement_id = s.id)"
+            " FROM statements s").fetchall()
+
+    def relabel_accounts(self, derive) -> str:
+        """Re-derive every statement's account label, backing up the database first.
+
+        Rewrites rows in the user's financial store, so the copy is taken BEFORE any write and its
+        path is returned — a migration with no way back is not a migration.
+        """
+        import shutil
+        from datetime import datetime, timezone
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup = f"{self.path}.bak-{stamp}"
+        shutil.copy2(self.path, backup)
+        for sid, sname, acct, _n in self.statement_rows():
+            label = derive(sname, "", fallback=acct)
+            if label == acct:
+                continue
+            self._conn.execute("UPDATE statements SET account=? WHERE id=?", (label, sid))
+            self._conn.execute("UPDATE txns SET account=? WHERE statement_id=?", (label, sid))
+        self._conn.commit()
+        return backup
+
     def stats(self) -> Dict[str, Any]:
         s = self._conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0]
         n = self._conn.execute("SELECT COUNT(*) FROM txns").fetchone()[0]

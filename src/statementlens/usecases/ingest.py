@@ -14,6 +14,7 @@ from ..domain.models import Statement
 from ..domain.ports import (Categorizer, Decryptor, StatementSource,
                             TextExtractor, TransactionRepository)
 from .diagnose import diagnose
+from .account_id import account_label
 from .supersede import coverage_blocks, merge_coverages
 
 
@@ -29,6 +30,8 @@ class IngestResult:
     #: Per-document explanations for anything that yielded no transactions. Never let a document
     #: disappear silently — an empty dashboard with no reason is the worst possible outcome.
     skipped: List[Dict[str, str]] = field(default_factory=list)
+    #: Account labels this run wrote to, so the user learns their statements held several accounts.
+    accounts: Dict[str, int] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -46,13 +49,22 @@ class IngestStatements:
         self._categorizer = categorizer
         self._repo = repository
 
-    def run(self, *, account: str, hints: Dict[str, Any], limit: int = 100) -> IngestResult:
+    def run(self, *, account: str, hints: Dict[str, Any], limit: int = 100,
+            split_accounts: bool = True) -> IngestResult:
+        """`split_accounts` derives each statement's own account label from the file.
+
+        A folder usually holds several accounts. Filing them all under one `--account` name merges a
+        savings account with its own credit cards, which double-counts every card-bill payment and
+        picks the wrong presentation frame. Pass False to force one label.
+        """
         result = IngestResult()
         for raw in self._source.fetch(limit=limit):
             try:
                 decrypted = self._decryptor.decrypt(raw.data, hints)
                 text = self._extractor.extract(decrypted)
-                stmt = self._parsers.parse(text, account=account,
+                label = (account_label(raw.source_name, text, fallback=account)
+                         if split_accounts else account)
+                stmt = self._parsers.parse(text, account=label,
                                            source_id=raw.source_id, source_name=raw.source_name)
                 if not stmt.transactions:
                     # parsed "successfully" but empty — say why instead of counting a silent win
@@ -69,6 +81,7 @@ class IngestStatements:
                 # this statement is now the authoritative record for the period it covers, so any
                 # provisional alert rows in that window would double-count
                 result.superseded += self._supersede(stmt)
+                result.accounts[stmt.account] = result.accounts.get(stmt.account, 0) + counts["inserted"]
             except Exception as e:  # one bad statement shouldn't abort the batch
                 result.failed += 1
                 result.errors.append(f"{raw.source_name}: {e}")

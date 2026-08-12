@@ -71,13 +71,15 @@ class App:
         self.extractor = PdfTextExtractor()
         self._source = source  # inject a StatementSource (e.g. GmailStatementSource) to ingest
 
-    def ingest(self, *, account: str, hints: Dict[str, Any], limit: int = 100) -> IngestResult:
+    def ingest(self, *, account: str, hints: Dict[str, Any], limit: int = 100,
+               split_accounts: bool = True) -> IngestResult:
         if self._source is None:
             raise RuntimeError("no StatementSource configured; pass source= to App(...)")
         return IngestStatements(
             source=self._source, decryptor=self.decryptor, extractor=self.extractor,
             parser_registry=self.parsers, categorizer=self.categorizer,
-            repository=self.repo).run(account=account, hints=hints, limit=limit)
+            repository=self.repo).run(account=account, hints=hints, limit=limit,
+                                      split_accounts=split_accounts)
 
     def dataset(self, account: str, currency: str = "INR") -> Dict[str, Any]:
         txns = self.repo.all(account)
@@ -149,6 +151,25 @@ class App:
             Statement(account, "alerts", "transaction alerts", "live", tagged))
         return {"emails": len(messages), "parsed": len(txns), "inserted": counts["inserted"],
                 "duplicate": counts["duplicate"], "already_in_statement": skipped}
+
+    def relabel_plan(self):
+        """[(old_label, new_label, row_count)] for statements whose account can be derived.
+
+        A preview, so the user sees what a migration of their own financial store would do before any
+        row is written.
+        """
+        from .usecases.account_id import account_label
+        out = []
+        for sid, sname, acct, n in self.repo.statement_rows():
+            label = account_label(sname, "", fallback=acct)
+            if label != acct:
+                out.append((acct, label, n))
+        return out
+
+    def relabel_apply(self) -> str:
+        """Apply the plan after backing the database up. Returns the backup path."""
+        from .usecases.account_id import account_label
+        return self.repo.relabel_accounts(account_label)
 
     def stats(self) -> Dict[str, Any]:
         return self.repo.stats()

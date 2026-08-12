@@ -58,6 +58,8 @@ def main(argv=None) -> int:
     ing.add_argument("--card-last4", dest="card_last4"); ing.add_argument("--rule-text", dest="rule_text")
     ing.add_argument("--custom", nargs="*", help="explicit password(s) to try first")
     ing.add_argument("--limit", type=int, default=100)
+    ing.add_argument("--single-account", dest="single_account", action="store_true",
+                     help="file everything under --account instead of detecting each statement's own")
 
     rnd = sub.add_parser("render", help="render the dashboard HTML from stored transactions")
     rnd.add_argument("--account", required=True)
@@ -84,6 +86,10 @@ def main(argv=None) -> int:
     sub.add_parser("security", help="show where credentials and data are stored")
     dis = sub.add_parser("disconnect", help="forget the stored Gmail token")
     dis.add_argument("--yes", action="store_true", help="don't ask for confirmation")
+    rel = sub.add_parser("relabel",
+                         help="split a merged account into its real accounts (dry-run by default)")
+    rel.add_argument("--apply", action="store_true",
+                     help="actually write the changes (default is a preview)")
     sub.add_parser("stats", help="show what's stored")
 
     args = p.parse_args(argv)
@@ -100,9 +106,14 @@ def main(argv=None) -> int:
         else:
             from .adapters.sources.gmail_source import GmailStatementSource
             app = App(db_path=args.db, source=GmailStatementSource())
-        r = app.ingest(account=args.account, hints=_hints(args), limit=args.limit)
+        r = app.ingest(account=args.account, hints=_hints(args), limit=args.limit,
+                       split_accounts=not args.single_account)
         print(f"statements={r.statements} inserted={r.inserted} duplicate={r.duplicate} "
               f"failed={r.failed} skipped={len(r.skipped)}")
+        if len(r.accounts) > 1:
+            print("  accounts detected (use --single-account to merge them):")
+            for label, n in sorted(r.accounts.items(), key=lambda kv: -kv[1]):
+                print(f"    {label:24s} {n} transactions")
         for e in r.errors[:10]:
             print("  !", e)
         for s in r.skipped[:10]:
@@ -170,6 +181,29 @@ def main(argv=None) -> int:
                 return 1
         SecretStore().delete(GmailStatementSource.TOKEN_KEY)
         print("Gmail token removed. Run `statementlens serve` to reconnect.")
+        return 0
+    if args.cmd == "relabel":
+        # Existing stores may hold several accounts under one label, because a single --account flag
+        # was applied to a whole folder. This re-derives each statement's own account from its
+        # filename. DRY RUN by default: it rewrites rows in the user's financial store, so nothing
+        # happens without --apply, and --apply takes a backup first.
+        from .usecases.account_id import account_label
+        app = App(db_path=args.db)
+        plan = app.relabel_plan()
+        if not plan:
+            print("nothing to relabel — every statement already carries its own account")
+            return 0
+        print(f"{len(plan)} statement(s) would move:")
+        totals: Dict[str, int] = {}
+        for old, new, n in plan:
+            totals[new] = totals.get(new, 0) + n
+        for label, n in sorted(totals.items(), key=lambda kv: -kv[1]):
+            print(f"    {label:24s} {n} transactions")
+        if not args.apply:
+            print("\npreview only — re-run with --apply to write it (a backup is taken first)")
+            return 0
+        backup = app.relabel_apply()
+        print(f"\napplied. backup written to {backup}")
         return 0
     if args.cmd == "stats":
         app = App(db_path=args.db)
