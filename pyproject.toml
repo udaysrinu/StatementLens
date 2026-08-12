@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "statementlens"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first personal-finance engine: read bank/card statements from email, categorize, and render CRED-style analytics — fully offline, deterministic money math."
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
@@ -16,7 +16,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -24,11 +23,11 @@ classifiers = [
     "Topic :: Office/Business :: Financial",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = ["pikepdf>=8.0.0", "pdfplumber>=0.10.0"]
 
 [project.optional-dependencies]
 gmail = ["google-api-python-client>=2.0.0", "google-auth-oauthlib>=1.0.0", "google-auth-httplib2>=0.2.0"]
-pdf = ["pikepdf>=8.0.0", "pdfplumber>=0.10.0"]
+pdf = []   # now a core dependency; kept so `[pdf]` stays valid for existing installs
 ocr = ["pytesseract>=0.3.10", "pillow>=10.0.0"]
 dev = ["pytest>=8.0.0", "pytest-cov>=4.1.0"]
 all = ["google-api-python-client>=2.0.0", "google-auth-oauthlib>=1.0.0", "google-auth-httplib2>=0.2.0",
