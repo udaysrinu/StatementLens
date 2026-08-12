@@ -28,3 +28,8 @@ gmail_token.json
 
 # generated demo store for screenshots (regenerate with docs/make_screenshots.py)
 docs/screenshots/demo.db*
+
+# packaged build output
+dist/
+build/
+*.spec

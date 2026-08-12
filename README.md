@@ -79,16 +79,18 @@ writing an adapter — never by editing the core.
 
 `app.py` is the composition root — the one place that wires adapters into use-cases.
 
-## Install
-
-```bash
-pip install -e ".[all]"        # gmail + pdf + ocr extras
-# or pick extras: .[gmail] .[pdf] .[ocr] .[dev]
-```
-
 ## Quick start
 
+**No Python?** Grab a build from [Releases](https://github.com/udaysrinu/StatementLens/releases),
+unzip, double-click. It opens in your browser. macOS/Windows will warn once about an unidentified
+developer — right-click → Open (macOS) or *More info → Run anyway* (Windows). See
+[Building a release](#building-a-release).
+
+**Have Python?**
+
 ```bash
+pip install statementlens              # PDF reading is included
+pip install "statementlens[gmail]"     # add the Gmail connector (IMAP needs nothing extra)
 statementlens serve --account SBI
 ```
 
@@ -222,6 +224,26 @@ app.render("SBI", "out/sbi.html")
 # fix a wrong tag; the correction outlives future re-ingests
 app.correct_tag(tag="grocery", merchant="Fresh N")
 ```
+
+## Building a release
+
+```bash
+./packaging/build.sh          # wheel, sdist, and a double-clickable binary
+./packaging/build.sh --sign   # signed + notarized (macOS)
+```
+
+The unsigned build is **fully functional** — Gatekeeper and SmartScreen just make the user click
+through a warning on first launch. Removing that warning needs credentials only the project owner can
+hold:
+
+| Platform | Needed | Cost |
+|---|---|---|
+| macOS | Apple Developer account → *Developer ID Application* certificate | $99/yr |
+| Windows | OV or EV code-signing certificate | ~$200–500/yr |
+
+With an Apple account, export `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID` and
+`APPLE_APP_PASSWORD`, then run `--sign`; the script signs with the hardened runtime, notarizes, and
+staples the ticket so the app also launches offline.
 
 ## Privacy & security
 
