@@ -81,18 +81,37 @@ writing an adapter — never by editing the core.
 
 ## Quick start
 
-**No Python?** Grab a build from [Releases](https://github.com/udaysrinu/StatementLens/releases),
-unzip, double-click. It opens in your browser. macOS/Windows will warn once about an unidentified
-developer — right-click → Open (macOS) or *More info → Run anyway* (Windows). See
-[Building a release](#building-a-release).
+### Install (no security warnings)
 
-**Have Python?**
+```bash
+brew install statementlens     # macOS
+pipx install statementlens     # any platform
+```
+
+Both open with **no Gatekeeper or SmartScreen warning**. That is not because the app is signed — it
+is because those warnings are triggered by the `com.apple.quarantine` attribute your *browser*
+attaches to downloads, and package managers never set it. (Same reason `brew`-installed `git` and
+`ffmpeg` open silently despite carrying no Apple signature.)
+
+```bash
+statementlens serve --account SBI
+```
+
+### Or a plain pip install
 
 ```bash
 pip install statementlens              # PDF reading is included
 pip install "statementlens[gmail]"     # add the Gmail connector (IMAP needs nothing extra)
-statementlens serve --account SBI
 ```
+
+### Or a direct download
+
+Grab a build from [Releases](https://github.com/udaysrinu/StatementLens/releases), unzip,
+double-click. This is the **only** path that shows a warning, because the file came through a
+browser. Either double-click the included `first-run-macos.command` once, or:
+
+- **macOS** — right-click → Open, then Open again
+- **Windows** — *More info → Run anyway*
 
 That's it. It opens in your browser. If you have no data yet you get a setup page — **drop your
 statement PDFs on it** and the dashboard appears. Corrections you make (re-tagging a transaction,
@@ -225,25 +244,31 @@ app.render("SBI", "out/sbi.html")
 app.correct_tag(tag="grocery", merchant="Fresh N")
 ```
 
-## Building a release
+## Releasing
+
+```bash
+./packaging/release.sh --check     # tests, build, twine check, clean-venv install (publishes nothing)
+./packaging/release.sh --publish   # upload to PyPI
+```
+
+**Publishing to PyPI is what makes the no-warning install paths work**, because `brew` and `pipx` both
+install from it. After the upload:
+
+1. paste the printed sdist `sha256` into `packaging/Formula/statementlens.rb`
+2. push the formula so `brew tap udaysrinu/statementlens && brew install statementlens` works
+
+For the direct-download build:
 
 ```bash
 ./packaging/build.sh          # wheel, sdist, and a double-clickable binary
-./packaging/build.sh --sign   # signed + notarized (macOS)
+./packaging/build.sh --sign   # additionally sign + notarize (macOS)
 ```
 
-The unsigned build is **fully functional** — Gatekeeper and SmartScreen just make the user click
-through a warning on first launch. Removing that warning needs credentials only the project owner can
-hold:
-
-| Platform | Needed | Cost |
-|---|---|---|
-| macOS | Apple Developer account → *Developer ID Application* certificate | $99/yr |
-| Windows | OV or EV code-signing certificate | ~$200–500/yr |
-
-With an Apple account, export `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID` and
-`APPLE_APP_PASSWORD`, then run `--sign`; the script signs with the hardened runtime, notarizes, and
-staples the ticket so the app also launches offline.
+Signing only matters for the raw download, and it needs credentials only the project owner can hold —
+an Apple Developer account ($99/yr) or a Windows OV/EV certificate (~$200–500/yr). Export
+`APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD`, then run `--sign`; the
+script uses the hardened runtime, notarizes, and staples the ticket so the app launches offline too.
+It is optional: the package-manager paths above reach everyone without it.
 
 ## Privacy & security
 
