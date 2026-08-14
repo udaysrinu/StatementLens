@@ -64,8 +64,16 @@ class IngestStatements:
                 text = self._extractor.extract(decrypted)
                 label = (account_label(raw.source_name, text, fallback=account)
                          if split_accounts else account)
+                # A file already in the store is skipped outright. Row-level dedup cannot be relied
+                # on here: its hash includes the account label and a per-source id, so the same
+                # statement seen from a different source (Gmail vs folder) or after a relabel would
+                # insert every row again and double every total.
+                seen = getattr(self._repo, "already_ingested", None)
                 stmt = self._parsers.parse(text, account=label,
                                            source_id=raw.source_id, source_name=raw.source_name)
+                if seen is not None and stmt.transactions and seen(stmt):
+                    result.duplicate += len(stmt.transactions)
+                    continue
                 if not stmt.transactions:
                     # parsed "successfully" but empty — say why instead of counting a silent win
                     d = diagnose(text, source_name=raw.source_name)

@@ -84,9 +84,31 @@ class SqliteTransactionRepository:
 
     @staticmethod
     def _hash(t: Transaction, account: str) -> str:
+        """Row identity for idempotent re-ingest.
+
+        `account` is still part of the key, because the same amount and narration can legitimately
+        appear on two different accounts on the same day and both are real. The cost is that
+        RE-LABELLING an account changes every hash, which is exactly how a relabel followed by a
+        re-ingest doubled the store — so `already_ingested` guards at the file level instead of
+        relying on this alone.
+        """
         bal = t.balance.minor if t.balance is not None else None
         key = f"{account}|{t.raw_date}|{t.amount.minor}|{t.direction.value}|{bal}|{t.description.strip()}"
         return hashlib.sha256(key.encode()).hexdigest()
+
+    def already_ingested(self, statement: Statement) -> bool:
+        """True when this exact FILE was stored before, whatever its source_id or label was then.
+
+        The row-level content hash is not enough on its own: it includes the account label, and it is
+        computed from a `source_id` that differs per source (Gmail uses the message id, the folder
+        source uses a content hash of the bytes). So the same statement re-imported from a different
+        source, or after `relabel`, hashed differently and every row was inserted a SECOND time —
+        silently doubling every total. Matching on the filename alone catches that.
+        """
+        row = self._conn.execute(
+            "SELECT 1 FROM statements WHERE source_name=? LIMIT 1",
+            (statement.source_name,)).fetchone()
+        return row is not None
 
     def save_statement(self, statement: Statement) -> Dict[str, int]:
         cur = self._conn.execute(

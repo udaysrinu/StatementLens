@@ -294,3 +294,54 @@ def test_ingest_purge_uses_month_blocks_not_the_hull():
                          repository=repo).run(account="A", hints={})
         left = {(t.txn_date.month, t.provisional) for t in repo.all("A")}
         assert (5, True) in left, "the May alert was in no statement's month and must survive"
+
+
+def test_reingesting_the_same_file_after_a_relabel_does_not_double_the_store():
+    """The bug that doubled a real 2,216-row store to 5,183.
+
+    Row-level dedup hashes the ACCOUNT label and a per-source id. Gmail uses the message id while the
+    folder source uses a content hash, and `relabel` changes the label — so the same statement seen
+    from a different source, or after a relabel, hashed differently and every row was inserted again.
+    Statement-level dedup on the filename is what actually stops it.
+    """
+    from statementlens.usecases.ingest import IngestStatements
+
+    class Src:
+        """Same FILE, but a different source_id each run — as Gmail vs folder would give."""
+        def __init__(self, sid):
+            self.sid = sid
+
+        def fetch(self, limit=100):
+            return [type("R", (), {"source_id": self.sid, "source_name": "stmt.pdf",
+                                   "data": b"x"})()]
+
+    class Pass:
+        def decrypt(self, d, h): return d
+        def extract(self, d): return "text"
+
+    class Reg:
+        def __init__(self, account):
+            self.account = account
+
+        def parse(self, text, *, account, source_id, source_name):
+            return Statement(self.account, source_id, source_name, "p",
+                             (txn(11, 1508), txn(12, 200)))
+
+    class Cat:
+        def categorize(self, t): return "shopping"
+
+    def run(repo, sid, account):
+        return IngestStatements(source=Src(sid), decryptor=Pass(), extractor=Pass(),
+                                parser_registry=Reg(account), categorizer=Cat(),
+                                repository=repo).run(account=account, hints={},
+                                                     split_accounts=False)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = _repo(tmp)
+        first = run(repo, "gmail-msg-id", "Merged")
+        assert first.inserted == 2
+        # a different source_id AND a different account label — previously inserted 2 more rows
+        second = run(repo, "folder-content-hash", "SBI ••5111")
+        assert second.inserted == 0, "the same file must never be stored twice"
+        assert second.duplicate == 2
+        assert len(repo.all()) == 2
