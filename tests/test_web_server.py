@@ -185,4 +185,27 @@ def test_note_requires_a_content_hash():
             s.close()
 
 
+def test_period_control_offers_presets_first_and_custom_last():
+    """The picker is client-side JS, so the only thing a Python test can pin is the markup it emits.
+
+    What broke before and must not come back: two rival period controls on one screen, and the
+    rarest option (a manual date pair) rendered as the most prominent one.
+    """
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    # every preset the user asked for, shortest span first
+    order = [page.index(f"'{k}','{lab}'") for k, lab in
+             [("W", "1W"), ("M", "1M"), ("3M", "3M"), ("6M", "6M"),
+              ("Y", "1Y"), ("5Y", "5Y"), ("all", "All")]]
+    assert order == sorted(order), "presets must be declared shortest-span first"
+
+    # Custom sits OUTSIDE the preset row and after it, so it is never the chip that scrolls off.
+    # Assert on the emitted template, not on declaration order — `custom` is a const above the return.
+    assert '<div class="pwrap"><div class="prow">${chips}${cycle}</div>${custom}</div>' in page
+    assert 'class="pcustom' in page, "Custom must render as the demoted control, not a peer chip"
+    assert "segBar" not in page, "the second, rival period control must stay deleted"
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)

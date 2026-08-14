@@ -103,14 +103,34 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .note{font-size:12px;color:var(--ink3);background:var(--s1);border:1px solid var(--line);
   border-radius:12px;padding:10px 13px;line-height:1.4}
 
-/* period control */
-.rrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.chip{background:var(--s1);border:1px solid var(--line);color:var(--ink2);border-radius:100px;
-  padding:7px 14px;font:600 12px var(--body);cursor:pointer}
-.chip.on{background:var(--acc);color:var(--onacc);border-color:var(--acc)}
-.rrow input[type=date]{background:var(--s2);border:1px solid var(--line);color:var(--ink);
-  border-radius:10px;padding:6px 9px;font:500 12px var(--body);font-variant-numeric:tabular-nums}
-.rrow .to{color:var(--ink3);font-size:12px}
+/* period control — one segmented row, presets first, Custom last.
+   Scrolls horizontally on a narrow phone instead of wrapping into a ragged second line. */
+/* Presets scroll; Custom is pinned OUTSIDE the scroller so the escape hatch is never the thing that
+   gets clipped off-screen. Nine chips do not fit 420px, and a hidden control is a missing control. */
+.pwrap{display:flex;align-items:stretch;gap:6px}
+.prow{flex:1;min-width:0;display:flex;gap:4px;padding:4px;background:var(--s2);
+  border:1px solid var(--line);border-radius:100px;
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.prow::-webkit-scrollbar{display:none}
+.pchip{flex:1 1 auto;min-width:34px;background:transparent;border:none;color:var(--ink2);
+  border-radius:100px;padding:8px 7px;font:600 12px var(--body);cursor:pointer;
+  white-space:nowrap;transition:background .18s var(--ease),color .18s var(--ease)}
+.pchip:hover{color:var(--ink)}
+.pchip.on{background:var(--acc);color:var(--onacc)}
+/* Custom is visually demoted: it is the escape hatch, not the primary choice */
+.pcustom{flex:none;display:flex;align-items:center;gap:5px;background:var(--s2);
+  border:1px solid var(--line);border-radius:100px;color:var(--ink3);padding:0 11px;
+  font:500 12px var(--body);cursor:pointer;white-space:nowrap;
+  transition:background .18s var(--ease),color .18s var(--ease),border-color .18s var(--ease)}
+.pcustom:hover{color:var(--ink)}
+.pcustom svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
+.pcustom.on{background:var(--acc);border-color:var(--acc);color:var(--onacc);font-weight:600}
+.drow{display:flex;align-items:center;gap:8px;margin-top:10px;animation:rise .3s var(--ease) both}
+.drow input[type=date]{flex:1;min-width:0;background:var(--s1);border:1px solid var(--line);
+  color:var(--ink);border-radius:12px;padding:10px 12px;font:500 13px var(--body);
+  font-variant-numeric:tabular-nums}
+.drow input[type=date]:focus{outline:none;border-color:var(--acc)}
+.drow .to{color:var(--ink3);font-size:13px;flex:none}
 
 /* monthly bars + avg reference line */
 .chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:132px;padding-top:6px}
@@ -301,25 +321,45 @@ function salaryCycle(){if(!M.salary_day||!M.max_date)return null;
   let s=clamp(d.getUTCFullYear(),d.getUTCMonth());
   if(d<s)s=clamp(d.getUTCFullYear(),d.getUTCMonth()-1);
   const iso=x=>x.toISOString().slice(0,10);return {f:iso(s),t:M.max_date};}
+/* ONE control, presets first, custom LAST.
+   Previously there were two: a "custom range" chip under the hero and a separate W/M/Y/All segment
+   buried in the cash-flow card — two ways to set the same thing, with the rarest option (a manual
+   date pair) given the most prominence. Presets answer almost every question; the date inputs only
+   appear once someone explicitly asks for them. */
+/* A preset is [key, label, span]. span is 'Nd' (days) or 'Nm' (calendar months), null = everything.
+   Months are calendar months, not 30-day blocks, so "6M" lines up with statement periods. */
+const PRESETS=[['W','1W','7d'],['M','1M','1m'],['3M','3M','3m'],['6M','6M','6m'],
+               ['Y','1Y','12m'],['5Y','5Y','60m'],['all','All',null]];
+function presetFrom(key){
+  const p=PRESETS.find(x=>x[0]===key);
+  if(!p||!p[2]||!M.max_date)return '';
+  const n=parseInt(p[2],10);
+  return p[2].slice(-1)==='d' ? shiftDays(M.max_date,-(n-1)) : monthsBack(n);}
 function rangeFilter(){
   if(RANGE==='C')return ALL.filter(t=>t.d&&inRange(t,CF,CT));
   if(RANGE==='S'){const c=salaryCycle();return c?ALL.filter(t=>t.d&&inRange(t,c.f,c.t)):ALL;}
-  if(RANGE==='all')return ALL;
-  const f=RANGE==='M'?monthsBack(1):RANGE==='Y'?monthsBack(12):monthsBack(0.25);
-  return ALL.filter(t=>t.d&&t.d>=f);}
-function rangeLabel(){if(RANGE==='C')return (CF||'start')+' → '+(CT||'now');
-  if(RANGE==='S'){const c=salaryCycle();return c?'salary cycle · from '+c.f:'salary cycle';}
-  return RANGE==='all'?'· all time':'this '+({W:'week',M:'month',Y:'year'}[RANGE]);}
-function segBar(){const opts=[['W','W'],['M','M'],['Y','Y'],['all','All']];
-  if(M.salary_day)opts.push(['S','Cycle']);
-  return `<div class="seg">${opts.map(([k,l])=>`<button class="${RANGE===k?'on':''}" onclick="setR('${k}')">${l}</button>`).join('')}</div>`;}
-/* native date inputs — no picker library needed */
-function rangeRow(){return `<div class="rrow">
-  <button class="chip ${RANGE==='C'?'on':''}" onclick="setR('C')">custom range</button>
-  ${RANGE==='C'?`<input type="date" value="${CF}" max="${M.max_date||''}" onchange="setCF(this.value)">
-   <span class="to">→</span>
-   <input type="date" value="${CT}" max="${M.max_date||''}" onchange="setCT(this.value)">`:''}
-  </div>`;}
+  const from=presetFrom(RANGE);
+  if(!from)return ALL;                          // "All", unknown key, or no dates -> everything
+  return ALL.filter(t=>t.d&&t.d>=from);}
+function rangeLabel(){
+  if(RANGE==='C')return (CF||'start')+' → '+(CT||'now');
+  if(RANGE==='S'){const c=salaryCycle();return c?'salary cycle':'salary cycle';}
+  return {W:'· last week',M:'· last month','3M':'· last 3 months','6M':'· last 6 months',
+          Y:'· last year','5Y':'· last 5 years',all:'· all time'}[RANGE]||'';}
+/* The whole period control: presets, then Cycle if a salary day was detected, then custom.
+   Rendered ONCE per screen, right under the hero it modifies. */
+function rangeRow(){
+  const chips=PRESETS.map(([k,l])=>
+      `<button class="pchip ${RANGE===k?'on':''}" onclick="setR('${k}')">${l}</button>`).join('');
+  const cycle=M.salary_day
+      ? `<button class="pchip ${RANGE==='S'?'on':''}" onclick="setR('S')" title="your salary cycle, not the calendar month">Cycle</button>` : '';
+  const cal='<svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>';
+  const custom=`<button class="pcustom ${RANGE==='C'?'on':''}" onclick="setR('C')" title="pick exact dates">${cal}Custom</button>`;
+  const dates=RANGE==='C'
+      ? `<div class="drow"><input type="date" value="${CF}" max="${M.max_date||''}" onchange="setCF(this.value)">
+         <span class="to">→</span>
+         <input type="date" value="${CT}" max="${M.max_date||''}" onchange="setCT(this.value)"></div>` : '';
+  return `<div class="pwrap"><div class="prow">${chips}${cycle}</div>${custom}</div>${dates}`;}
 
 function home(){
   const rows=rangeFilter(),R=compute(rows);
@@ -363,7 +403,7 @@ function home(){
    summary is charges, what you paid off, and what came back (refunds + rewards). */
 function bankFlowCard(R,inW){
   return `<div class="card rise"><div class="mtop"><div><div class="l">cash flow</div>
-      <div class="v num">${fmt(R.inn-R.out-R.inv,{sign:true})} net</div></div>${segBar()}</div>
+      <div class="v num">${fmt(R.inn-R.out-R.inv,{sign:true})} net</div></div></div>
     <div class="flow"><div class="fc"><div class="fl">incoming</div><div class="fv fin num">${fmtK(R.inn)}</div></div>
       <div class="fc"><div class="fl">investments</div><div class="fv finv num">${fmtK(R.inv)}</div></div>
       <div class="fc"><div class="fl">spends</div><div class="fv fout num">${fmtK(R.out)}</div></div></div>
@@ -375,7 +415,7 @@ function cardFlowCard(){
   const back=c.refunds+c.rewards;
   const total=c.charges+c.fees||1, payW=Math.min(100,Math.round(c.payments/total*100));
   return `<div class="card rise"><div class="mtop"><div><div class="l">this card</div>
-      <div class="v num">${fmtK(Math.abs(owed))} <span class="avgt">${paidOff?'paid off beyond charges':'added to balance'}</span></div></div>${segBar()}</div>
+      <div class="v num">${fmtK(Math.abs(owed))} <span class="avgt">${paidOff?'paid off beyond charges':'added to balance'}</span></div></div></div>
     <div class="flow">
       <div class="fc"><div class="fl">charges</div><div class="fv fout num">${fmtK(c.charges)}</div></div>
       <div class="fc"><div class="fl">you paid</div><div class="fv fin num">${fmtK(c.payments)}</div></div>
