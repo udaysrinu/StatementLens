@@ -125,6 +125,36 @@ def test_charges_after_the_last_payment_are_not_folded_into_a_bill():
     assert sum(c.charges for c in flows.bill_cycles(txns)) == 50000
 
 
+def test_a_card_payment_rail_is_not_an_investment_platform():
+    """INDmoney (legal entity FINZOOM) was listed as a broker, so bill payments became "investments".
+
+    It is a RAIL, not an activity: the same handle can carry investment orders and credit-card bill
+    payments. The bank side names the rail, never the card, so nothing in the narration says "card" —
+    which is exactly why it has to be named explicitly. Booking these as investments double-counted
+    ₹2.71L: once as the bank debit, again as the card charges the payment settled.
+    """
+    for narration in ("UPI/DR/521112919593/FINZOOM /UTIB/indmoney3./UPIIn",
+                      "UPI/DR/406156230590/CredClub/ICIC/credclub@i/Payme"):
+        t = _leg(narration, 75001)
+        assert flows.is_card_bill_payment(t), narration
+        assert flows.classify_flow(t) == flows.SELF_TRANSFER, narration
+        assert flows.classify_flow(t) != flows.INVESTMENT
+
+
+def test_real_brokers_are_still_investments():
+    """The narrow fix must not take mutual funds and brokers with it.
+
+    Only `indmoney` was removed from the broker list; every fund/broker pattern still classifies.
+    """
+    for narration in ("UPI/DR/423517892340/Zerodha /HDFC/zerodhabro/91095",
+                      "UPI/DR/517958588530/ICCL-Groww/HDFC/groww-bse./Pay",
+                      "NEFT/MF UTILITY INDIA/SIP INSTALMENT",
+                      "UPI/DR/1/CAMSONLINE/HDFC/cams@icici/MutualFund",
+                      "UPI/DR/2/KFINTECH/HDFC/kfin@hdfc/ELSS"):
+        t = _leg(narration, 10000)
+        assert flows.classify_flow(t) == flows.INVESTMENT, narration
+
+
 # --- card bill payments ------------------------------------------------------
 
 BILL_PAYMENT_WORDINGS = [

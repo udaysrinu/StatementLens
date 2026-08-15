@@ -955,19 +955,28 @@ function donut(rows,total,label){
    rather than reading the server's all-time summary, so it can't disagree with the hero above it. */
 /* Donut + legend, where the legend swatch is the same tint as its arc — so identity is never carried
    by colour alone (each row still has its name, amount and share in text). */
-function breakdownCard(rows,total,title,label,icon){
+/* `by` says what the row keys ARE, because the two breakdowns key on different things and so need
+   different drill-downs. Incoming groups by income SOURCE, which is a tag ("Salary", "People").
+   Investments group by MERCHANT ("ZERODHA", "FINZOOM") — every one of those rows carries the single
+   category "investment", so sending them to openTag() landed on an empty screen: clickable, but
+   broken, which the dead-click test cannot catch because a handler was present. */
+function breakdownCard(rows,total,title,label,by){
   if(!rows.length)return `<div class="st"><h2>${title}</h2></div><div class="empty">nothing in range</div>`;
   const n=rows.length;
-  const list=rows.map((s,i)=>`<div class="crow" onclick="openTag('${escArg(s.k)}')">
+  const open=by==='merchant'?'openMerchant':'openTag';
+  const list=rows.map((s,i)=>{
+    // a folded "Other (N sources)" row is a synthetic label, not a real key — nothing to open
+    const real=!/^Other \(\d+ sources\)$/.test(s.k);
+    return `<div class="crow" ${real?`onclick="${open}('${escArg(s.k)}')"`:'style="cursor:default"'}>
       <div class="dsw" style="background:${tint(FLOW,i,n)}"></div>
       <div class="cm"><div class="cn">${esc(s.k)}</div></div>
-      <div class="cr"><div class="ca num">${fmtH(s.a)}</div><div class="cp">${(s.share*100).toFixed(1)}% · ${s.n}×</div></div>
-    </div>`).join('');
+      <div class="cr"><div class="ca num">${fmtH(s.a)}</div><div class="cp">${(s.share*100).toFixed(1)}% · ${s.n}×</div>${real?'<span class="chev">›</span>':''}</div>
+    </div>`;}).join('');
   return `${donut(rows,total,label)}<div class="st"><h2>${title}</h2></div>
     <div class="list rise">${list}</div>`;}
 
-function sourceCard(R){return breakdownCard(R.srcs,R.inn,'where it came from','incoming');}
-function investCard(R){return breakdownCard(R.invs,R.inv,'what you put away','invested');}
+function sourceCard(R){return breakdownCard(R.srcs,R.inn,'where it came from','incoming','tag');}
+function investCard(R){return breakdownCard(R.invs,R.inv,'what you put away','invested','merchant');}
 
 function srcIcon(s){const k=(s||'').toLowerCase();
   return k.includes('salary')?'cash':k.includes('people')?'home':k.includes('refund')?'repeat':

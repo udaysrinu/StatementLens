@@ -49,11 +49,24 @@ _CARD_BILL_PAYMENT = re.compile(
 _INVESTMENT_CATEGORIES = {"investments", "investment", "mutual funds", "stocks", "sip"}
 
 #: Merchant fragments that are unambiguously brokers / fund platforms.
+#:
+#: INDmoney (legal entity FINZOOM Insurance Brokers, VPA `indmoney*`) is deliberately NOT here. It is
+#: a RAIL, not an activity: the same handle carries investment orders AND credit-card bill payments,
+#: and this user confirmed they only ever use it to pay card bills. Listing it as a broker booked
+#: ₹2.71L of bill payments as investments — money that had already been counted as card charges, so it
+#: was double-counted across the two accounts. A platform that does several things cannot be
+#: classified by its name alone; see _CARD_RAIL below.
 _INVESTMENT_MERCHANTS = re.compile(
     r"(?i)\b(zerodha|groww|upstox|smallcase|indianclearing|nse\s*clearing|bse|"
-    r"iccl|nsccl|mf\s*utility|mfu|camsonline|kfintech|indmoney|coin|"
+    r"iccl|nsccl|mf\s*utility|mfu|camsonline|kfintech|coin|"
     r"sip|mutual\s*fund|elss|nps|ppf)\b"
 )
+
+#: Third-party rails used to PAY a credit-card bill from a bank account. The bank side of such a
+#: payment names the rail, not the card, so nothing in the narration says "card" — which is why these
+#: need naming explicitly. Both legs must land in SELF_TRANSFER or the money counts twice: once as the
+#: bank debit and again as the card charges it settled.
+_CARD_RAIL = re.compile(r"(?i)\b(finzoom|indmoney|cred(?:club)?|paytm\s*cc|mobikwik\s*cc)\b")
 
 
 def is_self_transfer(txn: Transaction, own_names: Iterable[str]) -> bool:
@@ -76,7 +89,12 @@ def is_self_transfer(txn: Transaction, own_names: Iterable[str]) -> bool:
 
 def is_card_bill_payment(txn: Transaction) -> bool:
     """True when this row is a credit-card bill payment (an internal transfer, not income/spend)."""
-    return bool(_CARD_BILL_PAYMENT.search(f"{txn.merchant} {txn.description}"))
+    hay = f"{txn.merchant} {txn.description}"
+    # a debit to a card-payment rail is the bank side of a bill payment, even though the narration
+    # never mentions a card — it names the rail (INDmoney, CRED) instead
+    if txn.is_debit and _CARD_RAIL.search(hay):
+        return True
+    return bool(_CARD_BILL_PAYMENT.search(hay))
 
 
 def classify_flow(txn: Transaction, own_names: Iterable[str] = ()) -> str:
