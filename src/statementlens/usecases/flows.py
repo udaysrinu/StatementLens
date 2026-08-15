@@ -217,9 +217,7 @@ def incoming_breakdown(txns: Iterable[Transaction], own_names: Iterable[str] = (
     for t in txns:
         if classify_flow(t, own_names) != INCOMING:
             continue
-        # narration-based income rules take precedence: a spend categorizer has no notion of
-        # "salary" vs "refund", so trusting its label here mislabels most credits
-        src = _guess_income_source(t) or t.category or "Other income"
+        src = income_source(t)
         by_src[src] += t.amount.minor
         counts[src] += 1
         total += t.amount.minor
@@ -246,6 +244,23 @@ _REFUND_RE = re.compile(r"(?i)\b(refund|reversal|rev\b|chargeback)\b")
 #: often the single most frequent credit, so lumping them into "Refunds" hides both.
 _CASHBACK_RE = re.compile(r"(?i)(cashback|cash\s?back|reward\s?point|statement\s+credit|\bmilestone\b)")
 _INTEREST_RE = re.compile(r"(?i)\b(int\.?\s*pd|interest|int\s*cr)\b")
+
+
+def income_source(txn: Transaction) -> str:
+    """The income-source label for one credit — the resolved answer, never None.
+
+    Narration rules take precedence over the tag: a spend categorizer has no notion of "salary" vs
+    "refund", so trusting its label here mislabels most credits. Public because the renderer stamps
+    this onto every credit row and must arrive at the same label the summary does — two independent
+    implementations of "what kind of income is this" would drift apart.
+    """
+    guess = _guess_income_source(txn)
+    if guess:
+        return guess
+    # "untagged" is the SPEND categorizer admitting it has no rule; surfacing it as an income source
+    # reads as a real category next to Salary and People when it means the opposite.
+    tag = (txn.category or "").strip()
+    return tag if tag and tag.lower() not in ("untagged", "other") else "Other income"
 
 
 def _guess_income_source(txn: Transaction) -> Optional[str]:

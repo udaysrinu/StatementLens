@@ -6,7 +6,7 @@ from statementlens.domain.models import Direction, Transaction
 from statementlens.domain.money import Money
 from statementlens.usecases.flows import (
     SELF_TRANSFER, SPEND, INVESTMENT, INCOMING,
-    cash_flow, classify_flow, detect_salary_day, incoming_breakdown,
+    cash_flow, classify_flow, detect_salary_day, incoming_breakdown, income_source,
     monthly_series, recurring_payments, salary_cycle,
 )
 
@@ -91,6 +91,34 @@ def test_income_rules_beat_the_spend_categorizer_label():
     t = txn(1, 190000, Direction.CREDIT, desc="SAL FOR SEP 2022", cat="professional services")
     rows = incoming_breakdown([t])
     assert rows[0]["source"] == "Salary"
+
+
+def test_untagged_is_not_reported_as_an_income_source():
+    """"untagged" is the spend categorizer admitting defeat, not a kind of income.
+
+    It was appearing in the breakdown as a peer of Salary and People, where it reads like a real
+    source. Anything the narration rules can't place belongs in "Other income".
+    """
+    t = txn(1, 5000, Direction.CREDIT, desc="SOME CREDIT", cat="untagged")
+    assert income_source(t) == "Other income"
+    # a genuinely meaningful tag still survives
+    assert income_source(txn(1, 5000, Direction.CREDIT, desc="X", cat="Rent")) == "Rent"
+
+
+def test_income_source_agrees_with_the_breakdown_it_feeds():
+    """The renderer stamps income_source() on every credit row and re-aggregates client-side.
+
+    If the two ever disagreed, the per-period breakdown would contradict the total printed above it,
+    so the summary must be reproducible from the per-row labels alone.
+    """
+    txns = [txn(1, 90000, Direction.CREDIT, desc="SALARY AUG"),
+            txn(2, 10000, Direction.CREDIT, desc="UPI FROM FRIEND"),
+            txn(3, 2500, Direction.CREDIT, desc="MYSTERY CREDIT", cat="untagged")]
+    per_row: dict = {}
+    for t in txns:
+        per_row[income_source(t)] = per_row.get(income_source(t), 0) + t.amount.minor
+    summary = {r["source"]: r["amount"] for r in incoming_breakdown(txns)}
+    assert per_row == summary
 
 
 def test_monthly_series_averages_only_months_with_data():

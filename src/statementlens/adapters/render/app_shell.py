@@ -93,10 +93,17 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .seg button{border:none;background:transparent;color:var(--ink2);padding:6px 13px;border-radius:100px;font:600 12px var(--body);cursor:pointer}
 .seg button.on{background:var(--acc);color:var(--onacc)}
 .flow{display:flex;gap:8px;margin-bottom:14px}
-.fc{flex:1;min-width:0;background:var(--s2);border-radius:14px;padding:12px 12px}
+/* the tiles are buttons: each promotes its figure into the hero */
+.fc{flex:1;min-width:0;background:var(--s2);border:1px solid transparent;border-radius:14px;
+  padding:12px;text-align:left;font:inherit;cursor:pointer;
+  transition:border-color .18s var(--ease),background .18s var(--ease)}
+.fc:hover{border-color:var(--line)}
+.fc.on{border-color:var(--acc);background:rgba(var(--glow),.09)}
 .fc .fl{font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fc .fv{font:500 17px/1 var(--disp);margin-top:6px}
+.fc .fn{font-size:10px;color:var(--ink3);margin-top:4px}
 .fin{color:var(--up)}.fout{color:var(--ink)}.finv{color:var(--ink2)}
+.fhint{font-size:11px;color:var(--ink3);margin-top:10px;text-align:center}
 
 /* hero avg sub-line + disclosure note */
 .hero .avg{font-size:12px;color:var(--ink3);margin-top:3px}
@@ -189,6 +196,10 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .crow .cm{flex:1;min-width:0}.crow .cn{font-weight:600;font-size:14.5px}
 .crow .cb{height:4px;border-radius:4px;background:var(--s2);margin-top:8px;overflow:hidden}
 .crow .cb i{display:block;height:100%;border-radius:4px;background:var(--acc)}
+/* incoming and investment bars are tinted to match their flow, so a breakdown is never mistaken
+   for a spend list at a glance */
+.crow .cb.in i{background:var(--up)}
+.crow .cb.inv i{background:var(--ink2)}
 .crow .cr{text-align:right;flex:none}.crow .ca{font:500 15px/1 var(--disp)}.crow .cp{font-size:11.5px;color:var(--ink3);margin-top:3px}
 
 /* recent + recurring rows */
@@ -289,10 +300,18 @@ function catIcon(c){c=(c||'').toLowerCase();if(/food|dining/.test(c))return'food
 function inRange(t,f,tt){return (!f||t.d>=f)&&(!tt||t.d<=tt);}
 function compute(rows){let inn=0,out=0,inv=0,slf=0,slfN=0;
   const catT={},catC={},merT={},merC={},recMon={},recAmt={},moOut={},merName={};
+  const srcT={},srcC={},moIn={},invT={},invC={},invN={};  // incoming by source, investments by holding
   for(const t of rows){
     if(t.f==='x'){slf+=t.a;slfN++;continue;}
-    if(t.f==='i'){inn+=t.a;continue;}
-    if(t.f==='v')inv+=t.a;
+    if(t.f==='i'){inn+=t.a;
+      const s=t.src||'Other income';srcT[s]=(srcT[s]||0)+t.a;srcC[s]=(srcC[s]||0)+1;
+      if(t.mo)moIn[t.mo]=(moIn[t.mo]||0)+t.a;
+      continue;}
+    if(t.f==='v'){inv+=t.a;
+      // case-fold the key so ZERODHA/Zerodha stay ONE holding, same rule as the merchant roll-up;
+      // keep the first-seen spelling for display
+      const raw=t.m||t.c||'Other',k=raw.trim().toLowerCase();
+      invT[k]=(invT[k]||0)+t.a;invC[k]=(invC[k]||0)+1;invN[k]=invN[k]||raw;}
     else{out+=t.a;if(t.mo)moOut[t.mo]=(moOut[t.mo]||0)+t.a;}
     catT[t.c]=(catT[t.c]||0)+t.a;catC[t.c]=(catC[t.c]||0)+1;
     // merchant keys are case-folded so "ZERODHA"/"Zerodha" stay one payee, as on the server
@@ -308,8 +327,22 @@ function compute(rows){let inn=0,out=0,inv=0,slf=0,slfN=0;
     .sort((a,b)=>b.total-a.total).slice(0,6);
   const bal=rows.filter(t=>t.b!=null).slice(-1)[0];
   const nMo=Object.keys(moOut).length||1;
+  /* Ranked breakdowns with an honest tail. Same rule as the server's incoming_breakdown: fold the
+     remainder into a labelled "Other" row rather than slicing it off, so the parts still sum to the
+     total. A list that looks complete but doesn't add up is worse than a longer list. */
+  const rank=(tot,cnt,total,limit,names)=>{
+    const out=Object.keys(tot).map(k=>({k:(names&&names[k])||k,a:tot[k],n:cnt[k],
+                                        share:total?tot[k]/total:0}))
+                              .sort((x,y)=>y.a-x.a);
+    if(out.length<=limit)return out;
+    const tail=out.slice(limit-1);
+    return out.slice(0,limit-1).concat([{k:`Other (${tail.length} sources)`,
+      a:tail.reduce((s,r)=>s+r.a,0),n:tail.reduce((s,r)=>s+r.n,0),
+      share:tail.reduce((s,r)=>s+r.share,0)}]);};
+  const nMoIn=Object.keys(moIn).length||1;
   return {inn,out,inv,slf,slfN,cats,catTotal,recurring,closing:bal?bal.b:null,count:rows.length,
-          moOut,months:nMo,avgOut:Math.round(out/nMo),avgIn:Math.round(inn/nMo)};}
+          moOut,moIn,months:nMo,avgOut:Math.round(out/nMo),avgIn:Math.round(inn/nMoIn),
+          srcs:rank(srcT,srcC,inn,6),invs:rank(invT,invC,inv,6,invN)};}
 
 /* ---- period control ---- */
 let RANGE='all',CF='',CT='',SORT='high';
@@ -364,6 +397,7 @@ function rangeRow(){
 function home(){
   const rows=rangeFilter(),R=compute(rows);
   const deltaHtml=heroDelta(R);
+  const hv=heroValue(R);
   // insights
   let ins='';DATA.insights.forEach(c=>{const cls=c.severity>=3?'alert':c.severity===0?'positive':'';
     ins+=`<div class="ins ${cls}"><div class="ic">${I(c.icon)}</div><div class="it">${esc(c.title)}</div><div class="cp">${hl(c.copy)}</div></div>`;});
@@ -378,36 +412,92 @@ function home(){
   let rec2='';rows.slice().reverse().slice(0,4).forEach(t=>{rec2+=txRow(t,true);});
 
   // avg-per-month sub-line: the comparative CRED puts under every total
-  const avgLine=R.months>1?`<div class="avg num">avg per month ${fmtK(R.avgOut)}</div>`:'';
+  const avgLine=hv.avg?`<div class="avg num">avg per month ${fmtK(hv.avg)}</div>`:'';
   // self-transfer disclosure — never silently drop money from the totals
   const slfNote=R.slfN?`<div class="note rise">self-transfers are excluded · ${fmtK(R.slf)} across ${R.slfN} transactions</div>`:'';
+  // the breakdown that matches whichever side of the flow the hero is showing
+  const detail=FLOW==='in'?sourceCard(R):FLOW==='inv'?investCard(R):
+               `<div class="st"><h2>where it went</h2><a onclick="go('spends')">see all</a></div>
+                <div class="list rise">${cats||'<div class="empty">no spends in range</div>'}</div>`;
 
   return `<div class="view on">
-    <div class="hero rise"><div class="l">${M.is_card?'charged':'spent'} ${rangeLabel()}</div><div class="big num" id="hero" data-to="${R.out}">${fmt(R.out)}</div>${deltaHtml}${avgLine}</div>
+    <div class="hero rise"><div class="l">${hv.label} ${rangeLabel()}</div><div class="big num" id="hero" data-to="${hv.amount}">${fmt(hv.amount)}</div>${deltaHtml}${avgLine}</div>
     ${rangeRow()}
     ${slfNote}
     ${DATA.insights.length?`<div class="st"><h2>for you</h2></div><div class="insrow">${ins}</div>`:''}
     ${M.is_card?cardFlowCard():bankFlowCard(R,inW)}
     ${monthChart()}
-    <div class="st"><h2>where it went</h2><a onclick="go('spends')">see all</a></div>
-    <div class="list rise">${cats||'<div class="empty">no spends in range</div>'}</div>
+    ${detail}
     ${rec?`<div class="st"><h2>recurring</h2><a onclick="go('recurring')">see all</a></div><div class="list rise">${rec}</div>`:''}
     <div class="st"><h2>recent</h2><a onclick="go('search')">view all</a></div>
     <div class="list rise">${rec2||'<div class="empty">nothing here</div>'}</div>
   </div>`;
 }
 
+/* ---- which side of the flow the hero shows ----
+   Three numbers were computed but only one was ever displayed at full precision: `spends`. Incoming
+   and investments existed solely as abbreviated tiles ("₹73L"), so the answer to "what came in?" was
+   rounded to two significant figures and had no breakdown behind it at all. The tiles are now the
+   control that swaps the hero. Spends stays the default — overspending is the thing you act on. */
+let FLOW='out';
+const FLOWS={out:{label:'spent',key:'out',avg:'avgOut'},
+             in:{label:'received',key:'inn',avg:'avgIn'},
+             inv:{label:'invested',key:'inv',avg:null}};
+function heroValue(R){
+  const f=FLOWS[FLOW]||FLOWS.out;
+  return {label:M.is_card&&FLOW==='out'?'charged':f.label,
+          amount:R[f.key],
+          avg:(f.avg&&R.months>1)?R[f.avg]:0};}
+function setFlow(f){FLOW=f;draw();}
+
 /* ---- flow cards ----
    A bank account and a credit card need different frames. On a bank account "net" is what stayed. On
    a card the spending IS the balance owed, so a net figure is computable but meaningless — the honest
    summary is charges, what you paid off, and what came back (refunds + rewards). */
 function bankFlowCard(R,inW){
+  /* The three tiles are BUTTONS: tapping one promotes it into the hero and swaps the breakdown
+     below. Previously they were inert text, which is why incoming and investments were only ever
+     visible as a rounded "₹73L" with nothing to drill into. */
+  const tile=(k,label,cls,amt,n)=>
+    `<button class="fc ${FLOW===k?'on':''}" onclick="setFlow('${k}')" aria-pressed="${FLOW===k}">
+       <div class="fl">${label}</div><div class="fv ${cls} num">${fmtK(amt)}</div>
+       ${n?`<div class="fn">${n}×</div>`:''}</button>`;
+  const nIn=R.srcs.reduce((s,r)=>s+r.n,0), nInv=R.invs.reduce((s,r)=>s+r.n,0);
   return `<div class="card rise"><div class="mtop"><div><div class="l">cash flow</div>
       <div class="v num">${fmt(R.inn-R.out-R.inv,{sign:true})} net</div></div></div>
-    <div class="flow"><div class="fc"><div class="fl">incoming</div><div class="fv fin num">${fmtK(R.inn)}</div></div>
-      <div class="fc"><div class="fl">investments</div><div class="fv finv num">${fmtK(R.inv)}</div></div>
-      <div class="fc"><div class="fl">spends</div><div class="fv fout num">${fmtK(R.out)}</div></div></div>
-    <div class="flowbar"><span class="bin" style="width:${inW}%"></span><span class="bout" style="width:${100-inW}%"></span></div></div>`;}
+    <div class="flow">${tile('in','incoming','fin',R.inn,nIn)}
+      ${tile('inv','investments','finv',R.inv,nInv)}
+      ${tile('out','spends','fout',R.out,R.count-nIn-nInv-R.slfN)}</div>
+    <div class="flowbar"><span class="bin" style="width:${inW}%"></span><span class="bout" style="width:${100-inW}%"></span></div>
+    <div class="fhint">tap a figure to see it broken down</div></div>`;}
+
+/* ---- incoming, broken down by source ----
+   `incoming_sources` was computed on the server, embedded in the payload, and then never rendered —
+   ₹72L of credits reduced to one tile. This recomputes it from the rows in the SELECTED period
+   rather than reading the server's all-time summary, so it can't disagree with the hero above it. */
+function sourceCard(R){
+  if(!R.srcs.length)return '<div class="st"><h2>where it came from</h2></div><div class="empty">no incoming in range</div>';
+  const max=R.srcs[0].a||1;
+  const rows=R.srcs.map(s=>`<div class="crow">
+      <div class="ci">${I(srcIcon(s.k))}</div>
+      <div class="cm"><div class="cn">${esc(s.k)}</div><div class="cb in"><i style="width:${(s.a/max*100).toFixed(0)}%"></i></div></div>
+      <div class="cr"><div class="ca num">${fmt(s.a)}</div><div class="cp">${(s.share*100).toFixed(0)}% · ${s.n}×</div></div>
+    </div>`).join('');
+  return `<div class="st"><h2>where it came from</h2></div><div class="list rise">${rows}</div>`;}
+
+function investCard(R){
+  if(!R.invs.length)return '<div class="st"><h2>what you put away</h2></div><div class="empty">no investments in range</div>';
+  const max=R.invs[0].a||1;
+  const rows=R.invs.map(s=>`<div class="crow">
+      <div class="ci">${I('invest')}</div>
+      <div class="cm"><div class="cn">${esc(s.k)}</div><div class="cb inv"><i style="width:${(s.a/max*100).toFixed(0)}%"></i></div></div>
+      <div class="cr"><div class="ca num">${fmt(s.a)}</div><div class="cp">${(s.share*100).toFixed(0)}% · ${s.n}×</div></div>
+    </div>`).join('');
+  return `<div class="st"><h2>what you put away</h2></div><div class="list rise">${rows}</div>`;}
+
+function srcIcon(s){const k=(s||'').toLowerCase();
+  return k.includes('salary')?'cash':k.includes('people')?'home':k.includes('refund')?'repeat':
+         k.includes('interest')?'trend':k.includes('cashback')||k.includes('reward')?'gift':'cash';}
 
 function cardFlowCard(){
   const c=DATA.card;if(!c)return '';
@@ -434,8 +524,11 @@ function cardFlowCard(){
      2. it summed every debit, counting investments and card payments as spending;
      3. the newest month is usually partial, so a 3-day-old month vs a full one always looked like a
         collapse. A partial period is now compared against the SAME number of days. */
-function spendBetween(from,to){
-  return ALL.filter(t=>t.d&&t.f==='s'&&t.d>=from&&t.d<=to).reduce((s,t)=>s+t.a,0);}
+/* Sum the SAME flow bucket the hero is showing. Comparing "received this month" against "spent last
+   month" would be a nonsense percentage, so the bucket is a parameter, not a constant. */
+const FLOW_CODE={out:'s',in:'i',inv:'v'};
+function flowBetween(from,to,code){
+  return ALL.filter(t=>t.d&&t.f===code&&t.d>=from&&t.d<=to).reduce((s,t)=>s+t.a,0);}
 function shiftDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);
   return d.toISOString().slice(0,10);}
 function currentWindow(){
@@ -451,11 +544,14 @@ function heroDelta(R){
   const prevTo=shiftDays(w.from,-1), prevFrom=shiftDays(prevTo,-(days-1));
   // no comparable history -> say nothing rather than compare against a truncated period
   if(prevFrom<w.first)return '';
-  const prev=spendBetween(prevFrom,prevTo);
+  const prev=flowBetween(prevFrom,prevTo,FLOW_CODE[FLOW]||'s');
   if(prev<=0)return '';
-  const pc=Math.round((R.out/prev-1)*100), up=pc>0;
+  const now=heroValue(R).amount;
+  const pc=Math.round((now/prev-1)*100), up=pc>0;
+  // more money in is GOOD, more money out is BAD — the same arrow must not carry the same colour
+  const good=FLOW==='out'?!up:up;
   const label=days<=8?'week':days<=32?'month':days<=95?'quarter':days<=370?'year':`${days} days`;
-  return `<div class="sub"><span class="${up?'down':'up'}">${up?'↑':'↓'} ${Math.abs(pc)}%</span>`
+  return `<div class="sub"><span class="${good?'up':'down'}">${up?'↑':'↓'} ${Math.abs(pc)}%</span>`
        + ` vs previous ${label} · ${fmt(prev)}</div>`;}
 
 /* ---- monthly bars with an AVG reference line (CRED's "past trends") ---- */

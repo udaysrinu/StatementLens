@@ -55,6 +55,7 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             debit_total += t.amount.minor
         else:
             credit_total += t.amount.minor
+        bucket = flow_engine.classify_flow(t, own_names)
         rows.append({
             "d": t.txn_date.isoformat() if t.txn_date else "",
             "mo": t.month,
@@ -65,12 +66,17 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             "dir": "C" if not t.is_debit else "D",
             "b": t.balance.minor if t.balance is not None else None,
             # flow bucket, so the client can re-slice without re-deriving the rules
-            "f": _FLOW_CODE[flow_engine.classify_flow(t, own_names)],
+            "f": _FLOW_CODE[bucket],
             "ref": t.source_ref,
             "note": tags.note_for(t),
             # unsettled alert rows must be distinguishable downstream; omitted when false to keep
             # the embedded payload small
             "p": 1 if t.provisional else None,
+            # Income source per ROW, so the client can rebuild the breakdown for the selected period.
+            # The `incoming_sources` summary below is all-time only; a dashboard that showed it beside
+            # a 1M hero would repeat the "always versus last month" mismatch. Carried only on credits
+            # — on a debit it is dead weight in the payload.
+            **({"src": flow_engine.income_source(t)} if bucket == flow_engine.INCOMING else {}),
         })
 
     # insight cards (crown jewel)

@@ -208,4 +208,32 @@ def test_period_control_offers_presets_first_and_custom_last():
     assert "segBar" not in page, "the second, rival period control must stay deleted"
 
 
+def test_every_flow_side_is_reachable_from_the_hero():
+    """Incoming and investments must be viewable at full precision, not just as rounded tiles.
+
+    The bug this pins: `incoming_sources` was computed, embedded in the payload, and then referenced
+    ZERO times by the renderer. ₹72L of credits was reachable only as a two-significant-figure "₹73L"
+    tile with nothing to drill into, because the hero was hardcoded to the spend total.
+    """
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    # all three sides of the flow can become the hero, and each tile is the control that does it
+    assert "setFlow('${k}')" in page, "the flow tiles must be buttons, not inert text"
+    for flow in ("out:", "in:", "inv:"):
+        assert flow in page.split("const FLOWS=")[1][:200], f"{flow} missing from the flow table"
+    assert "heroValue(" in page, "the hero must read the selected flow, not a hardcoded total"
+    for tile in ("'in','incoming'", "'inv','investments'", "'out','spends'"):
+        assert tile in page, f"tile {tile} must be rendered"
+
+    # each side has a breakdown behind it — a big number with nothing under it is a dead end
+    assert "sourceCard(" in page and "where it came from" in page
+    assert "investCard(" in page and "what you put away" in page
+
+    # the per-row income label must be what the client aggregates; without it the breakdown could
+    # only ever show all-time figures beside a period-filtered hero
+    assert "t.src" in page, "credits must carry a per-row income source for re-slicing by period"
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)
