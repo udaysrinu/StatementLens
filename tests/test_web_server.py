@@ -263,4 +263,29 @@ def test_netting_modes_are_offered_and_disclosed():
     assert "money moved both ways" in page
 
 
+def test_top_merchant_rows_drill_down_and_keep_their_breadcrumb():
+    """The "top merchants" rows carried .crow (styled cursor:pointer) but had NO onclick.
+
+    So the whole list looked clickable and did nothing. Clicking a merchant must open that merchant's
+    transactions, and backing out must return to the TAG it was reached from rather than dumping the
+    user at the tag list.
+    """
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    merch_row = page[page.index("const merRows="):]
+    merch_row = merch_row[:merch_row.index("\n")]
+    assert "onclick=" in merch_row and "openMerchant(" in merch_row, "merchant rows must drill down"
+
+    # the breadcrumb: remember the tag, and offer it as the back target
+    assert "FROMTAG=TAGVIEW" in page
+    assert "backFromDetail()" in page
+
+    # keys must be ESCAPED, not stripped: stripping an apostrophe mutates the very key the next
+    # screen filters on, so "DOMINO'S" would open an empty list
+    assert "const escArg=" in page
+    assert """replace(/'/g,"")""" not in page, "apostrophes must be escaped, never stripped"
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)

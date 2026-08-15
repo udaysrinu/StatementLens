@@ -219,6 +219,9 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .crow .cb.in i{background:var(--up)}
 .crow .cb.inv i{background:var(--ink2)}
 .crow .cr{text-align:right;flex:none}.crow .ca{font:500 15px/1 var(--disp)}.crow .cp{font-size:11.5px;color:var(--ink3);margin-top:3px}
+/* affordance: these rows drill down, so say so rather than relying on the cursor alone */
+.crow .chev{color:var(--ink3);margin-left:3px}
+.crow:hover .chev{color:var(--acc)}
 
 /* recent + recurring rows */
 .trow{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid var(--line)}
@@ -301,6 +304,10 @@ function fmtK(p){let r=Math.abs(p)/100,sym=CUR==='INR'?'₹':'',g=p<0?'-':'';
   if(r>=1e7)return g+sym+(r/1e7).toFixed(r>=1e8?0:1)+'Cr';if(r>=1e5)return g+sym+(r/1e5).toFixed(r>=1e6?0:1)+'L';
   if(r>=1e3)return g+sym+(r/1e3).toFixed(0)+'k';return g+sym+Math.round(r);}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* For a value going inside a single-quoted onclick argument. esc() leaves ' alone, so the existing
+   call sites STRIP apostrophes to stay safe — which mutates the key they then look the rows up by,
+   so a merchant like "DOMINO'S" would open an empty screen. Escaping keeps the key intact. */
+const escArg=s=>esc(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 function I(n){const S=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;const m={
   copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   receipt:'<path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1z"/><path d="M9 8h6M9 12h6"/>',
@@ -567,7 +574,7 @@ function home(){
   const tot=R.inn+R.out||1,inW=Math.round(R.inn/tot*100);
   // categories top5
   let cats='';R.cats.slice(0,5).forEach(c=>{const f=c.a/(R.cats[0].a||1);
-    cats+=`<div class="crow" onclick="openTag('${esc(c.c).replace(/'/g,"")}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(f*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(0)}%</div></div></div>`;});
+    cats+=`<div class="crow" onclick="openTag('${escArg(c.c)}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(f*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(0)}%</div></div></div>`;});
   // recurring
   let rec='';R.recurring.slice(0,4).forEach(r=>{rec+=`<div class="trow"><div class="ti">${(r.m||'?').slice(0,2).toUpperCase()}</div><div class="tm"><div class="tn">${esc(r.m)}</div><div class="td">seen ${r.months} months</div></div><div class="tv num">${fmt(r.med)}</div></div>`;});
   // recent
@@ -758,7 +765,7 @@ function spends(){const rows0=rangeFilter(),R=compute(rows0);
   else if(SORT==='count')cats.sort((a,b)=>b.n-a.n);
   const maxA=Math.max(...cats.map(c=>c.a),1);
   let rows='';cats.forEach(c=>{
-    rows+=`<div class="crow" onclick="openTag('${esc(c.c).replace(/'/g,"")}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(c.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(1)}% · ${c.n}×</div></div></div>`;});
+    rows+=`<div class="crow" onclick="openTag('${escArg(c.c)}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(c.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(1)}% · ${c.n}×</div></div></div>`;});
   const nextSort={high:'low',low:'count',count:'high'}[SORT],
         sortLbl={high:'high to low',low:'low to high',count:'most frequent'}[SORT];
   return `<div class="view on">
@@ -769,13 +776,19 @@ function spends(){const rows0=rangeFilter(),R=compute(rows0);
     <div class="list rise">${rows||'<div class="empty">no spends in range</div>'}</div>
     ${(DATA.review_queue||[]).length?`<div class="st"><h2>needs a tag</h2></div>
       <div class="note rise">${DATA.untagged} transactions couldn't be tagged automatically. fixing the biggest ones sharpens every number above.</div>
-      <div class="list rise">${DATA.review_queue.slice(0,6).map(r=>`<div class="trow" onclick="openMerchant('${esc(r.merchant).replace(/'/g,"")}')"><div class="ti">${esc((r.merchant||'?').slice(0,2)).toUpperCase()}</div><div class="tm"><div class="tn">${esc(r.merchant)}</div><div class="td">${r.count}× · untagged</div></div><div class="tv num">${fmt(r.amount)}</div></div>`).join('')}</div>`:''}
+      <div class="list rise">${DATA.review_queue.slice(0,6).map(r=>`<div class="trow" onclick="openMerchant('${escArg(r.merchant)}')"><div class="ti">${esc((r.merchant||'?').slice(0,2)).toUpperCase()}</div><div class="tm"><div class="tn">${esc(r.merchant)}</div><div class="td">${r.count}× · untagged</div></div><div class="tv num">${fmt(r.amount)}</div></div>`).join('')}</div>`:''}
   </div>`;}
 
 /* ---- one tag's transactions (drill-down from the tag list) ---- */
 let TAGVIEW='',MERVIEW='';
-function openTag(t){TAGVIEW=t;MERVIEW='';TAB='tagdetail';window.scrollTo(0,0);draw();}
-function openMerchant(m){MERVIEW=m;TAGVIEW='';TAB='tagdetail';window.scrollTo(0,0);draw();}
+/* One breadcrumb, because tag -> merchant -> back is a real path: without it, backing out of a
+   merchant you reached FROM a tag dumps you at the tag list and you lose your place. */
+let FROMTAG='';
+function openTag(t){TAGVIEW=t;MERVIEW='';FROMTAG='';TAB='tagdetail';window.scrollTo(0,0);draw();}
+function openMerchant(m){FROMTAG=TAGVIEW;MERVIEW=m;TAGVIEW='';TAB='tagdetail';window.scrollTo(0,0);draw();}
+function backFromDetail(){
+  if(FROMTAG){const t=FROMTAG;openTag(t);return;}   // merchant reached via a tag -> back to that tag
+  go('spends');}
 function tagDetail(){
   const key=TAGVIEW||MERVIEW,byTag=!!TAGVIEW;
   const rows=rangeFilter().filter(t=>byTag?t.c===key:(t.m||'')===key);
@@ -784,13 +797,16 @@ function tagDetail(){
   const byMer={},cnt={};rows.forEach(t=>{if(t.f==='i'||t.f==='x')return;const m=t.m||t.desc;byMer[m]=(byMer[m]||0)+t.a;cnt[m]=(cnt[m]||0)+1;});
   const mers=Object.keys(byMer).map(m=>({m,a:byMer[m],n:cnt[m]})).sort((a,b)=>b.a-a.a);
   const maxA=Math.max(...mers.map(m=>m.a),1);
-  const merRows=mers.slice(0,12).map(m=>`<div class="crow"><div class="ci">${I(catIcon(key))}</div><div class="cm"><div class="cn">${esc(m.m)}</div><div class="cb"><i style="width:${(m.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(m.a)}</div><div class="cp">${m.n}× · ~${fmtK(Math.round(m.a/m.n))} avg</div></div></div>`).join('');
+  /* Each merchant row drills into that merchant's own transactions. These rows carry .crow, which is
+     styled cursor:pointer, but had no onclick — so the whole "top merchants" list looked clickable
+     and did nothing. Same drill-down the category rows already offer. */
+  const merRows=mers.slice(0,12).map(m=>`<div class="crow" onclick="openMerchant('${escArg(m.m)}')"><div class="ci">${I(catIcon(key))}</div><div class="cm"><div class="cn">${esc(m.m)}</div><div class="cb"><i style="width:${(m.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(m.a)}</div><div class="cp">${m.n}× · ~${fmtK(Math.round(m.a/m.n))} avg <span class="chev">›</span></div></div></div>`).join('');
   const txRows=dayGrouped(rows.slice().reverse().slice(0,60));
   return `<div class="view on">
-    <div class="hero rise"><div class="l"><a class="back" onclick="go('spends')">‹ back</a> · ${esc(key)}</div>
+    <div class="hero rise"><div class="l"><a class="back" onclick="backFromDetail()">‹ ${FROMTAG?esc(FROMTAG):'back'}</a> · ${esc(key)}</div>
       <div class="big num">${fmt(tot)}</div><div class="avg">${rows.length} transactions</div></div>
-    <div class="st"><h2>top ${byTag?'merchants':'activity'}</h2></div>
-    <div class="list rise">${merRows||'<div class="empty">nothing here</div>'}</div>
+    ${byTag?`<div class="st"><h2>top merchants</h2></div>
+    <div class="list rise">${merRows||'<div class="empty">nothing here</div>'}</div>`:''}
     <div class="st"><h2>transactions</h2></div>${txRows}
   </div>`;}
 
