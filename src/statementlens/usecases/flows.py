@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -144,10 +144,139 @@ class CardFlow:
         return self.charges + self.fees - self.payments - self.refunds - self.rewards
 
 
+#: Narrations a card issuer uses for "you paid your bill". Several appear for the SAME payment: HDFC
+#: prints a customer-facing line ("ONLINE TRF - PYMT RECD - THANK YOU") alongside the payment rail's
+#: own entry ("BPPY CC PAYMENT ..."), and sometimes a third ("TELE TRANSFER CREDIT").
+_PAYMENT_LIKE = re.compile(
+    r"(?i)pymt\s*recd|payment\s*received|cc\s*payment|\bbppy\b|tele\s*transfer\s*credit|"
+    r"online\s*trf|\bbbps\b|autopay|thank\s*you")
+
+
+def dedupe_bill_payments(txns: Iterable[Transaction]) -> List[Transaction]:
+    """Collapse the same bill payment printed under several narrations.
+
+    HDFC lists one payment two or three times — the customer-facing line, the rail's entry, and
+    occasionally a transfer-credit line. Content-hash dedup cannot catch it: the narrations differ, so
+    the hashes differ, and every leg was counted. On the real card this inflated `payments` by
+    ₹4,20,230 across 9 clusters (₹8.33L reported against ~₹4.1L actually paid).
+
+    The rule is deliberately narrow: same date, same amount, and EVERY row in the group reads as a
+    payment. Ordinary same-day same-amount duplicates are left alone — two ₹2 charges at one merchant
+    on one day are usually real, and silently deleting a charge is worse than showing two.
+
+    Returns a new list; the first row of each group survives so its narration stays inspectable.
+    """
+    rows = list(txns)
+    groups: Dict[tuple, List[Transaction]] = defaultdict(list)
+    for t in rows:
+        if t.is_debit or t.txn_date is None:
+            continue
+        groups[(t.txn_date, t.amount.minor)].append(t)
+
+    drop: set = set()
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        if all(_PAYMENT_LIKE.search(f"{m.merchant} {m.description}") for m in members):
+            for extra in members[1:]:
+                drop.add(id(extra))
+    return [t for t in rows if id(t) not in drop]
+
+
+@dataclass
+class BillCycle:
+    """One bill payment and the charges it settled.
+
+    A bank statement shows a card payment as a single opaque line — "₹47,000 to HDFC". That figure is
+    unanalysable on its own: it is not a purchase, it has no merchant and no category. What it really
+    is, is the sum of everything charged to the card in the preceding cycle. This pairs the two so the
+    lump can be opened up.
+    """
+    paid_on: Optional[date]
+    paid: int                              # minor units actually paid
+    charges: int = 0                       # minor units charged in the cycle it settled
+    fees: int = 0
+    refunds: int = 0
+    rows: List[Transaction] = field(default_factory=list)
+    from_date: Optional[date] = None
+    to_date: Optional[date] = None
+
+    @property
+    def count(self) -> int:
+        return len(self.rows)
+
+    @property
+    def unpaid(self) -> int:
+        """Charged but not covered by this payment — a partial payment leaves a balance."""
+        return self.charges + self.fees - self.refunds - self.paid
+
+    def as_dict(self) -> Dict[str, object]:
+        return {"paid_on": self.paid_on.isoformat() if self.paid_on else None,
+                "paid": self.paid, "charges": self.charges, "fees": self.fees,
+                "refunds": self.refunds, "count": self.count, "unpaid": self.unpaid,
+                "from_date": self.from_date.isoformat() if self.from_date else None,
+                "to_date": self.to_date.isoformat() if self.to_date else None,
+                "refs": [t.source_ref for t in self.rows]}
+
+
+def bill_cycles(txns: Iterable[Transaction]) -> List[BillCycle]:
+    """Group a card's charges into the billing cycles its payments settled, newest first.
+
+    Cycles are derived from PAYMENT DATES rather than from the statement's own period, because
+    `period_hint` is unreliable — it currently holds filename fragments for this issuer. Payment dates
+    are directly observable and land on a clean monthly cadence.
+
+    Two things the naive version got wrong, both visible in real data:
+      * charges predating the FIRST payment were all swept into cycle one (163 rows in one bucket).
+        Those were never settled by a payment we hold, so they belong to an explicit opening bucket.
+      * two payments on the same date each claimed the whole cycle, double-attributing every charge.
+        Same-date payments are merged into one settlement event, which is what they are.
+    """
+    rows = dedupe_bill_payments(txns)
+    pay_by_date: Dict[date, int] = defaultdict(int)
+    for t in rows:
+        if is_card_bill_payment(t) and t.txn_date:
+            pay_by_date[t.txn_date] += t.amount.minor
+    dates = sorted(pay_by_date)
+
+    cycles = [BillCycle(paid_on=d, paid=pay_by_date[d]) for d in dates]
+    # an explicit bucket for charges older than the first payment, so nothing is silently attributed
+    opening = BillCycle(paid_on=None, paid=0)
+
+    for t in rows:
+        if not t.txn_date or is_card_bill_payment(t):
+            continue
+        idx = next((i for i, d in enumerate(dates) if d >= t.txn_date), None)
+        target = cycles[idx] if idx is not None else None
+        if target is None:
+            continue                       # charged after the last payment: not yet settled
+        if idx == 0 and dates and t.txn_date < dates[0] - timedelta(days=45):
+            target = opening               # far older than the first bill we hold
+        hay = f"{t.merchant} {t.description}"
+        if not t.is_debit:
+            target.refunds += t.amount.minor
+        elif _CARD_FEE_RE.search(hay):
+            target.fees += t.amount.minor
+        else:
+            target.charges += t.amount.minor
+        target.rows.append(t)
+
+    for c in cycles + [opening]:
+        dated = [r.txn_date for r in c.rows if r.txn_date]
+        if dated:
+            c.from_date, c.to_date = min(dated), max(dated)
+
+    out = [c for c in cycles if c.rows or c.paid]
+    if opening.rows:
+        out.append(opening)
+    out.sort(key=lambda c: (c.paid_on is None, c.paid_on or date.min), reverse=True)
+    return out
+
+
 def card_flow(txns: Iterable[Transaction]) -> CardFlow:
     """Summarize a credit card in its own terms rather than a bank account's."""
     charges = payments = refunds = rewards = fees = 0
-    for t in txns:
+    for t in dedupe_bill_payments(txns):
         hay = f"{t.merchant} {t.description}"
         if is_card_bill_payment(t):
             payments += t.amount.minor

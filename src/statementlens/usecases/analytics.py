@@ -137,6 +137,9 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
         "card": ({"charges": card.charges, "fees": card.fees, "payments": card.payments,
                   "refunds": card.refunds, "rewards": card.rewards,
                   "net_new_debt": card.net_new_debt} if card else None),
+        # What each bill payment actually paid for. A bank statement shows a card payment as one
+        # opaque line; this is the breakdown behind it, so the lump becomes analysable.
+        "bill_cycles": ([c.as_dict() for c in flow_engine.bill_cycles(txns)] if is_card else []),
         "flow": {
             "incoming": flow.incoming,
             "investments": flow.investments,

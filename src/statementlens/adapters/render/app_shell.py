@@ -288,6 +288,24 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .srow .sv{font:500 17px/1 var(--disp)}
 .srow .sr{font:500 17px/1 var(--disp);color:var(--up)}
 .shint{font-size:12px;color:var(--ink3);margin-bottom:12px}
+
+/* ---- bill cycles: what each card payment paid for ---- */
+.billlist{display:flex;flex-direction:column;gap:10px}
+.bill{background:var(--s1);border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  transition:border-color .18s var(--ease)}
+.bill.open{border-color:var(--acc)}
+.billhead{width:100%;background:none;border:none;text-align:left;cursor:pointer;padding:15px 16px;
+  font:inherit;display:flex;flex-direction:column;gap:6px}
+.billhead:hover{background:var(--s2)}
+.bh1{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.bpaid{font:500 21px/1 var(--disp)}
+.bwhen{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.bh2{font-size:11.5px;color:var(--ink2)}
+.bh3{font-size:11px;color:var(--ink3);display:flex;justify-content:space-between;align-items:center}
+/* a bill that did not clear its cycle is the thing worth noticing on this screen */
+.bh3.warn{color:var(--down);font-weight:600}
+.billkids{border-top:1px solid var(--line);padding:2px 16px 8px;
+  animation:rise .3s var(--ease) both}
 .nnote.link{background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;
   font-family:var(--body)}
 .nnote.link:hover{color:var(--acc)}
@@ -961,7 +979,53 @@ function cardFlowCard(){
     <div class="flowbar"><span class="bin" style="width:${payW}%"></span><span class="bout" style="width:${100-payW}%"></span></div>
     ${c.fees?`<div class="cardfee">${fmtK(c.fees)} of that was interest and fees — the avoidable part.</div>`:''}
     ${c.rewards?`<div class="cardfee">${fmtK(c.rewards)} came back as cashback and rewards.</div>`:''}
+    ${(DATA.bill_cycles||[]).length?`<button class="nnote link" onclick="go('bills')">see what each bill paid for ›</button>`:''}
   </div>`;}
+
+/* ---- what a bill payment actually paid for ----
+   A bank statement shows a card payment as ONE opaque line — "₹34,175 to HDFC". That figure resists
+   analysis on its own: it has no merchant, no category, and it is not a purchase. What it actually is,
+   is the sum of everything charged to the card in the cycle before it. This screen pairs the two, so
+   the lump opens into the real transactions behind it.
+
+   Reconciliation is the point: the cycle payments sum EXACTLY to card_flow.payments, and any charge
+   that no payment has settled yet is shown in its own bucket rather than folded into the newest bill. */
+let BILLOPEN=null;
+function billsV(){
+  const cs=DATA.bill_cycles||[];
+  if(!cs.length)return `<div class="view on">${backBtn("go('home')",'home')}
+    <div class="empty">no bill payments found on this card yet</div></div>`;
+  const paidTot=cs.reduce((s,c)=>s+c.paid,0);
+  const rows=cs.map((c,i)=>{
+    const open=BILLOPEN===i;
+    const label=c.paid_on?dayLabel(c.paid_on):'not yet billed';
+    const window=c.from_date?`${esc(dayLabel(c.from_date))} → ${esc(dayLabel(c.to_date))}`:'';
+    // the charges behind THIS bill, resolved from refs so the ledger row is the same object
+    const kids=open?(c.refs||[]).map(r=>ALL.find(x=>x.ref===r)).filter(Boolean)
+                     .sort((a,b)=>b.a-a.a).slice(0,40).map(t=>txRow(t,true)).join(''):'';
+    const short=c.paid?(c.unpaid>0?`${fmtK(c.unpaid)} rolled over`
+                        :c.unpaid<0?`${fmtK(-c.unpaid)} paid ahead`:'settled in full'):'awaiting a bill';
+    return `<div class="bill ${open?'open':''}">
+      <button class="billhead" onclick="toggleBill(${i})">
+        <div class="bh1"><span class="bpaid num">${c.paid?fmtH(c.paid):'—'}</span>
+          <span class="bwhen">${esc(label)}</span></div>
+        <div class="bh2">${c.count} charge${c.count!==1?'s':''} · ${fmtK(c.charges)}${c.fees?` · ${fmtK(c.fees)} fees`:''}
+          ${window?` · ${window}`:''}</div>
+        <div class="bh3 ${c.unpaid>0?'warn':''}">${short}<span class="chev">${open?'⌄':'›'}</span></div>
+      </button>
+      ${open?`<div class="billkids">${kids||'<div class="empty">no charges in this cycle</div>'}
+        ${(c.refs||[]).length>40?`<div class="cardfee">showing the 40 largest of ${c.refs.length}.</div>`:''}</div>`:''}
+    </div>`;}).join('');
+  return `<div class="view on">
+    ${backBtn("go('home')",'home')}
+    <div class="hero rise"><div class="l">bills paid · ${esc(M.account)}</div>
+      <div class="big num">${fmtH(paidTot)}</div>
+      <div class="avg">across ${cs.filter(c=>c.paid).length} payments</div></div>
+    <div class="note rise">a card payment on your bank statement is one line. these are the
+      transactions behind each one — tap a bill to see what it actually paid for.</div>
+    <div class="billlist rise">${rows}</div>
+  </div>`;}
+function toggleBill(i){BILLOPEN=BILLOPEN===i?null:i;draw();}
 
 /* ---- hero comparison ----
    Compare LIKE WITH LIKE: the same span of days immediately before the selected range, using the
@@ -1333,7 +1397,7 @@ function countUp(){
   requestAnimationFrame(step);
 }
 const VIEWS={home:home,spends:spends,insights:insightsV,search:search,
-             recurring:recurringV,tagdetail:tagDetail,txn:txnDetail,netting:nettingV};
+             recurring:recurringV,tagdetail:tagDetail,txn:txnDetail,netting:nettingV,bills:billsV};
 function draw(){const v=document.getElementById('views');v.innerHTML=(VIEWS[TAB]||home)();
   let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
   v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));

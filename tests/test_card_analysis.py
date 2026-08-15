@@ -12,6 +12,7 @@ auditing card-only data:
   split principal/interest EMI lines.
 """
 
+from dataclasses import replace
 from datetime import date
 
 from statementlens.adapters.categorize.keyword_categorizer import KeywordCategorizer
@@ -29,6 +30,99 @@ def card(desc, rupees, *, credit=False, day=11, month=7, merchant=""):
                        merchant=merchant or desc[:24], balance=None,     # cards carry no balance
                        raw_date=f"{day:02d}-0{month}-26",
                        source_ref=f"c-{month}-{day}-{rupees}")
+
+
+def _leg(desc, rupees, *, credit=False, day=11, month=7, merchant="", ref=""):
+    """Like card(), but with an explicit source_ref.
+
+    card() derives its ref from month-day-rupees, which collides for the very case these tests are
+    about: the same amount on the same day under different narrations.
+    """
+    t = card(desc, rupees, credit=credit, day=day, month=month, merchant=merchant)
+    return replace(t, source_ref=ref or f"{desc[:12]}-{month}-{day}-{rupees}")
+
+
+# --- one payment, several narrations ------------------------------------------
+
+def test_one_payment_printed_three_times_counts_once():
+    """HDFC prints the SAME bill payment under several narrations.
+
+    A customer-facing line ("ONLINE TRF - PYMT RECD - THANK YOU"), the payment rail's own entry
+    ("BPPY CC PAYMENT ..."), and sometimes a transfer-credit line — same date, same amount, ONE actual
+    payment. Content-hash dedup cannot catch it because the narrations differ, so every leg was
+    counted: on the real card that inflated `payments` by Rs 4,20,230 across 9 clusters.
+    """
+    legs = [_leg("ONLINE TRF - PYMT RECD - THANK YOU", 75200, credit=True),
+            _leg("TELE TRANSFER CREDIT (Ref# ST123)", 75200, credit=True),
+            _leg("BPPY CC PAYMENT BD015 (Ref# ST123)", 75200, credit=True)]
+    assert len(flows.dedupe_bill_payments(legs)) == 1
+    assert flows.card_flow(legs).payments == 7520000
+
+
+def test_a_repeated_real_charge_is_never_deduped():
+    """The other side: two identical charges on one day are usually REAL.
+
+    Deleting a charge silently is worse than showing two, so the rule only fires when EVERY row in a
+    same-date same-amount group reads as a payment. The real card has 46 such non-payment clusters and
+    they must all survive.
+    """
+    charges = [_leg("POLICYBAZAAR GURGAON", 200, ref="a"),
+               _leg("POLICYBAZAAR GURGAON", 200, ref="b")]
+    assert len(flows.dedupe_bill_payments(charges)) == 2
+    assert flows.card_flow(charges).charges == 40000
+    # a payment paired with a same-amount refund is also left alone
+    mixed = [_leg("ONLINE TRF - PYMT RECD - THANK YOU", 500, credit=True, ref="p"),
+             _leg("MERCHANT REFUND SOME SHOP", 500, credit=True, ref="r")]
+    assert len(flows.dedupe_bill_payments(mixed)) == 2
+
+
+# --- bill cycles: what a payment actually paid for ----------------------------
+
+def test_bill_cycles_reconcile_with_card_flow():
+    """Each payment paired with the charges it settled — and the totals must still tie out.
+
+    This is what makes a bank statement's opaque "Rs 34,175 to HDFC" line analysable: it is the sum of
+    a cycle's charges. If cycle payments did not sum to card_flow.payments, the breakdown would be
+    quietly contradicting the summary above it.
+    """
+    txns = [_leg("SHOP A", 1000, day=3, month=1),
+            _leg("SHOP B", 2000, day=9, month=1),
+            _leg("ONLINE TRF - PYMT RECD - THANK YOU", 3000, credit=True, day=21, month=1),
+            _leg("SHOP C", 500, day=4, month=2),
+            _leg("ONLINE TRF - PYMT RECD - THANK YOU", 400, credit=True, day=20, month=2)]
+    cycles = flows.bill_cycles(txns)
+    # both sides AND the absolute figure: comparing the two alone would pass even if both were wrong
+    # in the same direction, since they share the deduped input
+    assert sum(c.paid for c in cycles) == 340000
+    assert sum(c.paid for c in cycles) == flows.card_flow(txns).payments
+    newest = cycles[0]
+    assert newest.paid_on == date(2026, 2, 20) and newest.paid == 40000
+    assert newest.charges == 50000 and newest.count == 1      # only Shop C fell in that cycle
+    older = cycles[1]
+    assert older.charges == 300000 and older.count == 2       # Shop A + Shop B
+    assert older.unpaid == 0                                   # Rs 3,000 charged, Rs 3,000 paid
+
+
+def test_two_payments_on_one_day_do_not_double_attribute_a_cycle():
+    """Both payments settle the same cycle, so they are one settlement event.
+
+    Treating them as two cycles attributed every charge in the window twice.
+    """
+    txns = [_leg("SHOP", 1000, day=5, month=1),
+            _leg("ONLINE TRF - PYMT RECD - THANK YOU", 600, credit=True, day=19, month=1),
+            _leg("BPPY CC PAYMENT XYZ", 400, credit=True, day=19, month=1)]
+    cycles = [c for c in flows.bill_cycles(txns) if c.paid]
+    assert len(cycles) == 1, "same-date payments must be one settlement event"
+    assert cycles[0].paid == 100000 and cycles[0].charges == 100000
+    assert cycles[0].count == 1, "the charge must not be attributed twice"
+
+
+def test_charges_after_the_last_payment_are_not_folded_into_a_bill():
+    # unsettled spending belongs to no bill yet; claiming otherwise overstates what a payment covered
+    txns = [_leg("SHOP A", 500, day=10, month=1),
+            _leg("ONLINE TRF - PYMT RECD - THANK YOU", 500, credit=True, day=21, month=1),
+            _leg("SHOP B", 900, day=2, month=2)]
+    assert sum(c.charges for c in flows.bill_cycles(txns)) == 50000
 
 
 # --- card bill payments ------------------------------------------------------
