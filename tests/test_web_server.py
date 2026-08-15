@@ -318,4 +318,45 @@ def test_flow_hues_do_not_clobber_the_guilloche_texture():
             f".fbi.{flow} must set background-color, not the background shorthand"
 
 
+def test_nothing_styled_clickable_is_actually_dead():
+    """Anything with cursor:pointer must carry a handler. This bug shipped FOUR times.
+
+    Top-merchant rows, then trend-chart bars, then the netting people rows, then the recurring rows —
+    each looked interactive because .crow/.trow/.bcol are styled cursor:pointer, and each did nothing
+    when tapped. Screenshots cannot catch it and neither can asserting on computed values, which is how
+    it kept getting through: the numbers were right, so the check passed.
+
+    So: derive the pointer-styled class list from the CSS, then require every render site of those
+    classes to have an onclick. Deliberately mechanical — a human reviewer misses this every time.
+    """
+    import re
+
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    # classes the stylesheet marks as clickable
+    pointer: set = set()
+    for selector in re.findall(r"\n(\.[a-z0-9\-\. >:]+)\{[^}]*cursor:pointer", page, re.I):
+        pointer.update(re.findall(r"\.([a-z0-9\-]+)", selector, re.I))
+
+    # containers and wrappers whose CHILDREN carry the handlers, plus one deliberately-static label
+    exempt = {
+        "nav", "fresh", "seg", "st",        # populated elsewhere, or their <a>/<button> children click
+        "simrow",                            # a <label> wrapping a checkbox — the input handles it
+        "link",                              # a modifier, always paired with a real class
+        "av", "sortb", "simgo",              # single elements that do carry handlers inline
+        "nnote",                             # also used for a static disclosure with no action
+    }
+
+    dead = []
+    for cls in sorted(pointer - exempt):
+        for m in re.finditer(r'class="[^"]*\b' + re.escape(cls) + r'\b[^"]*"[^>]{0,140}', page):
+            frag = m.group(0)
+            if "onclick" not in frag and "href" not in frag:
+                dead.append(f"{cls}: {frag[:80]}")
+
+    assert not dead, "styled clickable but no handler:\n  " + "\n  ".join(dead)
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)

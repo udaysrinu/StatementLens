@@ -313,7 +313,15 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 /* monthly bars + avg reference line */
 /* padding-top leaves room for the callout above the tallest bar, which would otherwise be clipped */
 .chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:24px}
-.bcol{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%}
+/* a button, because each bar narrows the period to its month */
+.bcol{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;
+  background:none;border:none;padding:0;font:inherit;cursor:pointer;border-radius:6px;
+  transition:background .16s var(--ease)}
+.bcol:hover{background:rgba(var(--glow),.08)}
+.bcol:hover .blab{color:var(--ink)}
+.bcol.sel{background:rgba(var(--glow),.14)}
+.bcol.sel .blab{color:var(--acc);font-weight:700}
+.bcol:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .bwrap{flex:1;width:100%;display:flex;align-items:flex-end;position:relative}
 .bwrap i{display:block;width:100%;border-radius:5px 5px 2px 2px;background:var(--s2)}
 .bwrap i.on{background:var(--acc)}
@@ -795,7 +803,7 @@ function nettingV(){
     const got=rs.filter(t=>t.dir==='C').reduce((s,t)=>s+t.a,0);
     if(paid&&got)ppl.push({cp,name:rs[0].m||cp,paid,got,net:paid-got,off:Math.min(paid,got),n:rs.length});}
   ppl.sort((a,b)=>b.off-a.off);
-  const pplRows=ppl.map(p=>`<div class="crow">
+  const pplRows=ppl.map(p=>`<div class="crow" onclick="openMerchant('${escArg(p.name)}')">
       <div class="ci">${I('transfer')}</div>
       <div class="cm"><div class="cn">${esc(p.name)}</div>
         <div class="td">paid ${fmtK(p.paid)} · got back ${fmtK(p.got)} · ${p.n} rows</div></div>
@@ -829,7 +837,7 @@ function home(){
   let cats='';R.cats.slice(0,5).forEach(c=>{const f=c.a/(R.cats[0].a||1);
     cats+=`<div class="crow" onclick="openTag('${escArg(c.c)}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(f*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmtH(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(0)}%</div></div></div>`;});
   // recurring
-  let rec='';R.recurring.slice(0,4).forEach(r=>{rec+=`<div class="trow"><div class="ti">${(r.m||'?').slice(0,2).toUpperCase()}</div><div class="tm"><div class="tn">${esc(r.m)}</div><div class="td">seen ${r.months} months</div></div><div class="tv num">${fmt(r.med)}</div></div>`;});
+  let rec='';R.recurring.slice(0,4).forEach(r=>{rec+=`<div class="trow" onclick="openMerchant('${escArg(r.m)}')"><div class="ti">${(r.m||'?').slice(0,2).toUpperCase()}</div><div class="tm"><div class="tn">${esc(r.m)}</div><div class="td">seen ${r.months} months</div></div><div class="tv num">${fmt(r.med)}</div></div>`;});
   // recent
   let rec2='';rows.slice().reverse().slice(0,4).forEach(t=>{rec2+=txRow(t,true);});
 
@@ -950,7 +958,7 @@ function donut(rows,total,label){
 function breakdownCard(rows,total,title,label,icon){
   if(!rows.length)return `<div class="st"><h2>${title}</h2></div><div class="empty">nothing in range</div>`;
   const n=rows.length;
-  const list=rows.map((s,i)=>`<div class="crow">
+  const list=rows.map((s,i)=>`<div class="crow" onclick="openTag('${escArg(s.k)}')">
       <div class="dsw" style="background:${tint(FLOW,i,n)}"></div>
       <div class="cm"><div class="cn">${esc(s.k)}</div></div>
       <div class="cr"><div class="ca num">${fmtH(s.a)}</div><div class="cp">${(s.share*100).toFixed(1)}% · ${s.n}×</div></div>
@@ -973,9 +981,9 @@ function cardFlowCard(){
   return `<div class="card rise"><div class="mtop"><div><div class="l">this card</div>
       <div class="v num">${fmtK(Math.abs(owed))} <span class="avgt">${paidOff?'paid off beyond charges':'added to balance'}</span></div></div></div>
     <div class="flow">
-      <div class="fc"><div class="fl">charges</div><div class="fv fout num">${fmtK(c.charges)}</div></div>
-      <div class="fc"><div class="fl">you paid</div><div class="fv fin num">${fmtK(c.payments)}</div></div>
-      <div class="fc"><div class="fl">back to you</div><div class="fv fin num">${fmtK(back)}</div></div></div>
+      <button class="fc" onclick="go('spends')"><div class="fl">charges</div><div class="fv fout num">${fmtK(c.charges)}</div></button>
+      <button class="fc" onclick="go('bills')"><div class="fl">you paid</div><div class="fv fin num">${fmtK(c.payments)}</div></button>
+      <button class="fc" onclick="go('search')"><div class="fl">back to you</div><div class="fv fin num">${fmtK(back)}</div></button></div>
     <div class="flowbar"><span class="bin" style="width:${payW}%"></span><span class="bout" style="width:${100-payW}%"></span></div>
     ${c.fees?`<div class="cardfee">${fmtK(c.fees)} of that was interest and fees — the avoidable part.</div>`:''}
     ${c.rewards?`<div class="cardfee">${fmtK(c.rewards)} came back as cashback and rewards.</div>`:''}
@@ -1088,9 +1096,16 @@ function monthChart(R){
   /* A callout pinned to the newest bar, plus the average written ON its own line. Previously the line
      was an unlabelled dash across the chart and the current month had no marker at all — so neither
      of the two numbers a trend chart exists to convey was actually stated. */
+  /* Each bar is a BUTTON that narrows the period to its month. The bars carried only a `title`
+     tooltip, so the whole chart looked interactive and did nothing — the same defect the top-merchant
+     rows had. A trend chart's obvious question is "what happened in that month?", and the period
+     control right above it can already answer it. */
   const bars=shown.map((k,i)=>{const h=Math.max(2,by[k]/peak*100),last=i===shown.length-1;
-    return `<div class="bcol"><div class="bwrap">${last?`<span class="bcall num">${fmtK(by[k])}</span>`:''}<i class="${cls} ${last?'on':''}" style="height:${h}%" title="${esc(k)} · ${fmt(by[k])}"></i></div>
-      <div class="blab">${esc(k.slice(5))}</div><div class="bval num">${fmtK(by[k])}</div></div>`;}).join('');
+    const on=RANGE==='C'&&CF===monthStart(k)&&CT===monthEnd(k);
+    return `<button class="bcol ${on?'sel':''}" onclick="openMonth('${escArg(k)}')"
+        title="${esc(k)} · ${fmt(by[k])} — tap to see this month">
+      <div class="bwrap">${last?`<span class="bcall num">${fmtK(by[k])}</span>`:''}<i class="${cls} ${last||on?'on':''}" style="height:${h}%"></i></div>
+      <div class="blab">${esc(k.slice(5))}</div><div class="bval num">${fmtK(by[k])}</div></button>`;}).join('');
   // say when the chart is a window over a longer history — an unlabelled 12-month chart next to an
   // all-time hero number reads as "this is everything", and its average as an all-time average
   const word={out:'spend',in:'income',inv:'investing'}[FLOW]||'spend';
@@ -1103,6 +1118,18 @@ function monthChart(R){
     <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>
       <span class="avgpill num" style="bottom:${avgPct}%">AVG ${fmtK(avg)}</span>${bars}</div>
     ${hidden?`<div class="cardfee">${hidden} earlier month${hidden!==1?'s':''} not shown.</div>`:''}</div>`;}
+/* "2026-07" -> the first and last day of that month. Computed rather than assumed: month lengths
+   differ and February moves, so a hardcoded 30 would silently drop or over-claim days. */
+function monthStart(mo){return mo+'-01';}
+function monthEnd(mo){const [y,m]=mo.split('-').map(Number);
+  return `${mo}-${String(new Date(Date.UTC(y,m,0)).getUTCDate()).padStart(2,'0')}`;}
+/* Tapping a bar sets the custom range to that month — reusing the period control rather than adding a
+   parallel "selected month" state that could disagree with it. Tapping the same bar again clears it. */
+function openMonth(mo){
+  const f=monthStart(mo),t=monthEnd(mo);
+  if(RANGE==='C'&&CF===f&&CT===t){RANGE='all';}
+  else{CF=f;CT=t;RANGE='C';}
+  draw();}
 function hl(s){return esc(s).replace(/(₹[\d,]+(?:\.\d+)?(?:Cr|L|k)?)/g,'<b>$1</b>');}
 
 /* ---- spends view: tag-wise grouping, sortable ---- */
@@ -1367,7 +1394,7 @@ function toast(msg){let el=document.getElementById('toast');
 /* ---- recurring view ---- */
 function recurringV(){const R=DATA.recurring||[];
   const live=R.filter(r=>r.active),dead=R.filter(r=>!r.active);
-  const row=r=>`<div class="trow"><div class="ti">${esc((r.merchant||'?').slice(0,2)).toUpperCase()}</div>
+  const row=r=>`<div class="trow" onclick="openMerchant('${escArg(r.merchant)}')"><div class="ti">${esc((r.merchant||'?').slice(0,2)).toUpperCase()}</div>
     <div class="tm"><div class="tn">${esc(r.merchant)}</div>
       <div class="td">seen ${r.months} months · usually the ${ord(r.usual_day)}${r.next_expected?` · next ~${dayLabel(r.next_expected)}`:' · stopped'}</div></div>
     <div class="tv num">${fmt(r.median)}</div></div>`;
