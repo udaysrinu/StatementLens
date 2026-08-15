@@ -14,6 +14,7 @@ from ..domain.models import Direction, Transaction
 from . import flows as flow_engine
 from . import insights as insight_engine
 from . import tagging as tag_engine
+from .similar import merchant_key
 
 
 def _median(xs: List[int]) -> int:
@@ -44,6 +45,15 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
     """
     own_names = own_names or []
     tags = tags or tag_engine.TagStore()
+    # Pairing is stamped onto ROWS (not shipped as another all-time summary) so the client can honour
+    # the period picker: a reversal whose refund leg falls outside the selected range must not silently
+    # remove the charge leg from that range's total.
+    from .netting import find_reversals
+    from .netting import person_nets as _person_nets
+    rev_by_ref: Dict[str, str] = {}
+    for _r in find_reversals(txns):
+        rev_by_ref[_r.out_ref] = _r.back_ref
+        rev_by_ref[_r.back_ref] = _r.out_ref
     # normalize onto the closed tag vocabulary and apply user corrections BEFORE any aggregation,
     # so every downstream total, insight and grouping speaks the same vocabulary
     txns = tag_engine.apply_tags(txns, tags)
@@ -77,6 +87,10 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             # a 1M hero would repeat the "always versus last month" mismatch. Carried only on credits
             # — on a debit it is dead weight in the payload.
             **({"src": flow_engine.income_source(t)} if bucket == flow_engine.INCOMING else {}),
+            # the OTHER leg of a reversal, so the client can drop a pair only when it holds both
+            **({"rev": rev_by_ref[t.source_ref]} if t.source_ref in rev_by_ref else {}),
+            # counterparty identity, for person-level netting without re-deriving the key in JS
+            **({"cp": _key} if (_key := merchant_key(t)) and len(_key) >= 3 else {}),
         })
 
     # insight cards (crown jewel)
@@ -129,6 +143,9 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
         # per selected flow, because an all-time breakdown beside a 1M hero contradicts it.
         "incoming_sources": flow_engine.incoming_breakdown(txns, own_names),
         "monthly": flow_engine.monthly_series(txns, own_names, months=12),
+        # cancelled pairs and two-way counterparties, for the "net" toggles
+        "reversals": [r.as_dict() for r in find_reversals(txns)],
+        "person_nets": [p.as_dict() for p in _person_nets(txns)],
         "recurring": flow_engine.recurring_payments(txns, own_names),
         # Same predicate as the cash flow: group_by_tag only drops rows literally tagged
         # "self transfer", while classify_flow also routes card-bill payments and own-name matches

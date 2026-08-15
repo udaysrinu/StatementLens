@@ -236,4 +236,31 @@ def test_every_flow_side_is_reachable_from_the_hero():
     assert "t.src" in page, "credits must carry a per-row income source for re-slicing by period"
 
 
+def test_netting_modes_are_offered_and_disclosed():
+    """Gross must stay the default, and any mode that shrinks a total must say how much it removed.
+
+    The danger here is a view that quietly deletes real spending. So: three explicit modes, the
+    per-row pairing needed to honour the period picker, and a visible disclosure that links to an
+    audit screen listing every pair.
+    """
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    assert "let NET='gross'" in page, "gross — the statement as printed — must be the default"
+    assert "setNet('${k}')" in page, "the modes must be buttons"
+    for mode in ("'gross','gross'", "'clean','hide cancelled'", "'net','net per person'"):
+        assert mode in page, f"mode {mode} must be offered"
+
+    # a pair is only dropped when BOTH legs are in range, so the client needs the partner ref
+    assert "t.rev" in page and "have.has(t.rev)" in page
+    # and the counterparty key, for person netting
+    assert "t.cp" in page
+
+    # the disclosure and its audit trail
+    assert "cancelled" in page and "netNote(" in page
+    assert "nettingV" in page and "cancelled pairs" in page
+    assert "money moved both ways" in page
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)

@@ -139,6 +139,19 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .drow input[type=date]:focus{outline:none;border-color:var(--acc)}
 .drow .to{color:var(--ink3);font-size:13px;flex:none}
 
+/* netting mode — quieter than the period row: it is a lens on the same period, not a second period */
+.nrow{display:flex;align-items:center;gap:6px;margin-top:9px;flex-wrap:wrap}
+.nchip{background:transparent;border:1px solid var(--line);border-radius:100px;color:var(--ink3);
+  padding:5px 11px;font:500 11.5px var(--body);cursor:pointer;white-space:nowrap;
+  transition:border-color .18s var(--ease),color .18s var(--ease),background .18s var(--ease)}
+.nchip:hover{color:var(--ink2)}
+.nchip.on{background:var(--s2);border-color:var(--acc);color:var(--acc);font-weight:600}
+/* the disclosure of what the mode removed — never let a total shrink silently */
+.nnote{font-size:11px;color:var(--ink3);margin-left:2px}
+.nnote.link{background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;
+  font-family:var(--body)}
+.nnote.link:hover{color:var(--acc)}
+
 /* monthly bars + avg reference line */
 .chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:132px;padding-top:6px}
 .bcol{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%}
@@ -304,6 +317,50 @@ function catIcon(c){c=(c||'').toLowerCase();if(/food|dining/.test(c))return'food
   if(/rent|home/.test(c))return'home';if(/bill|utilit/.test(c))return'bill';if(/invest/.test(c))return'invest';
   if(/card/.test(c))return'card';if(/cash|atm/.test(c))return'cash';if(/transfer|people/.test(c))return'transfer';return'dot';}
 
+/* ---- netting modes ----
+   Two different things, deliberately NOT one switch:
+
+   'gross'  — every row as the bank printed it. The default, and always available: it is the only
+              view that reconciles line-by-line against a statement.
+   'clean'  — drop CANCELLED pairs. A failed booking (₹1,554 out, ₹1,554 back the same hour, same
+              bank reference) is not spending; leaving it in overstates the total. This is error
+              CORRECTION, so it is safe to make prominent.
+   'net'    — additionally net off everyone money moved both ways with. ₹5,000 lent in December and
+              repaid in March are both REAL transfers; netting them answers "what am I actually out
+              of pocket with this person?". That is a PREFERENCE, not a correction, which is why it
+              is a separate mode and never the default.
+
+   A pair is only dropped when BOTH legs are inside the selected period. Otherwise picking "last
+   month" would remove a charge whose refund lands next month, and the month would under-report. */
+let NET='gross';
+function netFilter(rows){
+  if(NET==='gross')return rows;
+  const have=new Set(rows.map(t=>t.ref));
+  // a reversal needs both halves present, else the surviving half stays and stays honest
+  const drop=new Set();
+  for(const t of rows)if(t.rev&&have.has(t.rev)){drop.add(t.ref);drop.add(t.rev);}
+  let out=rows.filter(t=>!drop.has(t.ref));
+  if(NET!=='net')return out;
+  /* Person-netting: for each two-way counterparty keep only the NET direction, as one synthetic row
+     per person. Shrinking individual rows would produce amounts that appear on no statement; one
+     labelled row per person is auditable and its total is exact. */
+  const by={};
+  for(const t of out){if(!t.cp)continue;(by[t.cp]=by[t.cp]||[]).push(t);}
+  const netted=[];const consumed=new Set();
+  for(const cp in by){
+    const rs=by[cp];
+    const paid=rs.filter(t=>t.dir==='D').reduce((s,t)=>s+t.a,0);
+    const got=rs.filter(t=>t.dir==='C').reduce((s,t)=>s+t.a,0);
+    if(!paid||!got)continue;                       // one-way payee: nothing to net
+    rs.forEach(t=>consumed.add(t.ref));
+    const diff=paid-got;
+    if(diff===0)continue;                           // fully settled: both sides vanish
+    const last=rs.slice().sort((a,b)=>(a.d<b.d?-1:1)).slice(-1)[0];
+    netted.push({...last,a:Math.abs(diff),dir:diff>0?'D':'C',
+                 f:diff>0?(last.f==='v'?'v':'s'):'i',
+                 m:(last.m||cp)+' (net)',synthetic:1});}
+  return out.filter(t=>!consumed.has(t.ref)).concat(netted);}
+
 /* ---- compute (integer paise) ----
    Three-way flow, mirroring the server: self-transfers ('x') are excluded from BOTH sides, and
    investments ('v') are kept out of `out` so "spent" never counts money you still own. */
@@ -379,7 +436,10 @@ function presetFrom(key){
   if(!p||!p[2]||!M.max_date)return '';
   const n=parseInt(p[2],10);
   return p[2].slice(-1)==='d' ? shiftDays(M.max_date,-(n-1)) : monthsBack(n);}
-function rangeFilter(){
+/* Period first, THEN netting — netFilter needs to know which rows are in range to decide whether both
+   legs of a pair are present. Every screen goes through here, so no view can disagree about the mode. */
+function rangeFilter(){return netFilter(periodRows());}
+function periodRows(){
   if(RANGE==='C')return ALL.filter(t=>t.d&&inRange(t,CF,CT));
   if(RANGE==='S'){const c=salaryCycle();return c?ALL.filter(t=>t.d&&inRange(t,c.f,c.t)):ALL;}
   const from=presetFrom(RANGE);
@@ -403,7 +463,98 @@ function rangeRow(){
       ? `<div class="drow"><input type="date" value="${CF}" max="${M.max_date||''}" onchange="setCF(this.value)">
          <span class="to">→</span>
          <input type="date" value="${CT}" max="${M.max_date||''}" onchange="setCT(this.value)"></div>` : '';
-  return `<div class="pwrap"><div class="prow">${chips}${cycle}</div>${custom}</div>${dates}`;}
+  return `<div class="pwrap"><div class="prow">${chips}${cycle}</div>${custom}</div>${dates}${netRow()}`;}
+
+/* The netting control. Only rendered when the data HAS something to net — on an account with no
+   cancelled pairs and no two-way counterparties this is three dead buttons, and a control that never
+   does anything trains you to ignore controls. */
+function netRow(){
+  const c=countable();
+  if(!c.pairs&&!c.people)return '';
+  const b=(k,lbl,title)=>`<button class="nchip ${NET===k?'on':''}" onclick="setNet('${k}')" title="${title}">${lbl}</button>`;
+  const chips=[b('gross','gross','every row exactly as the bank printed it')]
+    .concat(c.pairs?[b('clean','hide cancelled',`${c.pairs} cancelled pair${c.pairs!==1?'s':''} — money that went out and came straight back`)]:[])
+    .concat(c.people?[b('net','net per person',`${c.people} people money moved both ways with`)]:[]);
+  return `<div class="nrow">${chips.join('')}${netNote(c)}</div>`;}
+
+/* What the current mode actually removed, in money. A mode that silently shrinks every total is the
+   thing this whole codebase is most careful about — so it says so, every time, in the same place. */
+function netNote(c){
+  if(NET==='gross')return '';
+  const amt=NET==='clean'?c.cancelledAmt:c.cancelledAmt+c.offsetAmt;
+  const what=NET==='clean'?'cancelled':'cancelled &amp; settled';
+  // clickable: a figure removed from every total must be inspectable, not asserted
+  return `<button class="nnote link" onclick="go('netting')">−${fmtK(amt)} ${what} · what?</button>`;}
+
+/* Counts for the CURRENT period, not all-time: the buttons must describe what they would do here. */
+function countable(){
+  const rows=periodRows(),have=new Set(rows.map(t=>t.ref));
+  let pairs=0,cancelledAmt=0;const seen=new Set();
+  for(const t of rows){
+    if(!t.rev||!have.has(t.rev)||seen.has(t.ref))continue;
+    seen.add(t.ref);seen.add(t.rev);pairs++;cancelledAmt+=t.a;}
+  const by={};
+  for(const t of rows){if(t.cp)(by[t.cp]=by[t.cp]||[]).push(t);}
+  let people=0,offsetAmt=0;
+  for(const cp in by){
+    const paid=by[cp].filter(t=>t.dir==='D').reduce((s,t)=>s+t.a,0);
+    const got=by[cp].filter(t=>t.dir==='C').reduce((s,t)=>s+t.a,0);
+    if(paid&&got){people++;offsetAmt+=Math.min(paid,got);}}
+  return {pairs,cancelledAmt,people,offsetAmt};}
+function setNet(m){NET=m;draw();}
+
+/* ---- what got netted ----
+   The audit trail. Netting removes money from every total on the home screen, so there has to be one
+   place that lists exactly which rows and why — otherwise "hide cancelled" is an unverifiable claim
+   about the user's own money. Reversals show BOTH legs and their bank reference; two-way people show
+   paid / received / net so the arithmetic is checkable by eye. */
+function nettingV(){
+  const rows=periodRows(),have=new Set(rows.map(t=>t.ref));
+  const byRef={};rows.forEach(t=>byRef[t.ref]=t);
+  const seen=new Set();const pairs=[];
+  for(const t of rows){
+    if(!t.rev||!have.has(t.rev)||seen.has(t.ref))continue;
+    seen.add(t.ref);seen.add(t.rev);
+    const other=byRef[t.rev];
+    pairs.push(t.dir==='D'?[t,other]:[other,t]);}
+  pairs.sort((a,b)=>b[0].a-a[0].a);
+  const meta=Object.fromEntries((DATA.reversals||[]).map(r=>[r.out_ref,r]));
+  const pairRows=pairs.map(([d,c])=>{
+    const m=meta[d.ref]||{},days=m.days!=null?m.days:'';
+    return `<div class="crow" onclick="openTxn('${esc(d.ref)}')">
+      <div class="ci">${I('repeat')}</div>
+      <div class="cm"><div class="cn">${esc(d.m||d.desc)}</div>
+        <div class="td">${esc(dayLabel(d.d))} → ${esc(dayLabel(c.d))}${days!==''?` · ${days===0?'same day':days+'d'}`:''}${m.bank_ref?` · ref ${esc(m.bank_ref)}`:''}</div></div>
+      <div class="cr"><div class="ca num">${fmt(d.a)}</div>
+        <div class="cp">${m.confidence==='certain'?'bank reference matches':'amount &amp; date'}</div></div></div>`;}).join('');
+
+  const by={};rows.forEach(t=>{if(t.cp)(by[t.cp]=by[t.cp]||[]).push(t);});
+  const ppl=[];
+  for(const cp in by){
+    const rs=by[cp];
+    const paid=rs.filter(t=>t.dir==='D').reduce((s,t)=>s+t.a,0);
+    const got=rs.filter(t=>t.dir==='C').reduce((s,t)=>s+t.a,0);
+    if(paid&&got)ppl.push({cp,name:rs[0].m||cp,paid,got,net:paid-got,off:Math.min(paid,got),n:rs.length});}
+  ppl.sort((a,b)=>b.off-a.off);
+  const pplRows=ppl.map(p=>`<div class="crow">
+      <div class="ci">${I('transfer')}</div>
+      <div class="cm"><div class="cn">${esc(p.name)}</div>
+        <div class="td">paid ${fmtK(p.paid)} · got back ${fmtK(p.got)} · ${p.n} rows</div></div>
+      <div class="cr"><div class="ca num ${p.net<0?'in':''}">${p.net===0?'settled':fmt(Math.abs(p.net))}</div>
+        <div class="cp">${p.net>0?'you are owed':p.net<0?'you owe':'square'}</div></div></div>`).join('');
+
+  return `<div class="view on">
+    <div class="hero rise"><div class="l"><a class="back" onclick="go('home')">‹ back</a> · netting</div>
+      <div class="big num">${fmt(pairs.reduce((s,p)=>s+p[0].a,0))}</div>
+      <div class="avg">cancelled across ${pairs.length} pair${pairs.length!==1?'s':''} ${rangeLabel()}</div></div>
+    <div class="note rise">a cancelled pair is money that left and came straight back — a failed
+      booking or a bounced transfer. netting people off is different: both transfers were real, so
+      "net per person" is a preference, not a correction.</div>
+    <div class="st"><h2>cancelled pairs</h2></div>
+    <div class="list rise">${pairRows||'<div class="empty">nothing cancelled in range</div>'}</div>
+    <div class="st"><h2>money moved both ways</h2></div>
+    <div class="list rise">${pplRows||'<div class="empty">no two-way counterparties in range</div>'}</div>
+  </div>`;}
 
 function home(){
   const rows=rangeFilter(),R=compute(rows);
@@ -539,7 +690,10 @@ function cardFlowCard(){
    month" would be a nonsense percentage, so the bucket is a parameter, not a constant. */
 const FLOW_CODE={out:'s',in:'i',inv:'v'};
 function flowBetween(from,to,code){
-  return ALL.filter(t=>t.d&&t.f===code&&t.d>=from&&t.d<=to).reduce((s,t)=>s+t.a,0);}
+  // netFilter here too, or the comparison period would be gross while the hero is netted — the
+  // percentage would then be measuring the mode change, not a change in behaviour
+  return netFilter(ALL.filter(t=>t.d&&t.d>=from&&t.d<=to))
+         .filter(t=>t.f===code).reduce((s,t)=>s+t.a,0);}
 function shiftDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);
   return d.toISOString().slice(0,10);}
 function currentWindow(){
@@ -807,7 +961,7 @@ function countUp(){
   requestAnimationFrame(step);
 }
 const VIEWS={home:home,spends:spends,insights:insightsV,search:search,
-             recurring:recurringV,tagdetail:tagDetail,txn:txnDetail};
+             recurring:recurringV,tagdetail:tagDetail,txn:txnDetail,netting:nettingV};
 function draw(){const v=document.getElementById('views');v.innerHTML=(VIEWS[TAB]||home)();
   let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
   v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));
