@@ -237,8 +237,13 @@ def serve(app, *, account: str, host: str = "127.0.0.1", port: int = 8770,
     httpd.sl_gmail = _gmail                 # type: ignore[attr-defined]
 
     def _refresh() -> Dict[str, Any]:
-        """Re-check the last-used source. Only Gmail can self-refresh; folders need a re-import."""
-        if app._source is None:
+        """Re-check the last-used source.
+
+        `serve` builds the App with source=None, so without restore_source() this endpoint could only
+        ever refuse — the button existed and the route worked, but refresh was unreachable from the
+        dashboard and the freshness banner had no way to clear.
+        """
+        if app._source is None and not app.restore_source():
             return {"ok": False, "reason": "Nothing to refresh from yet — import statements first."}
         a = app.refresh(account=account, hints=base_hints, force=True)
         return {"ok": a.ok, "inserted": a.inserted, "duplicate": a.duplicate,

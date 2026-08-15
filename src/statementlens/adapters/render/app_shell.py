@@ -363,7 +363,29 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .dayh{position:sticky;top:0;z-index:2;background:var(--bg);padding:8px 2px 6px;
   font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
 .trow{cursor:pointer}
-.back{color:var(--acc);cursor:pointer;text-decoration:none}
+/* Back — a real control, not a word inside a label.
+   It used to be a bare <a> with one colour rule, so it inherited the hero label's 11.5px uppercase
+   and rendered at caption size with a ~14px-tall tap target. Three things were wrong: it was the
+   smallest text on a screen you reach by drilling down (so the way OUT was the least visible thing
+   on it), it was under the 44px minimum touch target, and an <a> with no href is not focusable, so
+   there was no keyboard path back at all. Now a button: 44px high, its own row, arrow in a bordered
+   disc that shifts on hover. */
+/* align-self keeps it to its content width: .view is a flex column, so a plain inline-flex child
+   would still stretch to the full 420px and give a huge invisible click area. */
+.back{display:inline-flex;align-self:flex-start;align-items:center;gap:9px;min-height:44px;
+  padding:0 14px 0 4px;
+  background:none;border:none;cursor:pointer;color:var(--ink2);
+  font:600 12.5px var(--body);letter-spacing:.04em;text-transform:none;
+  border-radius:100px;transition:color .18s var(--ease),background .18s var(--ease)}
+.back:hover{color:var(--ink);background:var(--s2)}
+.back:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.back .barrow{width:30px;height:30px;flex:none;border-radius:50%;border:1px solid var(--line);
+  display:grid;place-items:center;background:var(--s1);
+  transition:transform .18s var(--ease),border-color .18s var(--ease)}
+.back:hover .barrow{transform:translateX(-2px);border-color:var(--acc)}
+.back .barrow svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+/* the destination name carries the weight — "back to people" beats a naked chevron */
+.back b{font-weight:600;color:inherit}
 .card .l{font-size:11.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em}
 .card .dv{font:600 16px/1.3 var(--body);margin-top:7px}
 .card .dsub{font-size:12px;color:var(--ink3);margin-top:5px;word-break:break-word}
@@ -632,6 +654,13 @@ function countable(){
   return {pairs,cancelledAmt,people,offsetAmt};}
 function setNet(m){NET=m;draw();}
 
+/* One back control, used by every drill-down screen. Naming the DESTINATION ("back to people") beats a
+   naked chevron: it tells you where you land before you commit, which matters most on the one screen
+   that has two possible parents (a merchant reached from a tag, or from the ledger). */
+function backBtn(onclick,dest){
+  const arrow='<span class="barrow"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></span>';
+  return `<button class="back" onclick="${onclick}">${arrow}<span>${dest?`back to <b>${esc(dest)}</b>`:'back'}</span></button>`;}
+
 /* ---- what got netted ----
    The audit trail. Netting removes money from every total on the home screen, so there has to be one
    place that lists exactly which rows and why — otherwise "hide cancelled" is an unverifiable claim
@@ -673,7 +702,8 @@ function nettingV(){
         <div class="cp">${p.net>0?'you are owed':p.net<0?'you owe':'square'}</div></div></div>`).join('');
 
   return `<div class="view on">
-    <div class="hero rise"><div class="l"><a class="back" onclick="go('home')">‹ back</a> · netting</div>
+    ${backBtn("go('home')",'home')}
+    <div class="hero rise"><div class="l">netting</div>
       <div class="big num">${fmt(pairs.reduce((s,p)=>s+p[0].a,0))}</div>
       <div class="avg">cancelled across ${pairs.length} pair${pairs.length!==1?'s':''} ${rangeLabel()}</div></div>
     <div class="note rise">a cancelled pair is money that left and came straight back — a failed
@@ -973,7 +1003,8 @@ function tagDetail(){
   const merRows=mers.slice(0,12).map(m=>`<div class="crow" onclick="openMerchant('${escArg(m.m)}')"><div class="ci">${I(catIcon(key))}</div><div class="cm"><div class="cn">${esc(m.m)}</div><div class="cb"><i style="width:${(m.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmtH(m.a)}</div><div class="cp">${m.n}× · ~${fmtK(Math.round(m.a/m.n))} avg <span class="chev">›</span></div></div></div>`).join('');
   const txRows=dayGrouped(rows.slice().reverse().slice(0,60));
   return `<div class="view on">
-    <div class="hero rise"><div class="l"><a class="back" onclick="backFromDetail()">‹ ${FROMTAG?esc(FROMTAG):'back'}</a> · ${esc(key)}</div>
+    ${backBtn('backFromDetail()',FROMTAG||'spends')}
+    <div class="hero rise"><div class="l">${esc(key)}</div>
       <div class="big num">${fmt(tot)}</div><div class="avg">${rows.length} transactions</div></div>
     ${byTag?`<div class="st"><h2>top merchants</h2></div>
     <div class="list rise">${merRows||'<div class="empty">nothing here</div>'}</div>`:''}
@@ -1024,7 +1055,7 @@ function txnDetail(){
   /* Centred like a receipt — glyph, payee, amount, tag, "paid from" — instead of a left-aligned stack
      of labelled cards. One transaction is a document, and this is what a document looks like. */
   return `<div class="view on">
-    <div class="l" style="padding:2px"><a class="back" onclick="go('search')">‹ back</a></div>
+    ${backBtn("go('search')",'transactions')}
     <div class="rcpt rise">
       <div class="ravg">${avatar(t.m||t.c||'?')}</div>
       <div class="rnm">${esc(t.m||t.desc)}</div>

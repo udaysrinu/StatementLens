@@ -109,20 +109,40 @@ class SecretStore:
                 "_secret_service": "secret-service"}.get(fn.__name__, "unknown")
 
     def _macos(self, name: str, value: Optional[str], *, write: bool):
+        """macOS keychain via `security`, with the secret passed as HEX.
+
+        `-w` reading from stdin TRUNCATES AT 128 CHARACTERS, and does it silently: the command returns
+        0, the item appears in the keychain, and only the first 128 bytes are kept. A Gmail OAuth token
+        is ~500 bytes, so every token ever stored read back as JSON cut off mid-string. That parsed as
+        None, which made the code fall through to "Gmail isn't set up in this build" — a corrupt-token
+        bug wearing a missing-config error message. Measured: 128 of 600 bytes survive via stdin, 600
+        of 600 via -X.
+
+        -X takes the value as hex on argv. argv IS visible to `ps`, unlike stdin, so this trades a
+        little exposure for correctness — a silently truncated credential is the worse failure. Read
+        back with -w, which returns the hex.
+
+        -U updates an existing item instead of erroring on a duplicate.
+        """
         if write:
-            # -w with NO argument makes `security` read the secret from stdin instead of argv, so the
-            # Gmail refresh token is never visible to `ps`. It prompts TWICE (enter + confirm), so the
-            # value must be written twice; sending it once fails with "passwords don't match".
-            # -U updates an existing item instead of erroring on a duplicate.
             secret = value or ""
             r = subprocess.run(
                 ["security", "add-generic-password", "-U", "-s", self._service,
-                 "-a", name, "-D", "statementlens token", "-w"],
-                input=f"{secret}\n{secret}\n", capture_output=True, text=True)
+                 "-a", name, "-D", "statementlens token",
+                 "-X", secret.encode("utf-8").hex()],
+                capture_output=True, text=True)
             return r.returncode == 0
         r = subprocess.run(["security", "find-generic-password", "-s", self._service,
                             "-a", name, "-w"], capture_output=True, text=True)
-        return r.stdout.strip() if r.returncode == 0 else None
+        if r.returncode != 0:
+            return None
+        got = r.stdout.strip()
+        # Values written by an older build are plain text (and truncated); return those as-is rather
+        # than losing them, so a stale item degrades to the old behaviour instead of vanishing.
+        try:
+            return bytes.fromhex(got).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return got
 
     def _secret_service(self, name: str, value: Optional[str], *, write: bool):
         if not shutil.which("secret-tool"):

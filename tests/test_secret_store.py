@@ -119,11 +119,15 @@ def test_delete_removes_the_dpapi_blob_too():
         assert not dpapi_path.exists(), "the DPAPI blob was left on disk"
 
 
-def test_macos_write_does_not_put_the_secret_in_argv():
-    """A secret passed as an argv value is readable by any process that can run `ps`.
+def test_macos_write_hex_encodes_and_never_sends_plaintext_argv():
+    """The secret goes to `security` as HEX on argv — a deliberate, documented tradeoff.
 
-    Asserted on the command we build rather than by racing `ps`: the `security` process is too
-    short-lived to catch reliably, so the invariant to pin is that the value never appears in argv.
+    It used to travel via stdin (`-w`), which keeps it out of `ps` entirely. But `-w` from stdin
+    TRUNCATES AT 128 CHARACTERS and returns success, so every ~500-byte Gmail token was silently
+    stored corrupt. A credential you cannot read back is a worse failure than one briefly visible to a
+    local process, so -X won.
+
+    What must stay true: the plaintext never appears in argv, and the hex round-trips.
     """
     import platform
     if platform.system() != "Darwin":
@@ -135,7 +139,6 @@ def test_macos_write_does_not_put_the_secret_in_argv():
     def spy(cmd, *a, **kw):
         if isinstance(cmd, list) and "add-generic-password" in cmd:
             seen["argv"] = list(cmd)
-            seen["stdin"] = kw.get("input")
         return real_run(cmd, *a, **kw)
 
     subprocess.run = spy
@@ -146,5 +149,28 @@ def test_macos_write_does_not_put_the_secret_in_argv():
         subprocess.run = real_run
 
     assert "argv" in seen, "expected a keychain write"
-    assert "S3CRET" not in " ".join(seen["argv"]), "secret leaked into argv"
-    assert seen["stdin"] and "S3CRET" in seen["stdin"], "secret should travel via stdin"
+    joined = " ".join(seen["argv"])
+    assert "S3CRET" not in joined, "plaintext secret leaked into argv"
+    assert "S3CRET".encode().hex() in joined, "secret should be hex-encoded on argv"
+
+
+def test_a_long_secret_survives_the_keychain_intact():
+    """The bug this pins: `security -w` from stdin kept only the first 128 bytes, silently.
+
+    A Gmail OAuth token is ~500 bytes, so it came back as JSON cut mid-string, parsed as None, and
+    surfaced as "Gmail isn't set up in this build" — a corruption bug wearing a config error's
+    message. Any secret store that truncates is useless, so this asserts an exact round-trip well past
+    the old ceiling.
+    """
+    import platform
+    if platform.system() != "Darwin":
+        return
+    long_secret = "T" * 700 + '{"refresh_token":"tail-must-survive"}'
+    with tempfile.TemporaryDirectory() as tmp:
+        store = SecretStore(service=SERVICE + "_long", fallback_dir=str(Path(tmp)))
+        store.set("tok", long_secret)
+        try:
+            got = store.get("tok")
+            assert got == long_secret, f"kept {len(got or '')} of {len(long_secret)} bytes"
+        finally:
+            store.delete("tok")

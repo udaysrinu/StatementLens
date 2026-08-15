@@ -6,6 +6,7 @@ Swap an adapter here (e.g. a folder source instead of Gmail) without touching an
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -75,11 +76,72 @@ class App:
                split_accounts: bool = True) -> IngestResult:
         if self._source is None:
             raise RuntimeError("no StatementSource configured; pass source= to App(...)")
+        self._remember_source()
         return IngestStatements(
             source=self._source, decryptor=self.decryptor, extractor=self.extractor,
             parser_registry=self.parsers, categorizer=self.categorizer,
             repository=self.repo).run(account=account, hints=hints, limit=limit,
                                       split_accounts=split_accounts)
+
+    # ------------------------------------------------------------------
+    # Remembering where statements came from
+    #
+    # `refresh` needs a source, but `serve` constructs the App with source=None — so the refresh
+    # button in the dashboard could only ever answer "nothing to refresh from yet", and the freshness
+    # banner had no way to clear. A source that only exists for the life of one CLI invocation cannot
+    # back a button that lives in a long-running page.
+    #
+    # Only folder paths are persisted. A Gmail source needs no memo (its token is already in the
+    # keychain and rebuilds itself), and IMAP would mean writing an app password to disk in plaintext,
+    # which is not worth a convenience button.
+    # ------------------------------------------------------------------
+
+    @property
+    def _source_memo(self) -> Path:
+        db = Path(self.repo.path)
+        return db.with_name(f"{db.stem}.source.json")
+
+    def _remember_source(self) -> None:
+        """Record folder sources so a later `serve` can rebuild one for refresh."""
+        folders = [str(f) for f in getattr(self._source, "_folders", []) or []]
+        if not folders:
+            return
+        try:
+            self._source_memo.parent.mkdir(parents=True, exist_ok=True)
+            self._source_memo.write_text(
+                json.dumps({"kind": "folder", "folders": folders}), encoding="utf-8")
+        except OSError:
+            pass          # a memo is a convenience; failing to write one must not fail the import
+
+    def restore_source(self) -> bool:
+        """Re-attach a source so `refresh` can run. True when a source is now set.
+
+        Gmail first: a stored OAuth token means the mailbox can be re-read with no user action, which
+        is the only source that can genuinely find NEW statements. A folder memo is the fallback —
+        re-scanning it picks up files dropped there since the last import.
+        """
+        if self._source is not None:
+            return True
+
+        try:
+            from .adapters.crypto.secret_store import SecretStore
+            from .adapters.sources.gmail_source import GmailStatementSource
+            if SecretStore().get(GmailStatementSource.TOKEN_KEY):
+                self._source = GmailStatementSource()
+                return True
+        except Exception:
+            pass          # no token, or the optional Gmail deps are absent — fall through to folders
+
+        try:
+            memo = json.loads(self._source_memo.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        folders = [f for f in memo.get("folders", []) if Path(f).exists()]
+        if memo.get("kind") != "folder" or not folders:
+            return False
+        from .adapters.sources.folder_source import FolderStatementSource
+        self._source = FolderStatementSource(folders)
+        return True
 
     def dataset(self, account: str, currency: str = "INR") -> Dict[str, Any]:
         txns = self.repo.all(account)
