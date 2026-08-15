@@ -67,7 +67,10 @@ def main(argv=None) -> int:
     rnd.add_argument("--currency", default="INR")
 
     srv = sub.add_parser("serve", help="open the dashboard in your browser (local only)")
-    srv.add_argument("--account", required=True)
+    # Optional: the dashboard has an account switcher, so the flag only picks which one opens first.
+    # It used to be required with no switcher in the UI, which meant restarting the server to look at
+    # a second account — cards were effectively invisible and went untagged as a result.
+    srv.add_argument("--account", help="which account to open first (default: the busiest)")
     srv.add_argument("--port", type=int, default=8770)
     srv.add_argument("--no-open", action="store_true", help="don't auto-open a browser")
     srv.add_argument("--own-name", dest="own_names", nargs="*",
@@ -131,7 +134,12 @@ def main(argv=None) -> int:
     if args.cmd == "serve":
         from .adapters.web.server import serve
         app = App(db_path=args.db, own_names=getattr(args, "own_names", None))
-        serve(app, account=args.account, port=args.port,
+        account = args.account
+        if not account:
+            # busiest first: the account someone actually uses is the one worth opening on
+            known = app.accounts()
+            account = known[0]["account"] if known else "Account"
+        serve(app, account=account, port=args.port,
               open_browser=not args.no_open, hints=_hints(args))
         return 0
     if args.cmd == "refresh":

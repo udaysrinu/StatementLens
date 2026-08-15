@@ -36,7 +36,9 @@ _FLOW_CODE = {
 def build_dataset(txns: List[Transaction], *, account: str = "Account",
                   currency: str = "INR", own_names: List[str] = None,
                   tags: "tag_engine.TagStore" = None,
-                  sync: Dict[str, Any] = None) -> Dict[str, Any]:
+                  sync: Dict[str, Any] = None,
+                  splits: Dict[str, Dict[str, Any]] = None,
+                  accounts: List[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Transaction list -> embeddable dataset for the app-shell renderer.
 
     `own_names` enables self-transfer exclusion: money moved between the owner's own accounts is
@@ -45,6 +47,7 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
     """
     own_names = own_names or []
     tags = tags or tag_engine.TagStore()
+    splits = splits or {}
     # Pairing is stamped onto ROWS (not shipped as another all-time summary) so the client can honour
     # the period picker: a reversal whose refund leg falls outside the selected range must not silently
     # remove the charge leg from that range's total.
@@ -89,6 +92,10 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             **({"src": flow_engine.income_source(t)} if bucket == flow_engine.INCOMING else {}),
             # the OTHER leg of a reversal, so the client can drop a pair only when it holds both
             **({"rev": rev_by_ref[t.source_ref]} if t.source_ref in rev_by_ref else {}),
+            # the user's own share of a shared charge. `a` stays the BILLED amount always, so the
+            # ledger still reconciles against the statement; `mine` is the annotation on top.
+            **({"mine": splits[t.source_ref]["mine"],
+                "with": splits[t.source_ref]["with_whom"]} if t.source_ref in splits else {}),
             # counterparty identity, for person-level netting without re-deriving the key in JS
             **({"cp": _key} if (_key := merchant_key(t)) and len(_key) >= 3 else {}),
         })
@@ -124,6 +131,8 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             "months": months,
             "salary_day": salary_day,
             "is_card": is_card,
+            # every account in the store, so the dashboard can switch without restarting the server
+            "accounts": accounts or [],
         },
         "card": ({"charges": card.charges, "fees": card.fees, "payments": card.payments,
                   "refunds": card.refunds, "rewards": card.rewards,

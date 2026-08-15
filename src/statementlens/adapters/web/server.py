@@ -47,6 +47,16 @@ class _Handler(BaseHTTPRequestHandler):
 
     @property
     def account(self) -> str:
+        """The account to render. `?a=` lets the dashboard switch without restarting the server.
+
+        Validated against the accounts that actually exist, so a hand-edited query string cannot make
+        the page render an empty dashboard for an account that was never imported.
+        """
+        want = parse_qs(urlparse(self.path).query).get("a", [""])[0]
+        if want:
+            known = {r["account"] for r in self.app.accounts()}
+            if want in known:
+                return want
         return self.server.sl_account      # type: ignore[attr-defined]
 
     def log_message(self, fmt, *args):     # keep the console clean; this is a desktop app
@@ -138,6 +148,21 @@ class _Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "content_hash required"}, 400)
                 self.app.set_note(ref, body.get("note", ""))
                 return self._json({"ok": True})
+
+            if route == "/api/split":
+                # A shared charge: `mine_minor` is the user's own share of the billed amount. Omitting
+                # it (or sending null) clears the split. The repo validates the range — this is a money
+                # path, so the check belongs below the UI, not in it.
+                body = self._read_json()
+                ref = body.get("content_hash")
+                if not ref:
+                    return self._json({"error": "content_hash required"}, 400)
+                mine = body.get("mine_minor")
+                if mine is None:
+                    self.app.clear_split(ref)
+                    return self._json({"ok": True, "split": None})
+                self.app.set_split(ref, int(mine), body.get("with_whom", ""))
+                return self._json({"ok": True, "split": int(mine)})
 
             if route == "/api/ingest":
                 body = self._read_json()

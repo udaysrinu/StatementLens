@@ -72,6 +72,17 @@ class SqliteTransactionRepository:
             content_hash TEXT PRIMARY KEY, tag TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS txn_note(
             content_hash TEXT PRIMARY KEY, note TEXT NOT NULL);
+
+        -- Shared charges. `mine_minor` is the part that is actually the user's spending; the rest is
+        -- recoverable from someone else. Stored here rather than on txns for the same reason as the
+        -- tag overrides: re-ingesting a statement rewrites txns rows, and a split must survive that.
+        --
+        -- The BILLED amount is never modified. A card statement says Rs 3,000 and must keep saying
+        -- Rs 3,000 — the split is an annotation on top, so totals can still be reconciled line by
+        -- line against the PDF. `with_whom` is free text for the user's own reference.
+        CREATE TABLE IF NOT EXISTS txn_split(
+            content_hash TEXT PRIMARY KEY, mine_minor INTEGER NOT NULL,
+            with_whom TEXT DEFAULT '', created_at TEXT DEFAULT '');
         """)
         self._migrate()
         self._conn.commit()
@@ -235,6 +246,44 @@ class SqliteTransactionRepository:
         store.add_note(content_hash, note)
         self.save_tags(store)
 
+    # ---- shared charges -------------------------------------------------
+
+    def set_split(self, content_hash: str, mine_minor: int, with_whom: str = "") -> None:
+        """Record the user's own share of a shared charge, in minor units.
+
+        Validated here rather than in the UI because this is a money path: a share above the billed
+        amount would make "my share" exceed the statement, and a negative share would silently create
+        income out of a spend. Passing the full billed amount clears the split instead of storing a
+        no-op row, so "split then undo" leaves no trace.
+        """
+        row = self._conn.execute(
+            "SELECT minor FROM txns WHERE content_hash=?", (content_hash,)).fetchone()
+        if row is None:
+            raise ValueError("unknown transaction")
+        billed = int(row[0])
+        mine = int(mine_minor)
+        if mine < 0 or mine > billed:
+            raise ValueError(f"share must be between 0 and {billed} minor units, got {mine}")
+        if mine == billed:
+            return self.clear_split(content_hash)
+        from datetime import datetime, timezone
+        self._conn.execute(
+            "INSERT INTO txn_split(content_hash,mine_minor,with_whom,created_at) VALUES(?,?,?,?)"
+            " ON CONFLICT(content_hash) DO UPDATE SET"
+            " mine_minor=excluded.mine_minor, with_whom=excluded.with_whom",
+            (content_hash, mine, with_whom or "", datetime.now(timezone.utc).isoformat()))
+        self._conn.commit()
+
+    def clear_split(self, content_hash: str) -> None:
+        self._conn.execute("DELETE FROM txn_split WHERE content_hash=?", (content_hash,))
+        self._conn.commit()
+
+    def load_splits(self) -> Dict[str, Dict[str, Any]]:
+        """content_hash -> {mine, with_whom}, for the whole store."""
+        return {h: {"mine": m, "with_whom": w or ""}
+                for h, m, w in self._conn.execute(
+                    "SELECT content_hash,mine_minor,with_whom FROM txn_split")}
+
     def statement_rows(self):
         """(id, source_name, account, txn_count) per stored statement."""
         return self._conn.execute(
@@ -268,3 +317,25 @@ class SqliteTransactionRepository:
         span = self._conn.execute(
             "SELECT MIN(iso_date),MAX(iso_date) FROM txns WHERE iso_date IS NOT NULL").fetchone()
         return {"statements": s, "transactions": n, "date_min": span[0], "date_max": span[1]}
+
+    def accounts(self) -> List[Dict[str, Any]]:
+        """Every account in the store, busiest first — what the dashboard's switcher is built from.
+
+        Ordered by row count rather than alphabetically so the account someone actually uses is the
+        one that loads first. `--account` used to be required with no switcher in the UI, so seeing a
+        second account meant restarting the server; cards were effectively invisible, which is why
+        they accumulated far more untagged rows than the bank account did.
+        """
+        rows = self._conn.execute(
+            "SELECT account, COUNT(*), MIN(iso_date), MAX(iso_date)"
+            " FROM txns GROUP BY account ORDER BY COUNT(*) DESC").fetchall()
+        # is_card comes from the SAME predicate the dashboard uses to pick its framing, rather than a
+        # regex on the label — a switcher that guessed from the name would eventually disagree with the
+        # screen it opens, and the account labels are user-editable.
+        from ...usecases.flows import looks_like_card
+        out = []
+        for a, n, lo, hi in rows:
+            settled = [t for t in self.all(a) if not t.provisional]
+            out.append({"account": a, "count": n, "date_min": lo, "date_max": hi,
+                        "is_card": looks_like_card(settled, a)})
+        return out

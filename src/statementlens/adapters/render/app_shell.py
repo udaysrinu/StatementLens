@@ -72,6 +72,17 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .top{display:flex;justify-content:space-between;align-items:center;padding-top:8px}
 .hi{font-size:13px;color:var(--ink2)}.nm{font:600 19px/1.15 var(--disp);margin-top:2px}
 .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,var(--acc),var(--acc2));display:grid;place-items:center;color:var(--onacc);font-weight:700;cursor:pointer}
+/* account switcher — one chip per account, cards marked as cards. Horizontally scrollable: six
+   accounts will not fit a phone, and wrapping to a second line pushes the hero below the fold. */
+.accswitch{display:flex;gap:7px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+.accswitch::-webkit-scrollbar{display:none}
+.achip{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;text-decoration:none;
+  background:var(--s1);border:1px solid var(--line);border-radius:100px;padding:7px 13px;
+  font:500 12px var(--body);color:var(--ink2);white-space:nowrap;
+  transition:border-color .18s var(--ease),color .18s var(--ease),background .18s var(--ease)}
+.achip svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none}
+.achip:hover{color:var(--ink);border-color:var(--ink3)}
+.achip.on{background:var(--acc);border-color:var(--acc);color:var(--onacc);font-weight:600}
 .acctrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .acct{display:inline-flex;align-items:center;gap:7px;background:var(--s1);border:1px solid var(--line);border-radius:100px;padding:6px 13px;font-size:12.5px;color:var(--ink2)}
 /* freshness stamp: an aggregator's credibility rests on how current the data is */
@@ -256,6 +267,27 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .nchip.on{background:var(--s2);border-color:var(--acc);color:var(--acc);font-weight:600}
 /* the disclosure of what the mode removed — never let a total shrink silently */
 .nnote{font-size:11px;color:var(--ink3);margin-left:2px}
+/* divider between the two independent axes: netting (drops rows) and share (rescales them) */
+.nsep{width:1px;height:18px;background:var(--line);margin:0 3px}
+
+/* ---- shared-charge editor ---- */
+.swrap{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.schip{background:transparent;border:1px solid var(--line);color:var(--ink2);border-radius:8px;
+  padding:9px 14px;font:600 12px var(--body);cursor:pointer;
+  transition:border-color .16s var(--ease),background .16s var(--ease),color .16s var(--ease)}
+.schip:hover{border-color:var(--ink3);color:var(--ink)}
+.schip.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.schip.clear{color:var(--down);border-color:transparent;text-decoration:underline}
+.sexact{flex:1;min-width:96px;background:var(--s2);border:1px solid var(--line);border-radius:8px;
+  color:var(--ink);font:500 12.5px var(--body);padding:9px 11px;font-variant-numeric:tabular-nums}
+.sexact:focus{outline:none;border-color:var(--acc)}
+.srow{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;
+  border-bottom:1px solid var(--line)}
+.srow:last-of-type{border-bottom:none;margin-bottom:10px}
+.srow .l{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.srow .sv{font:500 17px/1 var(--disp)}
+.srow .sr{font:500 17px/1 var(--disp);color:var(--up)}
+.shint{font-size:12px;color:var(--ink3);margin-bottom:12px}
 .nnote.link{background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;
   font-family:var(--body)}
 .nnote.link:hover{color:var(--acc)}
@@ -398,6 +430,7 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
     <div><div class="hi" id="greet">welcome back,</div><div class="nm">__LABEL__</div></div>
     <button class="av" onclick="TT()" title="theme">◐</button>
   </div>
+  <div class="accswitch" id="accswitch"></div>
   <div class="acctrow">
     <span class="acct"><span class="d"></span> <span id="acctlbl">account</span></span>
     <span class="fresh" id="fresh"></span>
@@ -424,6 +457,21 @@ function showFreshness(){const s=M.sync||{},el=document.getElementById('fresh');
       ? ' <button onclick="showSkipped()">which?</button>' : '';
   el.innerHTML=parts.join(' · ')+detail+(API?' <button onclick="doRefresh(this)">refresh</button>':'');}
 function showSkipped(){toast((M.sync.skipped_reasons||[]).filter(Boolean).join('\n\n'));}
+
+/* ---- account switcher ----
+   Every account in the store as a chip, cards marked as cards. A full page load per switch, because
+   each account is a different dataset with its own card-vs-bank framing, tag distribution and
+   coverage — re-fetching is honest and costs nothing locally, where a stale client-side merge of six
+   accounts would be a whole new class of bug. */
+function accSwitch(){
+  const el=document.getElementById('accswitch');if(!el)return;
+  const list=M.accounts||[];
+  if(list.length<2){el.style.display='none';return;}   // one account needs no switcher
+  el.innerHTML=list.map(a=>{
+    const on=a.account===M.account;
+    return `<a class="achip ${on?'on':''}" href="?t=${encodeURIComponent(API||'')}&a=${encodeURIComponent(a.account)}"
+        title="${esc(a.account)} · ${a.count} transactions">
+        ${I(a.is_card?'card':'bank')}<span>${esc(a.account)}</span></a>`;}).join('');}
 function doRefresh(b){if(!API)return;b.disabled=true;b.textContent='checking…';
   post('/api/refresh',{}).then(r=>{
     if(r&&r.error){b.disabled=false;b.textContent='refresh';return toast(r.error);}
@@ -458,6 +506,7 @@ function I(n){const S=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
   food:'<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M21 15V2a5 5 0 0 0-3 5v6h3v7"/>',grocery:'<path d="M3 3h2l2 12h11l2-8H6"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/>',
   home:'<path d="M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',bill:'<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>',
   invest:'<path d="M3 17l6-6 4 4 8-8M21 7v5h-5"/>',card:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+  bank:'<path d="M3 10l9-6 9 6M5 10v9h14v-9M9 19v-5h6v5"/>',
   cash:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',transfer:'<path d="M7 17V7m0 0L3 11m4-4 4 4M17 7v10m0 0 4-4m-4 4-4-4"/>',
   dot:'<circle cx="12" cy="12" r="9"/>',srch:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/>',list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'};
   return S(m[n]||m.dot);}
@@ -481,6 +530,25 @@ function catIcon(c){c=(c||'').toLowerCase();if(/food|dining/.test(c))return'food
    A pair is only dropped when BOTH legs are inside the selected period. Otherwise picking "last
    month" would remove a charge whose refund lands next month, and the month would under-report. */
 let NET='gross';
+
+/* ---- shared charges: billed vs my share ----
+   A SEPARATE axis from netting, deliberately. Netting DROPS rows; this RESCALES them, so the two
+   compose rather than compete (you can view your share of a cancelled-pairs-removed period).
+
+   `billed` is the default and stays the default: it is the only view that reconciles line-by-line
+   against the card statement. `mine` swaps every split row's amount for the user's own share, which
+   answers "what did I actually spend" — the question a shared dinner makes unanswerable otherwise. */
+let SHARE='billed';
+function shareRows(rows){
+  if(SHARE!=='mine')return rows;
+  return rows.map(t=>t.mine==null?t:{...t,a:t.mine,split:1});}
+function setShare(s){SHARE=s;draw();}
+/* what the current period holds, so the toggle can describe itself and stay hidden when useless */
+function splitInfo(rows){
+  let n=0,billed=0,mine=0;
+  for(const t of rows){if(t.mine==null)continue;n++;billed+=t.a;mine+=t.mine;}
+  return {n,billed,mine,recoverable:billed-mine};}
+
 function netFilter(rows){
   if(NET==='gross')return rows;
   const have=new Set(rows.map(t=>t.ref));
@@ -589,7 +657,9 @@ function presetFrom(key){
   return p[2].slice(-1)==='d' ? shiftDays(M.max_date,-(n-1)) : monthsBack(n);}
 /* Period first, THEN netting — netFilter needs to know which rows are in range to decide whether both
    legs of a pair are present. Every screen goes through here, so no view can disagree about the mode. */
-function rangeFilter(){return netFilter(periodRows());}
+/* period -> netting -> share. Share last: it only rewrites amounts, so it must see whichever rows
+   survived netting rather than rescaling rows that are about to be dropped. */
+function rangeFilter(){return shareRows(netFilter(periodRows()));}
 function periodRows(){
   if(RANGE==='C')return ALL.filter(t=>t.d&&inRange(t,CF,CT));
   if(RANGE==='S'){const c=salaryCycle();return c?ALL.filter(t=>t.d&&inRange(t,c.f,c.t)):ALL;}
@@ -621,12 +691,25 @@ function rangeRow(){
    does anything trains you to ignore controls. */
 function netRow(){
   const c=countable();
-  if(!c.pairs&&!c.people)return '';
+  const sp=splitInfo(periodRows());
+  if(!c.pairs&&!c.people&&!sp.n)return '';
   const b=(k,lbl,title)=>`<button class="nchip ${NET===k?'on':''}" onclick="setNet('${k}')" title="${title}">${lbl}</button>`;
   const chips=[b('gross','gross','every row exactly as the bank printed it')]
     .concat(c.pairs?[b('clean','hide cancelled',`${c.pairs} cancelled pair${c.pairs!==1?'s':''} — money that went out and came straight back`)]:[])
     .concat(c.people?[b('net','net per person',`${c.people} people money moved both ways with`)]:[]);
-  return `<div class="nrow">${chips.join('')}${netNote(c)}</div>`;}
+  /* The share toggle appears only once something IS split — before that it is a control that cannot
+     change any number, and those teach you to ignore controls. */
+  const share=sp.n?`<span class="nsep"></span>
+    <button class="nchip ${SHARE==='billed'?'on':''}" onclick="setShare('billed')"
+      title="the full amount the bank billed — what reconciles against your statement">billed</button>
+    <button class="nchip ${SHARE==='mine'?'on':''}" onclick="setShare('mine')"
+      title="${sp.n} shared charge${sp.n!==1?'s':''} · ${fmtK(sp.recoverable)} is someone else's">my share</button>`:'';
+  return `<div class="nrow">${chips.join('')}${share}${netNote(c)}${shareNote(sp)}</div>`;}
+
+/* Same rule as netNote: if a mode changes the headline, say by how much, in money, every time. */
+function shareNote(sp){
+  if(SHARE!=='mine'||!sp.n)return '';
+  return `<span class="nnote">−${fmtK(sp.recoverable)} recoverable from others</span>`;}
 
 /* What the current mode actually removed, in money. A mode that silently shrinks every total is the
    thing this whole codebase is most careful about — so it says so, every time, in the same place. */
@@ -1023,7 +1106,10 @@ function dayLabel(d){if(!d||!M.max_date)return esc(d);
   return a.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});}
 /* `withDate` is for lists with no day header of their own (e.g. home's "recent") */
 function txRow(t,withDate){const isIn=t.f==='i';
-  const sub=[withDate?dayLabel(t.d):null,t.c,t.f==='x'?'self':null,t.note?'📝':null].filter(Boolean).join(' · ');
+  // a split row says so in the ledger: otherwise "billed" and "my share" differ by an amount the user
+  // cannot locate without opening every transaction
+  const split=t.mine!=null?`split · ${fmtK(t.mine)} mine`:null;
+  const sub=[withDate?dayLabel(t.d):null,t.c,t.f==='x'?'self':null,split,t.note?'📝':null].filter(Boolean).join(' · ');
   return `<div class="trow" onclick="openTxn('${esc(t.ref)}')"><div class="ti">${esc((t.m||t.c||'?').slice(0,2)).toUpperCase()}</div>
     <div class="tm"><div class="tn">${esc(t.m||t.desc)}</div><div class="td">${esc(sub)}</div></div>
     <div class="tv num ${isIn?'in':''}">${isIn?'+':'−'}${fmtH(t.a).replace('-','')}</div></div>`;}
@@ -1072,9 +1158,66 @@ function txnDetail(){
     <div class="st"><h2>tag</h2></div>
     <div class="note rise">tagged automatically as <b>${esc(t.c)}</b>. tap another tag if that's wrong — we'll remember it for ${esc(t.m||'this merchant')}.</div>
     <div class="card rise"><div class="tagwrap">${chips}</div>
-      <textarea class="notefield" rows="2" placeholder="add a note (why was this payment made?)" oninput="setNote('${esc(t.ref)}',this.value)">${esc(NOTES[t.ref]||t.note||'')}</textarea></div>
+      <textarea class="notefield" rows="2" placeholder="add a note (why was this payment made?)" oninput="setNote('${escArg(t.ref)}',this.value)">${esc(NOTES[t.ref]||t.note||'')}</textarea></div>
+    ${splitEditor(t)}
     <div id="simwrap"></div>
   </div>`;}
+
+/* ---- shared-charge editor ----
+   Only offered on money going OUT: splitting a credit you received is meaningless, and offering it
+   would invite a nonsense entry. Presets cover the common cases (halves, thirds, quarters) and the
+   exact field is there for the dinner that does not divide evenly. */
+function splitEditor(t){
+  if(t.f==='i'||t.f==='x')return '';
+  const cur=SPLITS[t.ref]!==undefined?SPLITS[t.ref]:(t.mine!=null?t.mine:null);
+  const isSplit=cur!=null&&cur!==t.a;
+  const ways=[2,3,4].map(n=>{
+    const share=Math.round(t.a/n);
+    return `<button class="schip ${isSplit&&Math.abs(cur-share)<=1?'on':''}"
+      onclick="applySplit('${escArg(t.ref)}',${share})" title="your share if ${n} people shared this">1/${n}</button>`;}).join('');
+  const state=isSplit
+    ? `<div class="srow"><span class="l">your share</span>
+         <span class="num sv">${fmtH(cur)}</span></div>
+       <div class="srow"><span class="l">recoverable</span>
+         <span class="num sr">${fmtH(t.a-cur)}</span></div>`
+    : `<div class="shint">all ${fmt(t.a)} counts as yours</div>`;
+  return `<div class="st"><h2>shared?</h2></div>
+    <div class="card rise">
+      <div class="note" style="margin-bottom:12px">split a charge someone else owes you for. the
+        billed amount never changes — your card statement still says ${fmt(t.a)} — only what counts as
+        <b>your</b> spending does.</div>
+      ${state}
+      <div class="swrap">${ways}
+        <input class="sexact num" type="text" inputmode="decimal" placeholder="exact ₹"
+          value="${isSplit?(cur/100).toFixed(2):''}"
+          onchange="applySplit('${escArg(t.ref)}',Math.round(parseFloat(this.value||'0')*100))">
+        ${isSplit?`<button class="schip clear" onclick="applySplit('${escArg(t.ref)}',null)">clear</button>`:''}
+      </div>
+      <input class="notefield" style="margin-top:10px" placeholder="with whom? (for your reference)"
+        value="${esc(t.with||'')}" onchange="setSplitWith('${escArg(t.ref)}',this.value)">
+    </div>`;}
+
+/* Optimistic local state so the screen responds immediately; the server is the source of truth and a
+   rejected write is surfaced rather than swallowed. */
+let SPLITS={},SPLITWITH={};
+function applySplit(ref,mine){
+  const t=ALL.find(x=>x.ref===ref);if(!t)return;
+  if(mine!=null&&(isNaN(mine)||mine<0||mine>t.a))
+    return toast(`your share must be between ₹0 and ${fmt(t.a)}`);
+  SPLITS[ref]=mine;
+  if(mine==null)delete SPLITS[ref];
+  // keep the in-memory row in step, so every total recomputes without a round trip
+  t.mine=mine==null?undefined:mine;
+  if(mine==null)delete t.mine;
+  draw();
+  if(!API)return;
+  post('/api/split',{content_hash:ref,mine_minor:mine,with_whom:SPLITWITH[ref]||t.with||''})
+    .then(r=>{if(r&&r.error)toast(r.error);});}
+function setSplitWith(ref,who){
+  SPLITWITH[ref]=who;const t=ALL.find(x=>x.ref===ref);if(t)t.with=who;
+  if(!API||t.mine==null)return;
+  post('/api/split',{content_hash:ref,mine_minor:t.mine,with_whom:who})
+    .then(r=>{if(r&&r.error)toast(r.error);});}
 
 /* ---- similar transactions + multi-select bulk retag ---- */
 let SIM=null, SIMSEL=new Set();
@@ -1194,7 +1337,7 @@ const VIEWS={home:home,spends:spends,insights:insightsV,search:search,
 function draw(){const v=document.getElementById('views');v.innerHTML=(VIEWS[TAB]||home)();
   let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
   v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));
-  nav();showFreshness();if(TAB==='home')countUp();
+  nav();showFreshness();accSwitch();if(TAB==='home')countUp();
   // the similar-transactions list is fetched, so it renders after the view paints
   if(TAB==='txn'&&TXNREF)loadSimilar(TXNREF);}
 function go(t){TAB=t;window.scrollTo(0,0);draw();}

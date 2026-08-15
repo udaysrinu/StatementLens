@@ -148,7 +148,8 @@ class App:
         # user corrections are loaded from the DB, so a fixed tag survives restarts and re-ingests
         return build_dataset(txns, account=account, currency=currency,
                              tags=self.repo.load_tags(), own_names=self.own_names,
-                             sync=self.sync_log.status())
+                             sync=self.sync_log.status(), splits=self.repo.load_splits(),
+                             accounts=self.repo.accounts())
 
     def correct_tag(self, *, tag: str, merchant: Optional[str] = None,
                     content_hash: Optional[str] = None) -> None:
@@ -158,6 +159,17 @@ class App:
     def set_note(self, content_hash: str, note: str) -> None:
         """Persist a free-text note on one transaction."""
         self.repo.set_note(content_hash, note)
+
+    def set_split(self, content_hash: str, mine_minor: int, with_whom: str = "") -> None:
+        """Mark a shared charge: `mine_minor` is the user's own share of the billed amount."""
+        self.repo.set_split(content_hash, mine_minor, with_whom)
+
+    def clear_split(self, content_hash: str) -> None:
+        self.repo.clear_split(content_hash)
+
+    def accounts(self):
+        """Every account in the store, busiest first — powers the dashboard switcher."""
+        return self.repo.accounts()
 
     def similar_to(self, account: str, content_hash: str) -> Optional[Dict[str, Any]]:
         """Transactions that look like the same merchant as `content_hash`, for bulk retagging."""
