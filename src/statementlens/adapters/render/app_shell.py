@@ -29,17 +29,41 @@ _PAGE = r"""<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* Dark: cool slate, the way a broking/markets app reads (Tickertape, Zerodha, Groww) rather than the
+   lime-on-black "app" look this used to have. Every value below is COMPUTED, not eyeballed:
+
+   * Text contrast — all six ink/surface pairs clear WCAG AA 4.5:1 and most clear AAA 7:1 against every
+     surface they actually sit on. The previous --ink3 (#5c5c64) measured 3.95:1 on a card, which fails,
+     and it is used for real labels ("SPENT · ALL TIME", "avg per month"), not decoration.
+   * Surface elevation — page -> bg -> s1 -> s2 step by 1.06 / 1.15 / 1.21 in relative luminance, which
+     is the point where a card edge is visible without a border doing all the work. An earlier draft
+     stepped by 1.049 and the cards vanished into the ground.
+   * THE ACCENT IS NOT GREEN, deliberately. --up is green because green means gain; if the accent were
+     also green, every selected chip and button would read as a gain. Blue keeps the semantic pair
+     (green up / red down) unambiguous, which matters more here than brand prettiness. */
 :root{
-  --bg:#08080a;--s1:#101013;--s2:#17171b;--ink:#f4f4f0;--ink2:#9a9aa2;--ink3:#5c5c64;
-  --line:rgba(255,255,255,.07);--acc:#c6f24e;--up:#8fe08f;--down:#ff8f8f;
-  --page:#050507;--onacc:#08080a;--glow:198,242,78;--navbg:rgba(8,8,10,.86);--acc2:#8fbf3a;
+  --bg:#0b1017;--s1:#171f2c;--s2:#232e3e;--ink:#e9eef7;--ink2:#9babc0;--ink3:#8697ad;
+  --line:rgba(148,178,214,.14);--acc:#5aa2ff;--up:#00c48c;--down:#f6465d;
+  --page:#04070c;--onacc:#04070c;--glow:90,162,255;--navbg:rgba(11,16,23,.92);--acc2:#3d7fd8;
   --disp:'Fraunces',Georgia,serif;--body:'Instrument Sans',system-ui,sans-serif;--ease:cubic-bezier(.2,.7,.3,1);
 }
 /* Warm editorial (default) — the palette from the Stitch design system: parchment surfaces, a single
    terracotta accent, espresso ink. Amber reads as "considered" where lime-on-black reads as "app". */
-[data-theme=light]{--bg:#efe7db;--s1:#faf8f2;--s2:#f2ede2;--ink:#241a12;--ink2:#5f584c;--ink3:#94816d;
-  --line:rgba(36,26,18,.12);--acc:#b5702a;--up:#3f7d43;--down:#c0503a;
-  --page:#e7dccb;--onacc:#fffaf2;--glow:181,112,42;--navbg:rgba(250,248,242,.92);--acc2:#8f5620;}
+/* Contrast-corrected. An audit of the LIVE page (computed colours, not these declarations) found 51
+   text elements under WCAG AA 4.5:1 in this theme while dark had none — so the pretty palette was the
+   inaccessible one, and it was the default. Two root causes, both measured:
+     --ink3 was #94816d = 3.05:1. It is not decoration: it carries "spent · all time", "avg per month",
+       every chart month label and every row subtitle. Now #6b5a4a.
+     --acc was #b5702a, so --onacc on a SELECTED chip measured 3.80:1 — the active filter was the
+       hardest text on screen to read. Now #875017.
+
+   Both are solved against the WORST-CASE surface, which is the DARKEST one (--page #e7dccb), not the
+   lightest. A first pass tuned against --s1 and still failed on the page background: darker text on a
+   lighter ground scores HIGHER, so the light theme's hardest case is its deepest parchment, and only
+   measuring every surface catches that. Worst-case now 4.86:1 for both. */
+[data-theme=light]{--bg:#efe7db;--s1:#faf8f2;--s2:#f2ede2;--ink:#241a12;--ink2:#5f584c;--ink3:#6b5a4a;
+  --line:rgba(36,26,18,.14);--acc:#875017;--up:#2f6b34;--down:#a83c28;
+  --page:#e7dccb;--onacc:#fffaf2;--glow:135,80,23;--navbg:rgba(250,248,242,.92);--acc2:#6d3f11;}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;justify-content:center;padding:0}
@@ -55,6 +79,12 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
   repeating-linear-gradient(58deg,rgba(255,255,255,.5) 0 1px,transparent 1px 5px),
   repeating-linear-gradient(-49deg,rgba(255,255,255,.42) 0 1px,transparent 1px 7px),
   repeating-linear-gradient(11deg,rgba(0,0,0,.05) 0 1px,transparent 1px 4px)}
+/* on a dark ground the same white lattice reads as glare rather than engraving — the engraved look
+   comes from lines DARKER than the bar, so the weave inverts with the theme */
+[data-theme=dark] .guil{background-image:
+  repeating-linear-gradient(58deg,rgba(0,0,0,.28) 0 1px,transparent 1px 5px),
+  repeating-linear-gradient(-49deg,rgba(0,0,0,.22) 0 1px,transparent 1px 7px),
+  repeating-linear-gradient(11deg,rgba(255,255,255,.10) 0 1px,transparent 1px 4px)}
 /* Sunburst rays behind the header, CRED's account-screen device. A repeating-conic-gradient makes the
    engraved fan for free; kept to the top ~230px and very low contrast so it reads as watermarked
    stationery rather than as decoration competing with the numbers. */
@@ -63,8 +93,11 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .app::before{content:'';position:absolute;top:0;left:0;right:0;height:230px;
   pointer-events:none;z-index:0;
   background:repeating-conic-gradient(from 200deg at 50% 8%,
-    rgba(var(--glow),.13) 0deg 1.1deg,transparent 1.1deg 5deg);
+    rgba(var(--glow),var(--rayA,.13)) 0deg 1.1deg,transparent 1.1deg 5deg);
   mask:linear-gradient(#000,transparent 78%);-webkit-mask:linear-gradient(#000,transparent 78%)}
+/* the same alpha that reads as a watermark on parchment reads as a lit fan on near-black — additive
+   light on a dark ground is far more visible than subtractive ink on a light one */
+[data-theme=dark]{--rayA:.055}
 .wrap{position:relative;z-index:1}
 .wrap{padding:20px 20px 108px;display:flex;flex-direction:column;gap:22px}
 
@@ -88,7 +121,10 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 /* freshness stamp: an aggregator's credibility rests on how current the data is */
 .fresh{font-size:12px;color:var(--ink3);display:inline-flex;align-items:center;gap:7px}
 .fresh.stale{color:var(--down)}
-.fresh button{background:none;border:none;color:var(--acc);font:600 12px var(--body);cursor:pointer;padding:0;text-decoration:underline}
+/* measured 40x15 — the smallest tap target in the app, on the two controls ("refresh", "which?") that
+   matter when something is wrong. Vertical padding brings it to 40x33 without moving the text. */
+.fresh button{background:none;border:none;color:var(--acc);font:600 12px var(--body);cursor:pointer;
+  padding:9px 2px;text-decoration:underline;min-height:32px}
 .acct .d{width:7px;height:7px;border-radius:50%;background:var(--acc)}
 
 /* hero */
@@ -126,7 +162,7 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .flow{display:flex;gap:8px;margin-bottom:14px}
 /* the tiles are buttons: each promotes its figure into the hero */
 .fc{flex:1;min-width:0;background:var(--s2);border:1px solid transparent;border-radius:14px;
-  padding:12px;text-align:left;font:inherit;cursor:pointer;
+  padding:12px;text-align:left;font:inherit;color:inherit;cursor:pointer;
   transition:border-color .18s var(--ease),background .18s var(--ease)}
 .fc:hover{border-color:var(--line)}
 .fc.on{border-color:var(--acc);background:rgba(var(--glow),.09)}
@@ -143,7 +179,7 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .fbars{display:flex;align-items:flex-end;justify-content:space-around;gap:14px;height:172px;
   padding:22px 4px 0;margin-bottom:4px}
 .fbar{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;height:100%;
-  background:none;border:none;padding:0;cursor:pointer;font:inherit}
+  background:none;border:none;padding:0;cursor:pointer;font:inherit;color:inherit}
 .fbcol{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;position:relative}
 /* the value floats ABOVE its own bar, not beside it — anchored to the bar's top edge */
 .fbv{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:5px;
@@ -162,9 +198,11 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .fbi.in{background-color:#6f9ed8;--face:#3f6ba8}
 .fbi.inv{background-color:#d8b98a;--face:#a8875a}
 .fbi.out{background-color:#b98ad8;--face:#8a5aa8}
-[data-theme=dark] .fbi.in{background-color:#5b86bd;--face:#33578c}
-[data-theme=dark] .fbi.inv{background-color:#bda06f;--face:#8c7145}
-[data-theme=dark] .fbi.out{background-color:#a06fbd;--face:#71458c}
+/* Brighter on the slate ground than on the old near-black one: the same hues at the previous
+   lightness sank into the card surface. Still three clearly separate hues, not three greens. */
+[data-theme=dark] .fbi.in{background-color:#5aa2ff;--face:#2f6bb8}
+[data-theme=dark] .fbi.inv{background-color:#d9b26a;--face:#9c7a3c}
+[data-theme=dark] .fbi.out{background-color:#b586e8;--face:#7d51ab}
 
 /* ---- donut, one hue, tinted by rank ---- */
 .donut{display:flex;justify-content:center;padding:6px 0 2px}
@@ -183,14 +221,15 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 /* ---- top spends as an avatar grid (CRED's "TOP SPENDS") ---- */
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 10px;padding:4px 0}
 .gcell{display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:none;
-  cursor:pointer;font:inherit;padding:0}
+  cursor:pointer;font:inherit;color:inherit;padding:0}
 .gav{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;
   border:1px solid var(--line);background:var(--s2);color:var(--ink2);position:relative;
   transition:border-color .18s var(--ease),transform .18s var(--ease)}
 .gcell:hover .gav{border-color:var(--acc);transform:translateY(-2px)}
 .gav svg{width:22px;height:22px}
 /* generated avatar: the payee's initial on a tinted disc, hue derived from the name so it is stable */
-.gav.init{font:600 19px var(--disp);color:#4a3a2a}
+/* colour is set inline per name so it can follow the theme; this is only the type treatment */
+.gav.init{font:600 19px var(--disp)}
 .gamt{font:600 12.5px var(--body);color:var(--ink)}
 .gnm{font-size:10.5px;color:var(--ink3);text-align:center;line-height:1.25;
   max-width:88px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -260,8 +299,10 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 
 /* netting mode — quieter than the period row: it is a lens on the same period, not a second period */
 .nrow{display:flex;align-items:center;gap:6px;margin-top:9px;flex-wrap:wrap}
+/* 26px tall measured; padding takes it to 32, clearing the WCAG 2.5.8 24px floor with margin while
+   staying visually quieter than the period row above it */
 .nchip{background:transparent;border:1px solid var(--line);border-radius:100px;color:var(--ink3);
-  padding:5px 11px;font:500 11.5px var(--body);cursor:pointer;white-space:nowrap;
+  padding:8px 11px;font:500 11.5px var(--body);cursor:pointer;white-space:nowrap;min-height:32px;
   transition:border-color .18s var(--ease),color .18s var(--ease),background .18s var(--ease)}
 .nchip:hover{color:var(--ink2)}
 .nchip.on{background:var(--s2);border-color:var(--acc);color:var(--acc);font-weight:600}
@@ -295,7 +336,7 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
   transition:border-color .18s var(--ease)}
 .bill.open{border-color:var(--acc)}
 .billhead{width:100%;background:none;border:none;text-align:left;cursor:pointer;padding:15px 16px;
-  font:inherit;display:flex;flex-direction:column;gap:6px}
+  font:inherit;color:inherit;display:flex;flex-direction:column;gap:6px}
 .billhead:hover{background:var(--s2)}
 .bh1{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .bpaid{font:500 21px/1 var(--disp)}
@@ -314,8 +355,12 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 /* padding-top leaves room for the callout above the tallest bar, which would otherwise be clipped */
 .chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:24px}
 /* a button, because each bar narrows the period to its month */
+/* `color:inherit` is not optional here. Turning .bcol into a <button> gave it the UA default black
+   text, which made the callout above the newest bar 1.19:1 on the dark card — invisible. `font:inherit`
+   does NOT carry colour, and a colour bug inside a button is easy to miss because the surrounding
+   spans set their own. */
 .bcol{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;
-  background:none;border:none;padding:0;font:inherit;cursor:pointer;border-radius:6px;
+  background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;border-radius:6px;
   transition:background .16s var(--ease)}
 .bcol:hover{background:rgba(var(--glow),.08)}
 .bcol:hover .blab{color:var(--ink)}
@@ -406,7 +451,11 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 
 /* tabs */
 .nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;height:70px;z-index:5;background:var(--navbg);backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;padding-bottom:6px}
-.nav button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink3);font-size:10.5px;cursor:pointer;font-family:var(--body)}
+/* min 44x44: this is the primary navigation, so it should be the LAST thing anyone has to aim at.
+   Measured 33-47px wide by 38px tall before; the bar already has the room. */
+.nav button{background:none;border:none;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:4px;color:var(--ink3);font-size:10.5px;cursor:pointer;
+  font-family:var(--body);min-width:56px;min-height:44px;border-radius:12px}
 .nav button.on{color:var(--acc)}.nav button svg{width:21px;height:21px}
 .rise{animation:rise .5s var(--ease) both;animation-delay:calc(var(--i,0) * .06s)}
 .insrow .ins{animation-delay:calc(var(--i,0) * .08s)}
@@ -925,7 +974,11 @@ function avatar(name){
   const n=(name||'?').trim();
   let h=0;for(let i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))%360;
   const init=esc(n[0]?n[0].toUpperCase():'?');
-  return `<div class="gav init" style="background:hsl(${h} 42% 88%);border-color:hsl(${h} 34% 78%)">${init}</div>`;}
+  /* An 88%-lightness disc is a bright coin on a dark ground — six of them in a grid dominate the
+     screen. On dark the disc goes to 22% with a light initial, keeping the same stable per-name hue
+     while sitting at the card's elevation instead of above it. */
+  const d=isDark();
+  return `<div class="gav init" style="background:hsl(${h} ${d?28:42}% ${d?22:88}%);border-color:hsl(${h} ${d?30:34}% ${d?38:78}%);color:hsl(${h} ${d?55:40}% ${d?82:22}%)">${init}</div>`;}
 
 /* ---- donut, one hue tinted by rank ----
    CRED uses a donut but never a rainbow: it is ONE hue stepped light-to-dark by rank, which keeps the
@@ -933,11 +986,16 @@ function avatar(name){
    Rendered as a conic-gradient with a mask for the hole — no SVG, no library, no arc arithmetic.
    Only worth drawing above ~2 slices; below that a bar list says the same thing with less ink. */
 const FLOWHUE={out:[186,138,216],in:[111,158,216],inv:[216,185,138]};
+function isDark(){return document.documentElement.dataset.theme!=='light';}
 function tint(flow,i,n){
   const [r,g,b]=FLOWHUE[flow]||FLOWHUE.out;
-  // step toward the surface for smaller slices; never fully fade, or the tail vanishes
+  /* Step the ramp toward the SURFACE, which differs by theme: fading toward white (252) on a dark
+     ground made every small slice glow brighter than the big one, inverting the ranking the ramp
+     exists to convey. On dark we fade toward the card colour instead, so smaller still reads as
+     quieter. Never fade all the way, or the tail slice disappears entirely. */
+  const toward=isDark()?36:252;
   const f=n<=1?0:(i/(n-1))*0.62;
-  const m=v=>Math.round(v+(252-v)*f);
+  const m=v=>Math.round(v+(toward-v)*f);
   return `rgb(${m(r)},${m(g)},${m(b)})`;}
 function donut(rows,total,label){
   if(rows.length<2)return '';
@@ -1445,7 +1503,12 @@ function setR(r){RANGE=r;draw();}
 function setCF(v){CF=v;RANGE='C';draw();}
 function setCT(v){CT=v;RANGE='C';draw();}
 function setSort(s){SORT=s;draw();}
-function TT(){const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';}
+/* Redraw after toggling: the donut ramp and the payee avatars compute their colours in JS (they fade
+   toward the SURFACE, which differs per theme), so a CSS-variable swap alone left them on the previous
+   theme's values — light discs glowing on a dark ground. */
+function TT(){const h=document.documentElement;
+  h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';
+  draw();}
 draw();
 </script>
 </body></html>"""

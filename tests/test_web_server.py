@@ -359,4 +359,55 @@ def test_nothing_styled_clickable_is_actually_dead():
     assert not dead, "styled clickable but no handler:\n  " + "\n  ".join(dead)
 
 
+def test_styled_buttons_inherit_their_text_colour():
+    """A <button> gets the UA's black text unless told otherwise, and `font:inherit` does NOT carry it.
+
+    This shipped invisible text: turning the trend-chart bars into buttons made the callout above the
+    newest bar render #000 on a #171f2c card — 1.19:1, unreadable. The contrast audit missed it because
+    the audit worked from a hand-listed selector set and .bcall was not in it, which is the real lesson:
+    a check that enumerates what to look at will always miss the thing nobody thought of.
+
+    Five button rules had the same latent defect. Any rule that resets `font` must reset `color` too.
+    """
+    import re
+
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    bad = []
+    # each CSS rule body that resets font must also set a colour (its own, or inherit)
+    for m in re.finditer(r"\n(\.[a-z0-9\-\.]+)\{([^}]*font:inherit[^}]*)\}", page, re.I):
+        selector, body = m.group(1), m.group(2)
+        if "color:" not in body:
+            bad.append(selector)
+    assert not bad, ("these reset font but not color, so they fall back to the UA's black text: "
+                     + ", ".join(bad))
+
+
+def test_both_themes_define_every_colour_token():
+    """A token defined in :root but not in the light override silently keeps the DARK value.
+
+    That is how a light-theme screen ends up with one dark-mode colour in it — the hardest kind of
+    theming bug to spot, because everything else looks right.
+    """
+    import re
+
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    def tokens(block: str) -> set:
+        return set(re.findall(r"(--[a-z0-9\-]+)\s*:", block))
+
+    root = tokens(page[page.index(":root{"):page.index("}", page.index(":root{"))])
+    light_at = page.index("[data-theme=light]{")
+    light = tokens(page[light_at:page.index("}", light_at)])
+
+    # fonts and easing are intentionally shared; only colour-ish tokens must be re-declared
+    shared_by_design = {"--disp", "--body", "--ease"}
+    missing = (root - light) - shared_by_design
+    assert not missing, f"light theme never overrides: {sorted(missing)}"
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)
