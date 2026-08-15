@@ -44,8 +44,28 @@ _PAGE = r"""<!DOCTYPE html>
 html{scroll-behavior:smooth}
 body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;justify-content:center;padding:0}
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+/* paise, dimmed and slightly smaller — the rupees carry the meaning. Borrowed from CRED, which sets
+   ₹97,000.00 with the ".00" recessive so a six-digit figure reads at a glance. */
+.ps{opacity:.42;font-size:.62em}
+
+/* Guilloché — the engraved lattice on a banknote. Three offset repeating gradients at coprime angles
+   interfere into a woven moiré; it is the one texture that says "money" without a picture, and it
+   costs nothing to ship because there is no image. Used INSIDE the flow bars. */
+.guil{background-image:
+  repeating-linear-gradient(58deg,rgba(255,255,255,.5) 0 1px,transparent 1px 5px),
+  repeating-linear-gradient(-49deg,rgba(255,255,255,.42) 0 1px,transparent 1px 7px),
+  repeating-linear-gradient(11deg,rgba(0,0,0,.05) 0 1px,transparent 1px 4px)}
+/* Sunburst rays behind the header, CRED's account-screen device. A repeating-conic-gradient makes the
+   engraved fan for free; kept to the top ~230px and very low contrast so it reads as watermarked
+   stationery rather than as decoration competing with the numbers. */
 .app{width:100%;max-width:460px;background:var(--bg);min-height:100vh;position:relative;
   background-image:radial-gradient(58% 34% at 50% 0%,rgba(var(--glow),.07),transparent 62%)}
+.app::before{content:'';position:absolute;top:0;left:0;right:0;height:230px;
+  pointer-events:none;z-index:0;
+  background:repeating-conic-gradient(from 200deg at 50% 8%,
+    rgba(var(--glow),.13) 0deg 1.1deg,transparent 1.1deg 5deg);
+  mask:linear-gradient(#000,transparent 78%);-webkit-mask:linear-gradient(#000,transparent 78%)}
+.wrap{position:relative;z-index:1}
 .wrap{padding:20px 20px 108px;display:flex;flex-direction:column;gap:22px}
 
 /* top */
@@ -105,6 +125,94 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .fin{color:var(--up)}.fout{color:var(--ink)}.finv{color:var(--ink2)}
 .fhint{font-size:11px;color:var(--ink3);margin-top:10px;text-align:center}
 
+/* ---- three-way flow bars (CRED's "your cash flow") ----
+   Hue carries the FLOW, which the old flat two-colour ribbon could not do: incoming blue, investments
+   tan, spends purple. Each bar is extruded with a darker right face, so three bars read as objects
+   rather than as a chart — the thing that makes CRED's version feel built rather than plotted. */
+.fbars{display:flex;align-items:flex-end;justify-content:space-around;gap:14px;height:172px;
+  padding:22px 4px 0;margin-bottom:4px}
+.fbar{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;height:100%;
+  background:none;border:none;padding:0;cursor:pointer;font:inherit}
+.fbcol{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;position:relative}
+/* the value floats ABOVE its own bar, not beside it — anchored to the bar's top edge */
+.fbv{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:5px;
+  font:600 11px var(--body);color:var(--ink2);white-space:nowrap}
+/* the bar itself: front face + a 5px darker side face for the extrusion */
+.fbi{position:relative;width:60%;max-width:58px;min-height:3px;border-radius:2px 2px 0 0;
+  transition:height .5s var(--ease)}
+.fbi::after{content:'';position:absolute;top:3px;right:-5px;width:5px;height:100%;
+  background:var(--face);border-radius:0 2px 0 0}
+.fbl{font:600 9.5px var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);
+  margin-top:9px;white-space:nowrap}
+.fbar.on .fbl{color:var(--ink)}
+/* Flow hues — deliberately NOT the terracotta accent, because these three must be told apart.
+   background-COLOR only: the `background` shorthand would reset background-image and wipe out the
+   guilloché texture layered on by .guil. */
+.fbi.in{background-color:#6f9ed8;--face:#3f6ba8}
+.fbi.inv{background-color:#d8b98a;--face:#a8875a}
+.fbi.out{background-color:#b98ad8;--face:#8a5aa8}
+[data-theme=dark] .fbi.in{background-color:#5b86bd;--face:#33578c}
+[data-theme=dark] .fbi.inv{background-color:#bda06f;--face:#8c7145}
+[data-theme=dark] .fbi.out{background-color:#a06fbd;--face:#71458c}
+
+/* ---- donut, one hue, tinted by rank ---- */
+.donut{display:flex;justify-content:center;padding:6px 0 2px}
+.dwrap{position:relative;width:186px;height:186px}
+.dring{width:186px;height:186px;border-radius:50%;
+  /* the hole; the conic ring itself is set inline from the data */
+  mask:radial-gradient(circle,transparent 50%,#000 50.5%);
+  -webkit-mask:radial-gradient(circle,transparent 50%,#000 50.5%)}
+.dmid{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.dtot{font:500 21px/1 var(--disp)}.dlab{font-size:10px;color:var(--ink3);margin-top:5px;
+  letter-spacing:.08em;text-transform:uppercase}
+/* the legend swatch takes its colour inline, matching its arc. Boxed to the same width the icon disc
+   occupied so the name column stays on the same left edge as every other list on the screen. */
+.dsw{width:10px;height:10px;border-radius:3px;flex:none;margin:0 13px}
+
+/* ---- top spends as an avatar grid (CRED's "TOP SPENDS") ---- */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 10px;padding:4px 0}
+.gcell{display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:none;
+  cursor:pointer;font:inherit;padding:0}
+.gav{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;
+  border:1px solid var(--line);background:var(--s2);color:var(--ink2);position:relative;
+  transition:border-color .18s var(--ease),transform .18s var(--ease)}
+.gcell:hover .gav{border-color:var(--acc);transform:translateY(-2px)}
+.gav svg{width:22px;height:22px}
+/* generated avatar: the payee's initial on a tinted disc, hue derived from the name so it is stable */
+.gav.init{font:600 19px var(--disp);color:#4a3a2a}
+.gamt{font:600 12.5px var(--body);color:var(--ink)}
+.gnm{font-size:10.5px;color:var(--ink3);text-align:center;line-height:1.25;
+  max-width:88px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* ---- receipt-style transaction detail ---- */
+.rcpt{background:var(--s1);border:1px solid var(--line);border-radius:20px;padding:26px 20px 20px;
+  display:flex;flex-direction:column;align-items:center;text-align:center;gap:0}
+.rcpt .ravg{margin-bottom:14px}
+.rnm{font:500 17px/1.3 var(--disp);margin-bottom:10px}
+.ramt{font:500 38px/1 var(--disp);letter-spacing:-.02em}
+.rdate{font-size:11.5px;color:var(--ink3);margin-top:9px;letter-spacing:.05em;text-transform:uppercase}
+.rtag{margin-top:13px;border:1px solid var(--line);border-radius:6px;padding:5px 13px;
+  font:600 10.5px var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--ink2)}
+/* the tear-line: a receipt's perforation, and the boundary between "what" and "how" */
+.rtear{width:calc(100% + 40px);margin:20px -20px;border-top:1.5px dashed var(--line)}
+.rfrom,.rbal{width:100%;display:flex;justify-content:space-between;align-items:center;
+  font-size:13px;padding:5px 2px}
+.rfrom .l,.rbal .l{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.rbank{display:inline-flex;align-items:center;gap:7px;font-weight:500}
+.rbank .d{width:7px;height:7px;border-radius:50%;background:var(--acc)}
+.rnarr{margin-top:14px;font-size:11.5px;color:var(--ink3);word-break:break-all;line-height:1.45}
+
+/* ---- chart callout + avg pill (CRED's past-trends chart) ---- */
+.bcall{position:absolute;top:-4px;left:50%;transform:translate(-50%,-100%);
+  background:var(--s1);border:1.5px solid var(--ink);border-radius:7px;padding:3px 7px;
+  font:600 10.5px var(--body);white-space:nowrap;z-index:3}
+.bcall::after{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+  border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid var(--ink)}
+/* centred on the dashed average line: bottom positions it, translateY(50%) straddles it */
+.avgpill{position:absolute;left:50%;transform:translate(-50%,50%);z-index:2;
+  background:var(--bg);border:1px solid var(--up);border-radius:100px;padding:2px 9px;
+  font:600 9.5px var(--body);letter-spacing:.05em;color:var(--up);white-space:nowrap}
+
 /* hero avg sub-line + disclosure note */
 .hero .avg{font-size:12px;color:var(--ink3);margin-top:3px}
 .note{font-size:12px;color:var(--ink3);background:var(--s1);border:1px solid var(--line);
@@ -153,9 +261,10 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .nnote.link:hover{color:var(--acc)}
 
 /* monthly bars + avg reference line */
-.chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:132px;padding-top:6px}
+/* padding-top leaves room for the callout above the tallest bar, which would otherwise be clipped */
+.chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:24px}
 .bcol{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%}
-.bwrap{flex:1;width:100%;display:flex;align-items:flex-end}
+.bwrap{flex:1;width:100%;display:flex;align-items:flex-end;position:relative}
 .bwrap i{display:block;width:100%;border-radius:5px 5px 2px 2px;background:var(--s2)}
 .bwrap i.on{background:var(--acc)}
 /* the newest bar takes the flow's colour, so the chart reads as the same figure as the hero */
@@ -168,8 +277,12 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 
 /* tag chips (correction UI) */
 .tagwrap{display:flex;flex-wrap:wrap;gap:8px}
-.tagchip{background:transparent;border:1px solid var(--line);color:var(--ink2);border-radius:8px;
-  padding:9px 12px;font:600 11px var(--body);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+.tagchip{display:inline-flex;align-items:center;gap:7px;
+  background:transparent;border:1px solid var(--line);color:var(--ink2);border-radius:8px;
+  padding:9px 12px;font:600 11px var(--body);letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
+  transition:border-color .16s var(--ease),background .16s var(--ease),color .16s var(--ease)}
+.tagchip svg{width:14px;height:14px;flex:none}
+.tagchip:hover{border-color:var(--ink3);color:var(--ink)}
 .tagchip.on{background:var(--acc);color:var(--onacc);border-color:var(--acc)}
 .notefield{width:100%;background:var(--s2);border:1px solid var(--line);border-radius:10px;
   color:var(--ink);font:400 13px var(--body);padding:10px 12px;margin-top:10px;resize:vertical}
@@ -300,6 +413,12 @@ function doRefresh(b){if(!API)return;b.disabled=true;b.textContent='checking…'
 function fmt(p,o){o=o||{};let neg=p<0;p=Math.abs(Math.round(p));let w=Math.floor(p/100),f=String(p%100).padStart(2,'0');
   let s=String(w),out;if(s.length>3){let h=s.slice(0,-3),t=s.slice(-3),ps=[];while(h.length>2){ps.unshift(h.slice(-2));h=h.slice(0,-2);}if(h)ps.unshift(h);out=ps.join(',')+','+t;}else out=s;
   let sym=CUR==='INR'?'₹':'';return (neg?'-':(o.sign?'+':''))+sym+out+(o.noP?'':'.'+f);}
+/* Rupees at full weight, paise dimmed: ₹97,000.00 reads as "97 thousand" at a glance instead of
+   forcing the eye through six equally-loud digits. The paise are still THERE — this is a typographic
+   change, never a rounding one, so every figure still reconciles against the statement to the paisa.
+   Returns HTML, so it must not be passed through esc(). */
+function fmtH(p,o){const s=fmt(p,o),i=s.lastIndexOf('.');
+  return i<0?esc(s):esc(s.slice(0,i))+'<span class="ps">'+esc(s.slice(i))+'</span>';}
 function fmtK(p){let r=Math.abs(p)/100,sym=CUR==='INR'?'₹':'',g=p<0?'-':'';
   if(r>=1e7)return g+sym+(r/1e7).toFixed(r>=1e8?0:1)+'Cr';if(r>=1e5)return g+sym+(r/1e5).toFixed(r>=1e6?0:1)+'L';
   if(r>=1e3)return g+sym+(r/1e3).toFixed(0)+'k';return g+sym+Math.round(r);}
@@ -417,7 +536,10 @@ function compute(rows){let inn=0,out=0,inv=0,slf=0,slfN=0;
   const nMoIn=Object.keys(moIn).length||1;
   return {inn,out,inv,slf,slfN,cats,catTotal,recurring,closing:bal?bal.b:null,count:rows.length,
           moOut,moIn,moInv,months:nMo,avgOut:Math.round(out/nMo),avgIn:Math.round(inn/nMoIn),
-          srcs:rank(srcT,srcC,inn,6),invs:rank(invT,invC,inv,6,invN)};}
+          srcs:rank(srcT,srcC,inn,6),invs:rank(invT,invC,inv,6,invN),
+          // top payees for the avatar grid; merT is already case-folded and keyed, so this is a sort
+          mers:Object.keys(merT).map(k=>({k,name:merName[k],a:merT[k],n:merC[k]}))
+                     .sort((x,y)=>y.a-x.a)};}
 
 /* ---- period control ---- */
 let RANGE='all',CF='',CT='',SORT='high';
@@ -532,7 +654,7 @@ function nettingV(){
       <div class="ci">${I('repeat')}</div>
       <div class="cm"><div class="cn">${esc(d.m||d.desc)}</div>
         <div class="td">${esc(dayLabel(d.d))} → ${esc(dayLabel(c.d))}${days!==''?` · ${days===0?'same day':days+'d'}`:''}${m.bank_ref?` · ref ${esc(m.bank_ref)}`:''}</div></div>
-      <div class="cr"><div class="ca num">${fmt(d.a)}</div>
+      <div class="cr"><div class="ca num">${fmtH(d.a)}</div>
         <div class="cp">${m.confidence==='certain'?'bank reference matches':'amount &amp; date'}</div></div></div>`;}).join('');
 
   const by={};rows.forEach(t=>{if(t.cp)(by[t.cp]=by[t.cp]||[]).push(t);});
@@ -574,7 +696,7 @@ function home(){
   const tot=R.inn+R.out||1,inW=Math.round(R.inn/tot*100);
   // categories top5
   let cats='';R.cats.slice(0,5).forEach(c=>{const f=c.a/(R.cats[0].a||1);
-    cats+=`<div class="crow" onclick="openTag('${escArg(c.c)}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(f*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(0)}%</div></div></div>`;});
+    cats+=`<div class="crow" onclick="openTag('${escArg(c.c)}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(f*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmtH(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(0)}%</div></div></div>`;});
   // recurring
   let rec='';R.recurring.slice(0,4).forEach(r=>{rec+=`<div class="trow"><div class="ti">${(r.m||'?').slice(0,2).toUpperCase()}</div><div class="tm"><div class="tn">${esc(r.m)}</div><div class="td">seen ${r.months} months</div></div><div class="tv num">${fmt(r.med)}</div></div>`;});
   // recent
@@ -590,12 +712,13 @@ function home(){
                 <div class="list rise">${cats||'<div class="empty">no spends in range</div>'}</div>`;
 
   return `<div class="view on">
-    <div class="hero rise"><div class="l">${hv.label} ${rangeLabel()}</div><div class="big num" id="hero" data-to="${hv.amount}">${fmt(hv.amount)}</div>${deltaHtml}${avgLine}</div>
+    <div class="hero rise"><div class="l">${hv.label} ${rangeLabel()}</div><div class="big num" id="hero" data-to="${hv.amount}">${fmtH(hv.amount)}</div>${deltaHtml}${avgLine}</div>
     ${rangeRow()}
     ${slfNote}
     ${DATA.insights.length?`<div class="st"><h2>for you</h2></div><div class="insrow">${ins}</div>`:''}
     ${M.is_card?cardFlowCard():bankFlowCard(R,inW)}
     ${monthChart(R)}
+    ${FLOW==='out'?topSpendsGrid(R):''}
     ${detail}
     ${rec?`<div class="st"><h2>recurring</h2><a onclick="go('recurring')">see all</a></div><div class="list rise">${rec}</div>`:''}
     <div class="st"><h2>recent</h2><a onclick="go('search')">view all</a></div>
@@ -624,45 +747,88 @@ function setFlow(f){FLOW=f;draw();}
    a card the spending IS the balance owed, so a net figure is computable but meaningless — the honest
    summary is charges, what you paid off, and what came back (refunds + rewards). */
 function bankFlowCard(R,inW){
-  /* The three tiles are BUTTONS: tapping one promotes it into the hero and swaps the breakdown
-     below. Previously they were inert text, which is why incoming and investments were only ever
-     visible as a rounded "₹73L" with nothing to drill into. */
-  const tile=(k,label,cls,amt,n)=>
-    `<button class="fc ${FLOW===k?'on':''}" onclick="setFlow('${k}')" aria-pressed="${FLOW===k}">
-       <div class="fl">${label}</div><div class="fv ${cls} num">${fmtK(amt)}</div>
-       ${n?`<div class="fn">${n}×</div>`:''}</button>`;
-  const nIn=R.srcs.reduce((s,r)=>s+r.n,0), nInv=R.invs.reduce((s,r)=>s+r.n,0);
-  return `<div class="card rise"><div class="mtop"><div><div class="l">cash flow</div>
+  /* Three extruded, banknote-textured bars — one per flow — replacing the flat in-vs-out ribbon.
+     The ribbon could only ever show two quantities as a proportion; three bars on a shared scale show
+     the actual SHAPE of the month (earned a lot, invested nothing, spent most of it), and each bar is
+     still the button that promotes its figure into the hero. */
+  const mx=Math.max(R.inn,R.inv,R.out,1);
+  const bar=(k,label,cls,amt)=>{
+    const h=Math.max(2,Math.round(amt/mx*100));
+    return `<button class="fbar ${FLOW===k?'on':''}" onclick="setFlow('${k}')" aria-pressed="${FLOW===k}" title="${label}">
+      <div class="fbcol">
+        <div class="fbi ${cls} guil" style="height:${h}%"><span class="fbv">${fmtK(amt)}</span></div></div>
+      <div class="fbl">${label}</div></button>`;};
+  return `<div class="card rise"><div class="mtop"><div><div class="l">your cash flow</div>
       <div class="v num">${fmt(R.inn-R.out-R.inv,{sign:true})} net</div></div></div>
-    <div class="flow">${tile('in','incoming','fin',R.inn,nIn)}
-      ${tile('inv','investments','finv',R.inv,nInv)}
-      ${tile('out','spends','fout',R.out,R.count-nIn-nInv-R.slfN)}</div>
-    <div class="flowbar"><span class="bin" style="width:${inW}%"></span><span class="bout" style="width:${100-inW}%"></span></div>
-    <div class="fhint">tap a figure to see it broken down</div></div>`;}
+    <div class="fbars">${bar('in','incoming','in',R.inn)}
+      ${bar('inv','investments','inv',R.inv)}
+      ${bar('out','spends','out',R.out)}</div>
+    <div class="fhint">tap a bar to see it broken down</div></div>`;}
+
+/* ---- top spends as an avatar grid ----
+   A 3-column grid of payee discs, borrowed from CRED. A ranked bar list answers "how do these compare"
+   but a grid answers "who am I paying", which is the question you actually arrive with — and faces
+   (or initials) are recognised far faster than left-aligned text. */
+function topSpendsGrid(R){
+  const top=R.mers.slice(0,6);
+  if(top.length<3)return '';        // a grid of one or two is just a worse list
+  const cells=top.map(m=>`<button class="gcell" onclick="openMerchant('${escArg(m.name)}')">
+      ${avatar(m.name)}
+      <div class="gamt num">${fmtH(m.a)}</div>
+      <div class="gnm">${esc(m.name)}</div></button>`).join('');
+  return `<div class="st"><h2>top spends</h2><a onclick="go('spends')">see all</a></div>
+    <div class="grid3 rise">${cells}</div>`;}
+
+/* A payee disc: the category glyph when we know the category, otherwise the initial on a tinted disc.
+   The tint is derived from the NAME so it is stable across renders — the same payee is always the same
+   colour, which is what makes a grid scannable at all. */
+function avatar(name){
+  const n=(name||'?').trim();
+  let h=0;for(let i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))%360;
+  const init=esc(n[0]?n[0].toUpperCase():'?');
+  return `<div class="gav init" style="background:hsl(${h} 42% 88%);border-color:hsl(${h} 34% 78%)">${init}</div>`;}
+
+/* ---- donut, one hue tinted by rank ----
+   CRED uses a donut but never a rainbow: it is ONE hue stepped light-to-dark by rank, which keeps the
+   ranking legible (darkest = biggest) instead of asking the eye to map arbitrary colours to names.
+   Rendered as a conic-gradient with a mask for the hole — no SVG, no library, no arc arithmetic.
+   Only worth drawing above ~2 slices; below that a bar list says the same thing with less ink. */
+const FLOWHUE={out:[186,138,216],in:[111,158,216],inv:[216,185,138]};
+function tint(flow,i,n){
+  const [r,g,b]=FLOWHUE[flow]||FLOWHUE.out;
+  // step toward the surface for smaller slices; never fully fade, or the tail vanishes
+  const f=n<=1?0:(i/(n-1))*0.62;
+  const m=v=>Math.round(v+(252-v)*f);
+  return `rgb(${m(r)},${m(g)},${m(b)})`;}
+function donut(rows,total,label){
+  if(rows.length<2)return '';
+  let acc=0;const stops=rows.map((s,i)=>{
+    const from=acc/total*100;acc+=s.a;const to=acc/total*100;
+    return `${tint(FLOW,i,rows.length)} ${from.toFixed(2)}% ${to.toFixed(2)}%`;}).join(',');
+  return `<div class="donut rise"><div class="dwrap">
+      <div class="dring" style="background:conic-gradient(${stops})"></div>
+      <div class="dmid"><div><div class="dtot num">${fmtK(total)}</div>
+      <div class="dlab">${esc(label)}</div></div></div></div></div>`;}
 
 /* ---- incoming, broken down by source ----
    `incoming_sources` was computed on the server, embedded in the payload, and then never rendered —
    ₹72L of credits reduced to one tile. This recomputes it from the rows in the SELECTED period
    rather than reading the server's all-time summary, so it can't disagree with the hero above it. */
-function sourceCard(R){
-  if(!R.srcs.length)return '<div class="st"><h2>where it came from</h2></div><div class="empty">no incoming in range</div>';
-  const max=R.srcs[0].a||1;
-  const rows=R.srcs.map(s=>`<div class="crow">
-      <div class="ci">${I(srcIcon(s.k))}</div>
-      <div class="cm"><div class="cn">${esc(s.k)}</div><div class="cb in"><i style="width:${(s.a/max*100).toFixed(0)}%"></i></div></div>
-      <div class="cr"><div class="ca num">${fmt(s.a)}</div><div class="cp">${(s.share*100).toFixed(0)}% · ${s.n}×</div></div>
+/* Donut + legend, where the legend swatch is the same tint as its arc — so identity is never carried
+   by colour alone (each row still has its name, amount and share in text). */
+function breakdownCard(rows,total,title,label,icon){
+  if(!rows.length)return `<div class="st"><h2>${title}</h2></div><div class="empty">nothing in range</div>`;
+  const n=rows.length;
+  const list=rows.map((s,i)=>`<div class="crow">
+      <div class="dsw" style="background:${tint(FLOW,i,n)}"></div>
+      <div class="cm"><div class="cn">${esc(s.k)}</div></div>
+      <div class="cr"><div class="ca num">${fmtH(s.a)}</div><div class="cp">${(s.share*100).toFixed(1)}% · ${s.n}×</div></div>
     </div>`).join('');
-  return `<div class="st"><h2>where it came from</h2></div><div class="list rise">${rows}</div>`;}
+  return `${donut(rows,total,label)}<div class="st"><h2>${title}</h2></div>
+    <div class="list rise">${list}</div>`;}
 
-function investCard(R){
-  if(!R.invs.length)return '<div class="st"><h2>what you put away</h2></div><div class="empty">no investments in range</div>';
-  const max=R.invs[0].a||1;
-  const rows=R.invs.map(s=>`<div class="crow">
-      <div class="ci">${I('invest')}</div>
-      <div class="cm"><div class="cn">${esc(s.k)}</div><div class="cb inv"><i style="width:${(s.a/max*100).toFixed(0)}%"></i></div></div>
-      <div class="cr"><div class="ca num">${fmt(s.a)}</div><div class="cp">${(s.share*100).toFixed(0)}% · ${s.n}×</div></div>
-    </div>`).join('');
-  return `<div class="st"><h2>what you put away</h2></div><div class="list rise">${rows}</div>`;}
+function sourceCard(R){return breakdownCard(R.srcs,R.inn,'where it came from','incoming');}
+function investCard(R){return breakdownCard(R.invs,R.inv,'what you put away','invested');}
 
 function srcIcon(s){const k=(s||'').toLowerCase();
   return k.includes('salary')?'cash':k.includes('people')?'home':k.includes('refund')?'repeat':
@@ -742,8 +908,11 @@ function monthChart(R){
   const peak=Math.max(...vals)||1,avg=Math.round(vals.reduce((s,v)=>s+v,0)/vals.length);
   const avgPct=Math.min(100,avg/peak*100);
   const cls=FLOW==='in'?'in':FLOW==='inv'?'inv':'';
-  const bars=shown.map((k,i)=>{const h=Math.max(2,by[k]/peak*100);
-    return `<div class="bcol"><div class="bwrap"><i class="${cls} ${i===shown.length-1?'on':''}" style="height:${h}%" title="${esc(k)} · ${fmt(by[k])}"></i></div>
+  /* A callout pinned to the newest bar, plus the average written ON its own line. Previously the line
+     was an unlabelled dash across the chart and the current month had no marker at all — so neither
+     of the two numbers a trend chart exists to convey was actually stated. */
+  const bars=shown.map((k,i)=>{const h=Math.max(2,by[k]/peak*100),last=i===shown.length-1;
+    return `<div class="bcol"><div class="bwrap">${last?`<span class="bcall num">${fmtK(by[k])}</span>`:''}<i class="${cls} ${last?'on':''}" style="height:${h}%" title="${esc(k)} · ${fmt(by[k])}"></i></div>
       <div class="blab">${esc(k.slice(5))}</div><div class="bval num">${fmtK(by[k])}</div></div>`;}).join('');
   // say when the chart is a window over a longer history — an unlabelled 12-month chart next to an
   // all-time hero number reads as "this is everything", and its average as an all-time average
@@ -754,7 +923,8 @@ function monthChart(R){
              :(RANGE==='all'?'all time':`${shown.length} months`);
   return `<div class="card rise"><div class="mtop"><div><div class="l">${word} trends · ${scope}</div>
       <div class="v num">${fmtK(avg)} <span class="avgt">avg / month</span></div></div></div>
-    <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>${bars}</div>
+    <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>
+      <span class="avgpill num" style="bottom:${avgPct}%">AVG ${fmtK(avg)}</span>${bars}</div>
     ${hidden?`<div class="cardfee">${hidden} earlier month${hidden!==1?'s':''} not shown.</div>`:''}</div>`;}
 function hl(s){return esc(s).replace(/(₹[\d,]+(?:\.\d+)?(?:Cr|L|k)?)/g,'<b>$1</b>');}
 
@@ -765,7 +935,7 @@ function spends(){const rows0=rangeFilter(),R=compute(rows0);
   else if(SORT==='count')cats.sort((a,b)=>b.n-a.n);
   const maxA=Math.max(...cats.map(c=>c.a),1);
   let rows='';cats.forEach(c=>{
-    rows+=`<div class="crow" onclick="openTag('${escArg(c.c)}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(c.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(1)}% · ${c.n}×</div></div></div>`;});
+    rows+=`<div class="crow" onclick="openTag('${escArg(c.c)}')"><div class="ci">${I(catIcon(c.c))}</div><div class="cm"><div class="cn">${esc(c.c)}</div><div class="cb"><i style="width:${(c.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmtH(c.a)}</div><div class="cp">${(c.a/(R.catTotal||1)*100).toFixed(1)}% · ${c.n}×</div></div></div>`;});
   const nextSort={high:'low',low:'count',count:'high'}[SORT],
         sortLbl={high:'high to low',low:'low to high',count:'most frequent'}[SORT];
   return `<div class="view on">
@@ -800,7 +970,7 @@ function tagDetail(){
   /* Each merchant row drills into that merchant's own transactions. These rows carry .crow, which is
      styled cursor:pointer, but had no onclick — so the whole "top merchants" list looked clickable
      and did nothing. Same drill-down the category rows already offer. */
-  const merRows=mers.slice(0,12).map(m=>`<div class="crow" onclick="openMerchant('${escArg(m.m)}')"><div class="ci">${I(catIcon(key))}</div><div class="cm"><div class="cn">${esc(m.m)}</div><div class="cb"><i style="width:${(m.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmt(m.a)}</div><div class="cp">${m.n}× · ~${fmtK(Math.round(m.a/m.n))} avg <span class="chev">›</span></div></div></div>`).join('');
+  const merRows=mers.slice(0,12).map(m=>`<div class="crow" onclick="openMerchant('${escArg(m.m)}')"><div class="ci">${I(catIcon(key))}</div><div class="cm"><div class="cn">${esc(m.m)}</div><div class="cb"><i style="width:${(m.a/maxA*100).toFixed(0)}%"></i></div></div><div class="cr"><div class="ca num">${fmtH(m.a)}</div><div class="cp">${m.n}× · ~${fmtK(Math.round(m.a/m.n))} avg <span class="chev">›</span></div></div></div>`).join('');
   const txRows=dayGrouped(rows.slice().reverse().slice(0,60));
   return `<div class="view on">
     <div class="hero rise"><div class="l"><a class="back" onclick="backFromDetail()">‹ ${FROMTAG?esc(FROMTAG):'back'}</a> · ${esc(key)}</div>
@@ -825,7 +995,7 @@ function txRow(t,withDate){const isIn=t.f==='i';
   const sub=[withDate?dayLabel(t.d):null,t.c,t.f==='x'?'self':null,t.note?'📝':null].filter(Boolean).join(' · ');
   return `<div class="trow" onclick="openTxn('${esc(t.ref)}')"><div class="ti">${esc((t.m||t.c||'?').slice(0,2)).toUpperCase()}</div>
     <div class="tm"><div class="tn">${esc(t.m||t.desc)}</div><div class="td">${esc(sub)}</div></div>
-    <div class="tv num ${isIn?'in':''}">${isIn?'+':'−'}${fmt(t.a).replace('-','')}</div></div>`;}
+    <div class="tv num ${isIn?'in':''}">${isIn?'+':'−'}${fmtH(t.a).replace('-','')}</div></div>`;}
 
 /* ---- search / ledger view ---- */
 function search(){const rows=rangeFilter().slice().reverse().slice(0,600);
@@ -848,14 +1018,26 @@ function txnDetail(){
   const t=ALL.find(x=>x.ref===TXNREF);
   if(!t)return `<div class="view on"><div class="empty">transaction not found</div></div>`;
   const cur=OVERRIDE[t.ref]||t.c,isIn=t.f==='i';
-  const chips=(DATA.tag_vocab||[]).map(v=>`<button class="tagchip ${v.tag===cur?'on':''}" onclick="setTag('${esc(t.ref)}','${esc(v.tag)}')">${esc(v.tag)}</button>`).join('');
+  // icon + label, the way CRED's tag picker does it: the glyph is what you actually scan for, and the
+  // vocab has carried an icon per tag all along without ever showing it
+  const chips=(DATA.tag_vocab||[]).map(v=>`<button class="tagchip ${v.tag===cur?'on':''}" onclick="setTag('${escArg(t.ref)}','${escArg(v.tag)}')">${I(v.icon||catIcon(v.tag))}${esc(v.tag)}</button>`).join('');
+  /* Centred like a receipt — glyph, payee, amount, tag, "paid from" — instead of a left-aligned stack
+     of labelled cards. One transaction is a document, and this is what a document looks like. */
   return `<div class="view on">
-    <div class="hero rise"><div class="l"><a class="back" onclick="go('search')">‹ back</a></div>
-      <div class="big num">${isIn?'+':''}${fmt(t.a)}</div>
-      <div class="avg">${isIn?'credit':'debit'} · ${dayLabel(t.d)}</div></div>
-    <div class="card rise"><div class="l">merchant</div><div class="dv">${esc(t.m||'—')}</div>
-      <div class="dsub">${esc(t.desc)}</div></div>
-    ${t.b!=null?`<div class="card rise"><div class="mtop"><div class="l">balance after</div><div class="v num">${fmt(t.b)}</div></div></div>`:''}
+    <div class="l" style="padding:2px"><a class="back" onclick="go('search')">‹ back</a></div>
+    <div class="rcpt rise">
+      <div class="ravg">${avatar(t.m||t.c||'?')}</div>
+      <div class="rnm">${esc(t.m||t.desc)}</div>
+      <div class="ramt num">${isIn?'+':''}${fmtH(t.a)}</div>
+      <div class="rdate">${esc(dayLabel(t.d))}</div>
+      <div class="rtag">${esc(cur)}</div>
+      <div class="rtear"></div>
+      <div class="rfrom"><span class="l">paid from</span>
+        <span class="rbank"><span class="d"></span>${esc(M.account)}</span></div>
+      ${t.b!=null?`<div class="rbal"><span class="l">balance after</span>
+        <span class="num">${fmtH(t.b)}</span></div>`:''}
+      ${t.desc&&t.m&&t.desc!==t.m?`<div class="rnarr">${esc(t.desc)}</div>`:''}
+    </div>
     <div class="st"><h2>tag</h2></div>
     <div class="note rise">tagged automatically as <b>${esc(t.c)}</b>. tap another tag if that's wrong — we'll remember it for ${esc(t.m||'this merchant')}.</div>
     <div class="card rise"><div class="tagwrap">${chips}</div>

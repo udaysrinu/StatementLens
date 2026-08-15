@@ -288,4 +288,34 @@ def test_top_merchant_rows_drill_down_and_keep_their_breadcrumb():
     assert """replace(/'/g,"")""" not in page, "apostrophes must be escaped, never stripped"
 
 
+def test_paise_are_dimmed_typographically_never_rounded_away():
+    """fmtH() dims the paise so ₹97,000.00 reads at a glance. It must NOT change the number.
+
+    This is the one dangerous way to get "calmer numbers" wrong: rounding to whole rupees would make
+    every figure stop reconciling against the statement. fmtH must emit the same digits as fmt.
+    """
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+    assert "function fmtH(" in page
+    # it wraps the decimal tail in a span and returns the untouched fmt() output otherwise
+    assert "s.lastIndexOf('.')" in page and 'class="ps"' in page
+    assert ".ps{opacity:" in page, "the paise span needs the dimming rule"
+
+
+def test_flow_hues_do_not_clobber_the_guilloche_texture():
+    """The bar hue must be background-COLOR, not the `background` shorthand.
+
+    The shorthand resets background-image, which silently wiped out the banknote texture layered on by
+    .guil — the bars still rendered, just flat, so nothing failed loudly.
+    """
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+    assert ".guil{background-image:" in page
+    for flow in ("in", "inv", "out"):
+        assert f".fbi.{flow}{{background-color:" in page, \
+            f".fbi.{flow} must set background-color, not the background shorthand"
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)
