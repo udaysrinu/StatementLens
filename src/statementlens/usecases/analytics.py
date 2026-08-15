@@ -124,6 +124,9 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             "avg_spend_per_month": flow_engine.per_month_average(flow.spends, months),
             "avg_incoming_per_month": flow_engine.per_month_average(flow.incoming, months),
         },
+        # Both of these are ALL-TIME summaries for dataset consumers (JSON export, scripts).
+        # The dashboard deliberately does NOT render them: it re-aggregates per selected period and
+        # per selected flow, because an all-time breakdown beside a 1M hero contradicts it.
         "incoming_sources": flow_engine.incoming_breakdown(txns, own_names),
         "monthly": flow_engine.monthly_series(txns, own_names, months=12),
         "recurring": flow_engine.recurring_payments(txns, own_names),

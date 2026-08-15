@@ -145,6 +145,9 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .bwrap{flex:1;width:100%;display:flex;align-items:flex-end}
 .bwrap i{display:block;width:100%;border-radius:5px 5px 2px 2px;background:var(--s2)}
 .bwrap i.on{background:var(--acc)}
+/* the newest bar takes the flow's colour, so the chart reads as the same figure as the hero */
+.bwrap i.in.on{background:var(--up)}
+.bwrap i.inv.on{background:var(--ink2)}
 .blab{font-size:9.5px;color:var(--ink3);letter-spacing:.04em}
 .bval{font-size:9px;color:var(--ink3)}
 .avgline{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--up);opacity:.55;z-index:1}
@@ -182,7 +185,9 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 /* save-failure toast: a correction that silently didn't persist is worse than an error */
 .toast{position:fixed;left:50%;bottom:88px;transform:translate(-50%,14px);z-index:20;max-width:400px;
   background:var(--s2);color:var(--ink);border:1px solid var(--down);border-radius:12px;
-  padding:11px 16px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s var(--ease)}
+  padding:11px 16px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s var(--ease);
+  /* multi-line: the skipped-file explanations are one paragraph per file */
+  white-space:pre-line;text-align:left;max-height:60vh;overflow-y:auto}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .flowbar{height:9px;border-radius:6px;background:var(--s2);overflow:hidden;display:flex}
 .flowbar .bin{background:var(--up);height:100%}.flowbar .bout{background:var(--down);height:100%;opacity:.8}
@@ -262,7 +267,12 @@ function showFreshness(){const s=M.sync||{},el=document.getElementById('fresh');
   if(s.label)parts.push(esc(s.label));
   if(s.reason)parts.push(esc(s.reason));
   el.className='fresh'+(s.stale?' stale':'');
-  el.innerHTML=parts.join(' · ')+(API?' <button onclick="doRefresh(this)">refresh</button>':'');}
+  // "5 files weren't statements" invites "which ones, and is my data missing?". The skip reasons are
+  // already recorded per file, so name them on demand instead of leaving a count to worry about.
+  const detail=(s.skipped_reasons||[]).filter(Boolean).length
+      ? ' <button onclick="showSkipped()">which?</button>' : '';
+  el.innerHTML=parts.join(' · ')+detail+(API?' <button onclick="doRefresh(this)">refresh</button>':'');}
+function showSkipped(){toast((M.sync.skipped_reasons||[]).filter(Boolean).join('\n\n'));}
 function doRefresh(b){if(!API)return;b.disabled=true;b.textContent='checking…';
   post('/api/refresh',{}).then(r=>{
     if(r&&r.error){b.disabled=false;b.textContent='refresh';return toast(r.error);}
@@ -300,7 +310,7 @@ function catIcon(c){c=(c||'').toLowerCase();if(/food|dining/.test(c))return'food
 function inRange(t,f,tt){return (!f||t.d>=f)&&(!tt||t.d<=tt);}
 function compute(rows){let inn=0,out=0,inv=0,slf=0,slfN=0;
   const catT={},catC={},merT={},merC={},recMon={},recAmt={},moOut={},merName={};
-  const srcT={},srcC={},moIn={},invT={},invC={},invN={};  // incoming by source, investments by holding
+  const srcT={},srcC={},moIn={},moInv={},invT={},invC={},invN={};  // by source / by holding / per month
   for(const t of rows){
     if(t.f==='x'){slf+=t.a;slfN++;continue;}
     if(t.f==='i'){inn+=t.a;
@@ -311,7 +321,8 @@ function compute(rows){let inn=0,out=0,inv=0,slf=0,slfN=0;
       // case-fold the key so ZERODHA/Zerodha stay ONE holding, same rule as the merchant roll-up;
       // keep the first-seen spelling for display
       const raw=t.m||t.c||'Other',k=raw.trim().toLowerCase();
-      invT[k]=(invT[k]||0)+t.a;invC[k]=(invC[k]||0)+1;invN[k]=invN[k]||raw;}
+      invT[k]=(invT[k]||0)+t.a;invC[k]=(invC[k]||0)+1;invN[k]=invN[k]||raw;
+      if(t.mo)moInv[t.mo]=(moInv[t.mo]||0)+t.a;}
     else{out+=t.a;if(t.mo)moOut[t.mo]=(moOut[t.mo]||0)+t.a;}
     catT[t.c]=(catT[t.c]||0)+t.a;catC[t.c]=(catC[t.c]||0)+1;
     // merchant keys are case-folded so "ZERODHA"/"Zerodha" stay one payee, as on the server
@@ -341,7 +352,7 @@ function compute(rows){let inn=0,out=0,inv=0,slf=0,slfN=0;
       share:tail.reduce((s,r)=>s+r.share,0)}]);};
   const nMoIn=Object.keys(moIn).length||1;
   return {inn,out,inv,slf,slfN,cats,catTotal,recurring,closing:bal?bal.b:null,count:rows.length,
-          moOut,moIn,months:nMo,avgOut:Math.round(out/nMo),avgIn:Math.round(inn/nMoIn),
+          moOut,moIn,moInv,months:nMo,avgOut:Math.round(out/nMo),avgIn:Math.round(inn/nMoIn),
           srcs:rank(srcT,srcC,inn,6),invs:rank(invT,invC,inv,6,invN)};}
 
 /* ---- period control ---- */
@@ -426,7 +437,7 @@ function home(){
     ${slfNote}
     ${DATA.insights.length?`<div class="st"><h2>for you</h2></div><div class="insrow">${ins}</div>`:''}
     ${M.is_card?cardFlowCard():bankFlowCard(R,inW)}
-    ${monthChart()}
+    ${monthChart(R)}
     ${detail}
     ${rec?`<div class="st"><h2>recurring</h2><a onclick="go('recurring')">see all</a></div><div class="list rise">${rec}</div>`:''}
     <div class="st"><h2>recent</h2><a onclick="go('search')">view all</a></div>
@@ -555,16 +566,32 @@ function heroDelta(R){
        + ` vs previous ${label} · ${fmt(prev)}</div>`;}
 
 /* ---- monthly bars with an AVG reference line (CRED's "past trends") ---- */
-function monthChart(){const S=DATA.monthly||[];if(S.length<2)return'';
-  const peak=Math.max(...S.map(m=>m.amount))||1,avg=S[0].avg||0,avgPct=Math.min(100,avg/peak*100);
-  const bars=S.map(m=>{const h=Math.max(2,m.amount/peak*100),on=m.month===S[S.length-1].month;
-    return `<div class="bcol"><div class="bwrap"><i class="${on?'on':''}" style="height:${h}%" title="${esc(m.month)} · ${fmt(m.amount)}"></i></div>
-      <div class="blab">${esc(m.month.slice(5))}</div><div class="bval num">${fmtK(m.amount)}</div></div>`;}).join('');
+/* Built from the CLIENT's per-month map, not the server's `DATA.monthly`.
+   That field is a fixed 12-month, spend-only series, so the chart sat there unchanged while the hero
+   above it switched to incoming or investments and while the period picker narrowed the range —
+   a chart captioned "past trends" that silently answered a different question than the number above
+   it. Same `moOut`/`moIn`/`moInv` maps compute() already builds, so nothing is derived twice. */
+const MOKEY={out:'moOut',in:'moIn',inv:'moInv'};
+function monthChart(R){
+  const by=R[MOKEY[FLOW]||'moOut']||{};
+  const keys=Object.keys(by).sort();
+  if(keys.length<2)return'';                       // one bar is not a trend
+  const shown=keys.slice(-12),hidden=keys.length-shown.length;
+  const vals=shown.map(k=>by[k]);
+  const peak=Math.max(...vals)||1,avg=Math.round(vals.reduce((s,v)=>s+v,0)/vals.length);
+  const avgPct=Math.min(100,avg/peak*100);
+  const cls=FLOW==='in'?'in':FLOW==='inv'?'inv':'';
+  const bars=shown.map((k,i)=>{const h=Math.max(2,by[k]/peak*100);
+    return `<div class="bcol"><div class="bwrap"><i class="${cls} ${i===shown.length-1?'on':''}" style="height:${h}%" title="${esc(k)} · ${fmt(by[k])}"></i></div>
+      <div class="blab">${esc(k.slice(5))}</div><div class="bval num">${fmtK(by[k])}</div></div>`;}).join('');
   // say when the chart is a window over a longer history — an unlabelled 12-month chart next to an
   // all-time hero number reads as "this is everything", and its average as an all-time average
-  const hidden=S[0].months_hidden||0;
-  const scope=hidden?`last ${S.length} months`:'all time';
-  return `<div class="card rise"><div class="mtop"><div><div class="l">past trends · ${scope}</div>
+  const word={out:'spend',in:'income',inv:'investing'}[FLOW]||'spend';
+  // "all time" is only true when the chart shows every month AND the picker isn't filtering. With a
+  // range selected it was captioning six filtered bars as the whole history.
+  const scope=hidden?`last ${shown.length} months`
+             :(RANGE==='all'?'all time':`${shown.length} months`);
+  return `<div class="card rise"><div class="mtop"><div><div class="l">${word} trends · ${scope}</div>
       <div class="v num">${fmtK(avg)} <span class="avgt">avg / month</span></div></div></div>
     <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>${bars}</div>
     ${hidden?`<div class="cardfee">${hidden} earlier month${hidden!==1?'s':''} not shown.</div>`:''}</div>`;}
@@ -744,7 +771,8 @@ function setNote(ref,v){NOTES[ref]=v;const t=ALL.find(x=>x.ref===ref);if(t)t.not
 function toast(msg){let el=document.getElementById('toast');
   if(!el){el=document.createElement('div');el.id='toast';el.className='toast';document.body.appendChild(el);}
   el.textContent=msg;el.classList.add('on');clearTimeout(toast._t);
-  toast._t=setTimeout(()=>el.classList.remove('on'),3200);}
+  // scale the dwell time to the message: a five-paragraph explanation cannot be read in 3.2s
+  toast._t=setTimeout(()=>el.classList.remove('on'),Math.min(20000,3200+msg.length*22));}
 
 /* ---- recurring view ---- */
 function recurringV(){const R=DATA.recurring||[];

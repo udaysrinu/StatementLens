@@ -54,11 +54,43 @@ def test_empty_but_working_run_is_healthy():
         assert log.status(now=NOW)["healthy"] is True
 
 
-def test_failed_statements_mark_the_run_unhealthy():
+def test_a_run_that_imported_data_is_healthy_even_with_unreadable_files():
+    """A real sync read 2,991 transactions and still reported "never synced".
+
+    Five of the PDFs in the mailbox were an application form, a KFS and two MITC documents — the
+    regulatory paperwork a bank sends with a card. They hold no transactions by design, so
+    `failed > 0` was permanent, `ok` was permanently False, `last_success` stayed null forever, and
+    the banner read "never synced" on a working setup. A stale warning that is always on is a stale
+    warning nobody reads.
+    """
     with tempfile.TemporaryDirectory() as tmp:
-        res = IngestResult(statements=1, inserted=2, failed=1)
-        a = RefreshStatements(lambda: res, _log(tmp)).run(now=NOW)
+        log = _log(tmp)
+        res = IngestResult(statements=1, inserted=2, failed=5)
+        a = RefreshStatements(lambda: res, log).run(now=NOW)
+        assert a.ok, "importing data is a success even when other files were not statements"
+        assert "imported fine" in a.reason and "5 file(s)" in a.reason
+        assert log.last_success() is not None
+        assert log.status(now=NOW)["label"] != "never synced"
+        assert not log.status(now=NOW)["stale"]
+
+
+def test_a_run_that_read_nothing_at_all_is_still_a_failure():
+    """The other side of the same coin: if NOTHING landed, failures must stay loud."""
+    with tempfile.TemporaryDirectory() as tmp:
+        log = _log(tmp)
+        a = RefreshStatements(lambda: IngestResult(failed=3), log).run(now=NOW)
         assert not a.ok and "could not be read" in a.reason
+        assert log.status(now=NOW)["stale"]
+
+
+def test_status_carries_the_per_file_skip_reasons():
+    # a bare count invites "which files, and is my data missing?" — the UI needs the explanations
+    with tempfile.TemporaryDirectory() as tmp:
+        log = _log(tmp)
+        res = IngestResult(statements=1, inserted=1, failed=1,
+                           skipped=[{"message": "RetailMITC.pdf has no transactions"}])
+        RefreshStatements(lambda: res, log).run(now=NOW)
+        assert log.status(now=NOW)["skipped_reasons"] == ["RetailMITC.pdf has no transactions"]
 
 
 def test_min_interval_prevents_hammering_the_provider():

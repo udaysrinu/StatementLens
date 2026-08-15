@@ -83,6 +83,9 @@ class SyncLog:
             "last_success": ok.get("started_at") if ok else None,
             "healthy": bool(last and last.get("ok")),
             "reason": (last or {}).get("reason", ""),
+            # the per-file explanations, so the UI can answer "which files?" instead of showing a
+            # bare count the user cannot act on
+            "skipped_reasons": (last or {}).get("skipped_reasons", []),
         }
         if ok:
             age = now - _parse(ok["started_at"])
@@ -145,12 +148,25 @@ class RefreshStatements:
             self._log.append(attempt)
             return attempt
 
+        # A run that read SOMETHING is a successful run. Requiring zero failures made a sync that
+        # imported 2,991 transactions report "never synced", because five of the PDFs in the mailbox
+        # were an application form, a KFS and two MITC documents — regulatory paperwork banks send
+        # with a card, which contains no transactions by design and never will. Unreadable files are
+        # worth reporting, but they are not a failed sync, and a permanent "never synced" on a
+        # working setup teaches the user to ignore the one banner that matters.
+        read_something = r.statements > 0 or r.inserted > 0 or r.duplicate > 0
+        ok = read_something or r.failed == 0
+        if r.failed and read_something:
+            reason = f"imported fine · {r.failed} file(s) weren't statements"
+        elif r.failed:
+            reason = f"{r.failed} statement(s) could not be read"
+        else:
+            reason = ""
         attempt = SyncAttempt(
             started_at=now.isoformat(),
-            # a run that read nothing is still a healthy run; a run that FAILED is not
-            ok=r.failed == 0,
+            ok=ok,
             inserted=r.inserted, duplicate=r.duplicate, statements=r.statements, failed=r.failed,
-            reason="" if r.failed == 0 else f"{r.failed} statement(s) could not be read",
+            reason=reason,
             duration_ms=int((time.monotonic() - t0) * 1000),
             skipped_reasons=[s.get("message", "") for s in getattr(r, "skipped", [])][:5])
         self._log.append(attempt)
