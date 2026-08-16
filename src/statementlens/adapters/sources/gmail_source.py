@@ -32,8 +32,21 @@ class _RawStatement:
     data: bytes
 
 
+#: Where a sibling ExpensifyAI / splitwise-mcp install already keeps its Google credentials. Read as a
+#: FALLBACK so someone who has already authorised Gmail for that tool is not made to create a second
+#: Google Cloud project and consent again — same user, same mailbox, same read-only scope. Only ever
+#: read, never written, and only consulted when this app has no credential of its own.
+_SIBLING_DIR = Path.home() / ".expensifyai"
+
+
 def _cfg(name: str, override: Optional[str], env: str) -> Path:
-    return Path(override or os.getenv(env) or (Path.home() / ".statementlens" / name))
+    explicit = override or os.getenv(env)
+    if explicit:
+        return Path(explicit)
+    own = Path.home() / ".statementlens" / name
+    if not own.exists() and (_SIBLING_DIR / name).exists():
+        return _SIBLING_DIR / name
+    return own
 
 
 class GmailStatementSource:
@@ -137,12 +150,20 @@ class GmailStatementSource:
         store = self._store()
         raw = store.get(self.TOKEN_KEY)
         if not raw and self._token.exists():
-            from ..crypto.secret_store import migrate_file_secret
-            try:
-                migrate_file_secret(store, self.TOKEN_KEY, self._token)
-                raw = store.get(self.TOKEN_KEY)
-            except Exception:
-                raw = self._token.read_text(encoding="utf-8")   # never block on a failed migration
+            # Migration DELETES the file it read (see migrate_file_secret), which is right for our own
+            # legacy token and WRONG for a sibling tool's: _cfg() may have resolved self._token to
+            # ~/.expensifyai/, and unlinking that would silently break the tool that created it. So a
+            # borrowed credential is read, never moved.
+            borrowed = self._token.parent == _SIBLING_DIR
+            if borrowed:
+                raw = self._token.read_text(encoding="utf-8")
+            else:
+                from ..crypto.secret_store import migrate_file_secret
+                try:
+                    migrate_file_secret(store, self.TOKEN_KEY, self._token)
+                    raw = store.get(self.TOKEN_KEY)
+                except Exception:
+                    raw = self._token.read_text(encoding="utf-8")   # never block on a failed migration
         if not raw:
             return None
         try:
