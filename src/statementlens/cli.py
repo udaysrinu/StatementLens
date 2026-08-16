@@ -72,6 +72,10 @@ def main(argv=None) -> int:
     # a second account — cards were effectively invisible and went untagged as a result.
     srv.add_argument("--account", help="which account to open first (default: the busiest)")
     srv.add_argument("--port", type=int, default=8770)
+    # Off by default: this serves your financial data, and 127.0.0.1 means only this machine can
+    # reach it. --phone opts into the local network so an iPhone can install it to the home screen.
+    srv.add_argument("--phone", action="store_true",
+                     help="also serve on your local network so a phone can open it (prints a QR code)")
     srv.add_argument("--no-open", action="store_true", help="don't auto-open a browser")
     srv.add_argument("--own-name", dest="own_names", nargs="*",
                      help="your name(s) as they appear in narrations, to exclude self-transfers")
@@ -145,7 +149,8 @@ def main(argv=None) -> int:
             known = app.accounts()
             account = known[0]["account"] if known else "Account"
         serve(app, account=account, port=args.port,
-              open_browser=not args.no_open, hints=_hints(args))
+              open_browser=not args.no_open, hints=_hints(args),
+              host="0.0.0.0" if args.phone else "127.0.0.1", phone=args.phone)
         return 0
     if args.cmd == "refresh":
         if args.folder:

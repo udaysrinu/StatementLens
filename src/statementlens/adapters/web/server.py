@@ -221,11 +221,60 @@ class _Handler(BaseHTTPRequestHandler):
             return self.server.sl_ingest([tmp], hints)   # type: ignore[attr-defined]
 
 
+def _lan_ip() -> Optional[str]:
+    """This machine's address on the local network.
+
+    Uses a UDP socket to a public address, which does NOT send a packet — connect() on UDP only picks
+    the route, and reading the local end of it tells us which interface the OS would use. That is more
+    reliable than hostname lookups, which return 127.0.0.1 on many Macs.
+    """
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+
+
+def _qr(text: str) -> str:
+    """A scannable QR code as terminal text, with no dependency.
+
+    Typing a tokenised URL with a 22-character secret into a phone by hand is the kind of friction that
+    stops a feature being used. Falls back to a hint if the optional `qrcode` package is absent, rather
+    than shipping a QR encoder nobody asked for.
+    """
+    try:
+        import qrcode                                   # optional
+    except ImportError:
+        return ("  (pip install qrcode to get a scannable code here — or just type the URL,\n"
+                "   or AirDrop it to yourself from the Mac)")
+    q = qrcode.QRCode(border=1)
+    q.add_data(text)
+    q.make()
+    # two half-blocks per row renders square modules in a terminal's tall character cells
+    m = q.get_matrix()
+    out = []
+    for y in range(0, len(m), 2):
+        row = ""
+        for x in range(len(m[0])):
+            top = m[y][x]
+            bot = m[y + 1][x] if y + 1 < len(m) else False
+            row += "█" if top and bot else "▀" if top else "▄" if bot else " "
+        out.append("  " + row)
+    return "\n".join(out)
+
+
 def serve(app, *, account: str, host: str = "127.0.0.1", port: int = 8770,
-          open_browser: bool = True, hints: Optional[Dict[str, Any]] = None) -> str:
+          open_browser: bool = True, hints: Optional[Dict[str, Any]] = None,
+          phone: bool = False) -> str:
     """Run the local dashboard server. Returns the tokenized URL.
 
     `app` is a composed `App`; `hints` are the password-derivation hints reused for later imports.
+    `phone` prints a LAN URL and QR code so an iPhone can install the dashboard to its home screen —
+    it only changes what is PRINTED; the caller decides the bind address.
     """
     token = secrets.token_urlsafe(16)
     httpd = ThreadingHTTPServer((host, port), _Handler)
@@ -276,10 +325,22 @@ def serve(app, *, account: str, host: str = "127.0.0.1", port: int = 8770,
 
     httpd.sl_refresh = _refresh             # type: ignore[attr-defined]
 
-    url = f"http://{host}:{port}/?t={token}"
+    shown = "127.0.0.1" if host in ("0.0.0.0", "") else host
+    url = f"http://{shown}:{port}/?t={token}"
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     print(f"StatementLens -> {url}\n(local only; Ctrl-C to stop)")
+    if phone:
+        lan = _lan_ip()
+        if lan:
+            phone_url = f"http://{lan}:{port}/?t={token}"
+            print(f"\n  on your phone:  {phone_url}")
+            print(_qr(phone_url))
+            print("  scan it, then Share -> Add to Home Screen.")
+            print("  the URL carries the access token, so treat it like a password:")
+            print("  anyone on this network who has it can read these statements until you Ctrl-C.")
+        else:
+            print("\n  --phone: could not determine this machine's LAN address.")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

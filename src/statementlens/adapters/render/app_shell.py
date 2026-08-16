@@ -14,18 +14,70 @@ import json
 from typing import Any, Dict
 
 
+#: App icon, as an inline SVG so the page fetches nothing and stays one self-contained file — the
+#: property that lets it be emailed, put in iCloud, or opened years later with no server.
+_ICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+    '<rect width="512" height="512" rx="112" fill="#0b1017"/>'
+    '<path d="M128 336V208m80 128V144m80 192v-96m80 96V176" stroke="#5aa2ff" stroke-width="34"'
+    ' stroke-linecap="round" fill="none"/>'
+    '<circle cx="208" cy="144" r="26" fill="#00c48c"/></svg>'
+)
+
+
+def _data_uri(mime: str, text: str) -> str:
+    """A percent-encoded data: URI. Used for the icon and manifest.
+
+    Kept as text rather than base64 so the payload stays greppable, and percent-encoded rather than
+    raw because a data URI in an href cannot contain '#' or unescaped quotes.
+    """
+    from urllib.parse import quote
+    return f"data:{mime},{quote(text, safe='')}"
+
+
 class AppShellRenderer:
     def render(self, dataset: Dict[str, Any]) -> str:
         label = html.escape(str(dataset.get("meta", {}).get("account", "Account")))
         payload = json.dumps(dataset, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
-        return _PAGE.replace("__LABEL__", label).replace("__DATA__", payload)
+        icon = _data_uri("image/svg+xml", _ICON_SVG)
+        raw_label = str(dataset.get("meta", {}).get("account", "Account"))
+        manifest = _data_uri("application/manifest+json", json.dumps({
+            "name": f"{raw_label} · Money", "short_name": raw_label,
+            "display": "standalone", "orientation": "portrait",
+            "background_color": "#0b1017", "theme_color": "#0b1017",
+            "start_url": ".",
+            "icons": [{"src": icon, "sizes": "512x512", "type": "image/svg+xml",
+                       "purpose": "any maskable"}],
+        }, separators=(",", ":")))
+        return (_PAGE.replace("__LABEL__", label)
+                     .replace("__ICON__", icon)
+                     .replace("__MANIFEST__", manifest)
+                     .replace("__DATA__", payload))
 
 
 _PAGE = r"""<!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>__LABEL__ · Money</title><link rel="icon" href="data:,">
+<meta charset="utf-8">
+<!-- viewport-fit=cover + the safe-area padding below is what makes this fill an iPhone screen
+     properly once installed: without it the home indicator sits on top of the tab bar. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>__LABEL__ · Money</title>
+
+<!-- Installable on iOS. Safari ignores most of the web manifest and needs its own tags, so both are
+     present: `apple-mobile-web-app-capable` is what drops the browser chrome on Add to Home Screen,
+     and the manifest covers Android/desktop. The icon is an inline SVG data URI, so nothing is fetched
+     and the page stays a single self-contained file. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="__LABEL__">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b1017" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#efe7db" media="(prefers-color-scheme: light)">
+<link rel="apple-touch-icon" href="__ICON__">
+<link rel="icon" href="__ICON__">
+<link rel="manifest" href="__MANIFEST__">
+
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -99,7 +151,11 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
    light on a dark ground is far more visible than subtractive ink on a light one */
 [data-theme=dark]{--rayA:.055}
 .wrap{position:relative;z-index:1}
-.wrap{padding:20px 20px 108px;display:flex;flex-direction:column;gap:22px}
+/* env(safe-area-inset-*) only resolves with viewport-fit=cover. Installed on an iPhone the status bar
+   overlays the page and the home indicator overlays the tab bar, so both need real insets — the
+   fallback keeps desktop unchanged. */
+.wrap{padding:calc(20px + env(safe-area-inset-top,0px)) 20px
+      calc(108px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:22px}
 
 /* top */
 .top{display:flex;justify-content:space-between;align-items:center;padding-top:8px}
@@ -457,7 +513,12 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .due{color:var(--acc);font-weight:600;font-size:12px}
 
 /* tabs */
-.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;height:70px;z-index:5;background:var(--navbg);backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;padding-bottom:6px}
+/* height grows by the home-indicator inset so the tab row is not sitting under it on an iPhone */
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;
+  height:calc(70px + env(safe-area-inset-bottom,0px));z-index:5;background:var(--navbg);
+  backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;
+  justify-content:space-around;align-items:center;
+  padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}
 /* min 44x44: this is the primary navigation, so it should be the LAST thing anyone has to aim at.
    Measured 33-47px wide by 38px tall before; the bar already has the room. */
 .nav button{background:none;border:none;display:flex;flex-direction:column;align-items:center;
