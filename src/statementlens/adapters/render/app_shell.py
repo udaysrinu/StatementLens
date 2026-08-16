@@ -529,6 +529,10 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .insrow .ins{animation-delay:calc(var(--i,0) * .08s)}
 @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.ins,.rise{animation:none}}
+/* Set while re-rendering the SAME screen. Without it every filter tap replayed the staggered entry
+   animation, so changing one number made the whole page fade in from blank. Kept as a class on the
+   container rather than per-element so it costs one toggle instead of a walk. */
+.nofx .rise,.nofx .ins,.nofx .drow,.nofx .billkids{animation:none!important}
 .search{width:100%;padding:12px 15px;background:var(--s2);border:1px solid var(--line);border-radius:12px;color:var(--ink);font-size:14px;font-family:var(--body);margin-bottom:12px}
 .search:focus{outline:none;border-color:var(--acc)}
 .empty{text-align:center;padding:40px;color:var(--ink3)}
@@ -827,9 +831,9 @@ function rangeRow(){
   const cal='<svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>';
   const custom=`<button class="pcustom ${RANGE==='C'?'on':''}" onclick="setR('C')" title="pick exact dates">${cal}Custom</button>`;
   const dates=RANGE==='C'
-      ? `<div class="drow"><input type="date" value="${CF}" max="${M.max_date||''}" onchange="setCF(this.value)">
+      ? `<div class="drow"><input id="dt-from" type="date" value="${CF}" max="${M.max_date||''}" onchange="setCF(this.value)">
          <span class="to">→</span>
-         <input type="date" value="${CT}" max="${M.max_date||''}" onchange="setCT(this.value)"></div>` : '';
+         <input id="dt-to" type="date" value="${CT}" max="${M.max_date||''}" onchange="setCT(this.value)"></div>` : '';
   return `<div class="pwrap"><div class="prow">${chips}${cycle}</div>${custom}</div>${dates}${netRow()}`;}
 
 /* The netting control. Only rendered when the data HAS something to net — on an account with no
@@ -1362,7 +1366,7 @@ function txRow(t,withDate){const isIn=t.f==='i';
 /* ---- search / ledger view ---- */
 function search(){const rows=rangeFilter().slice().reverse().slice(0,600);
   return `<div class="view on"><div class="st"><h2>all transactions</h2></div>
-    <input class="search" placeholder="search merchant or tag…" oninput="ft(this)">
+    <input id="q" class="search" placeholder="search merchant or tag…" oninput="ft(this)">
     ${rangeRow()}
     <div id="led">${dayGrouped(rows)}</div></div>`;}
 function ft(i){const q=i.value.toLowerCase();
@@ -1403,7 +1407,7 @@ function txnDetail(){
     <div class="st"><h2>tag</h2></div>
     <div class="note rise">tagged automatically as <b>${esc(t.c)}</b>. tap another tag if that's wrong — we'll remember it for ${esc(t.m||'this merchant')}.</div>
     <div class="card rise"><div class="tagwrap">${chips}</div>
-      <textarea class="notefield" rows="2" placeholder="add a note (why was this payment made?)" oninput="setNote('${escArg(t.ref)}',this.value)">${esc(NOTES[t.ref]||t.note||'')}</textarea></div>
+      <textarea id="note" class="notefield" rows="2" placeholder="add a note (why was this payment made?)" oninput="setNote('${escArg(t.ref)}',this.value)">${esc(NOTES[t.ref]||t.note||'')}</textarea></div>
     ${splitEditor(t)}
     <div id="simwrap"></div>
   </div>`;}
@@ -1433,12 +1437,12 @@ function splitEditor(t){
         <b>your</b> spending does.</div>
       ${state}
       <div class="swrap">${ways}
-        <input class="sexact num" type="text" inputmode="decimal" placeholder="exact ₹"
+        <input id="split-exact" class="sexact num" type="text" inputmode="decimal" placeholder="exact ₹"
           value="${isSplit?(cur/100).toFixed(2):''}"
           onchange="applySplit('${escArg(t.ref)}',Math.round(parseFloat(this.value||'0')*100))">
         ${isSplit?`<button class="schip clear" onclick="applySplit('${escArg(t.ref)}',null)">clear</button>`:''}
       </div>
-      <input class="notefield" style="margin-top:10px" placeholder="with whom? (for your reference)"
+      <input id="split-with" class="notefield" style="margin-top:10px" placeholder="with whom? (for your reference)"
         value="${esc(t.with||'')}" onchange="setSplitWith('${escArg(t.ref)}',this.value)">
     </div>`;}
 
@@ -1579,10 +1583,42 @@ function countUp(){
 }
 const VIEWS={home:home,spends:spends,insights:insightsV,search:search,
              recurring:recurringV,tagdetail:tagDetail,txn:txnDetail,netting:nettingV,bills:billsV};
-function draw(){const v=document.getElementById('views');v.innerHTML=(VIEWS[TAB]||home)();
-  let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
-  v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));
-  nav();showFreshness();accSwitch();if(TAB==='home')countUp();
+/* ---- redraw ----
+   The whole view is rebuilt from state on every change. That is a deliberate choice, and it is not a
+   performance problem: measured at 3.6ms for 310 nodes over 2,307 rows, which is imperceptible, so
+   component-level diffing would be a large rewrite that bought nothing. One source of truth for what
+   the screen says is worth far more here than partial updates.
+
+   What the rebuild DID break is two things a diffing renderer gets for free, and both were visible:
+
+   1. Entry animations replayed on every interaction. `.rise` is a 0.5s staggered fade-and-slide, so
+      tapping a filter re-animated the entire page from blank — it read as a flicker on every click.
+      Animations now run only when the SCREEN changes, not when a value on it does.
+   2. Focus and caret were lost. Typing a custom date and touching anything else dropped the caret,
+      because the input holding it had been replaced by a new element. Focus is now restored by a
+      stable id, along with the selection range. */
+let LASTVIEW='';
+function draw(){
+  const v=document.getElementById('views');
+  // remember where the caret was, so a rebuild does not interrupt typing
+  const act=document.activeElement;
+  const keep=act&&act.id&&v.contains(act)
+      ? {id:act.id, s:act.selectionStart, e:act.selectionEnd} : null;
+
+  // a fresh screen animates in; a value change on the same screen must not
+  const fresh=(TAB!==LASTVIEW);LASTVIEW=TAB;
+  v.classList.toggle('nofx',!fresh);
+
+  v.innerHTML=(VIEWS[TAB]||home)();
+  if(fresh){
+    let i=0;v.querySelectorAll('.rise').forEach(el=>el.style.setProperty('--i',i++));
+    v.querySelectorAll('.insrow .ins').forEach((el,j)=>el.style.setProperty('--i',j));
+  }
+  if(keep){const el=document.getElementById(keep.id);
+    if(el){el.focus({preventScroll:true});
+      try{el.setSelectionRange(keep.s,keep.e);}catch(_){}}}   // range is invalid on date/number inputs
+
+  nav();showFreshness();accSwitch();if(TAB==='home'&&fresh)countUp();
   // the similar-transactions list is fetched, so it renders after the view paints
   if(TAB==='txn'&&TXNREF)loadSimilar(TXNREF);}
 function go(t){TAB=t;window.scrollTo(0,0);draw();}

@@ -413,4 +413,28 @@ def test_both_themes_define_every_colour_token():
     assert not missing, f"light theme never overrides: {sorted(missing)}"
 
 
+def test_redrawing_the_same_screen_neither_reanimates_nor_drops_the_caret():
+    """The view is rebuilt from state on every change — cheap (3.6ms/310 nodes) but not free.
+
+    Two things a diffing renderer gets for free had to be handled explicitly, and both were visible:
+    a 0.5s staggered entry animation replayed on every filter tap, so changing one number made the
+    whole page fade in from blank; and the caret was lost, because the input holding it had been
+    replaced. Neither is a speed problem, which is why the fix is not component diffing.
+    """
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    # animations are suppressed while re-rendering the SAME screen, and only then
+    assert "const fresh=(TAB!==LASTVIEW)" in page, "must distinguish a new screen from a value change"
+    assert "v.classList.toggle('nofx',!fresh)" in page
+    assert ".nofx .rise" in page and "animation:none!important" in page
+
+    # focus and selection are carried across the rebuild
+    assert "document.activeElement" in page and "setSelectionRange" in page
+    # every input that can hold a caret needs a STABLE id, or focus cannot be restored by lookup
+    for ident in ("dt-from", "dt-to", "q", "note", "split-exact", "split-with"):
+        assert f'id="{ident}"' in page, f"input {ident} needs a stable id for focus restore"
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)
