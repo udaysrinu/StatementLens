@@ -68,10 +68,16 @@ def test_a_run_that_imported_data_is_healthy_even_with_unreadable_files():
         res = IngestResult(statements=1, inserted=2, failed=5)
         a = RefreshStatements(lambda: res, log).run(now=NOW)
         assert a.ok, "importing data is a success even when other files were not statements"
-        assert "imported fine" in a.reason and "5 file(s)" in a.reason
         assert log.last_success() is not None
         assert log.status(now=NOW)["label"] != "never synced"
         assert not log.status(now=NOW)["stale"]
+        # A successful run says NOTHING about skipped files. On a real mailbox 61 of them are MITC/KFS
+        # regulatory paperwork with no transactions by design, so they are skipped on every sync
+        # forever; announcing a permanent condition every time turns the status line into wallpaper,
+        # and this is the same line that must be believed when it reports staleness.
+        assert a.reason == "", f"a healthy sync must not editorialise, got {a.reason!r}"
+        # but the count and the per-file explanations are still RECORDED, just not announced
+        assert a.failed == 5
 
 
 def test_a_run_that_read_nothing_at_all_is_still_a_failure():

@@ -125,6 +125,10 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
    matter when something is wrong. Vertical padding brings it to 40x33 without moving the text. */
 .fresh button{background:none;border:none;color:var(--acc);font:600 12px var(--body);cursor:pointer;
   padding:9px 2px;text-decoration:underline;min-height:32px}
+/* the skipped-files affordance: present, tappable, and quiet. No underline and no accent colour, so it
+   reads as "there is more here" rather than as a warning about something that is not wrong. */
+.fresh .skipdot{color:var(--ink3);text-decoration:none;letter-spacing:1px;padding:9px 6px}
+.fresh .skipdot:hover{color:var(--ink2)}
 .acct .d{width:7px;height:7px;border-radius:50%;background:var(--acc)}
 
 /* hero */
@@ -529,10 +533,13 @@ function showFreshness(){const s=M.sync||{},el=document.getElementById('fresh');
   if(s.label)parts.push(esc(s.label));
   if(s.reason)parts.push(esc(s.reason));
   el.className='fresh'+(s.stale?' stale':'');
-  // "5 files weren't statements" invites "which ones, and is my data missing?". The skip reasons are
-  // already recorded per file, so name them on demand instead of leaving a count to worry about.
+  /* The skip detail is AVAILABLE, not announced. It used to read
+     "updated 7 mins ago · imported fine · 61 file(s) weren't statements which? refresh" — four claims
+     where one was wanted. A healthy sync now says only how fresh it is. The unreadable files are still
+     one tap away, behind a quiet dot rather than a sentence, because on this mailbox they are permanent
+     (regulatory paperwork with no transactions) and repeating that forever is noise, not disclosure. */
   const detail=(s.skipped_reasons||[]).filter(Boolean).length
-      ? ' <button onclick="showSkipped()">which?</button>' : '';
+      ? ' <button class="skipdot" onclick="showSkipped()" title="some files in the mailbox aren\'t statements — tap to see which">·&#8202;·&#8202;·</button>' : '';
   el.innerHTML=parts.join(' · ')+detail+(API?' <button onclick="doRefresh(this)">refresh</button>':'');}
 function showSkipped(){toast((M.sync.skipped_reasons||[]).filter(Boolean).join('\n\n'));}
 

@@ -156,12 +156,14 @@ class RefreshStatements:
         # working setup teaches the user to ignore the one banner that matters.
         read_something = r.statements > 0 or r.inserted > 0 or r.duplicate > 0
         ok = read_something or r.failed == 0
-        if r.failed and read_something:
-            reason = f"imported fine · {r.failed} file(s) weren't statements"
-        elif r.failed:
-            reason = f"{r.failed} statement(s) could not be read"
-        else:
-            reason = ""
+        # A SUCCESSFUL run says nothing. The skipped files are still recorded and still reachable, but
+        # they do not belong in the banner: on this mailbox 61 of them are MITC/KFS regulatory
+        # paperwork that contains no transactions by design, so they will be skipped on every sync
+        # forever. Announcing a permanent, unfixable condition on every run is how a status line
+        # becomes wallpaper — and this is the same line that has to be believed when it says the data
+        # is stale. Only a run that imported NOTHING gets to complain.
+        reason = "" if read_something else (
+            f"{r.failed} statement(s) could not be read" if r.failed else "")
         attempt = SyncAttempt(
             started_at=now.isoformat(),
             ok=ok,
