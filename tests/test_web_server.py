@@ -249,8 +249,11 @@ def test_netting_modes_are_offered_and_disclosed():
 
     assert "let NET='gross'" in page, "gross — the statement as printed — must be the default"
     assert "setNet('${k}')" in page, "the modes must be buttons"
-    for mode in ("'gross','gross'", "'clean','hide cancelled'", "'net','net per person'"):
-        assert mode in page, f"mode {mode} must be offered"
+    # assert on the mode KEYS, not the button copy: the labels are wording and were rewritten once
+    # already after the user asked twice what they meant. Pinning copy makes a test that fails on
+    # every improvement to it, which trains people to edit the test instead of reading it.
+    for key in ("b('gross'", "b('clean'", "b('net'"):
+        assert key in page, f"mode {key} must be offered"
 
     # a pair is only dropped when BOTH legs are in range, so the client needs the partner ref
     assert "t.rev" in page and "have.has(t.rev)" in page

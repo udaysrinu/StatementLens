@@ -310,6 +310,9 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .nnote{font-size:11px;color:var(--ink3);margin-left:2px}
 /* divider between the two independent axes: netting (drops rows) and share (rescales them) */
 .nsep{width:1px;height:18px;background:var(--line);margin:0 3px}
+/* names the row, so three unlabelled chips stop reading as an unexplained mode switch */
+.nlbl{font:600 10px var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);
+  margin-right:2px}
 
 /* ---- shared-charge editor ---- */
 .swrap{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
@@ -768,10 +771,13 @@ function netRow(){
   const c=countable();
   const sp=splitInfo(periodRows());
   if(!c.pairs&&!c.people&&!sp.n)return '';
+  /* Labels rewritten after being asked twice what they meant — which is the answer: they were named
+     after the MECHANISM ("gross", "net per person") instead of the question they answer. Each now says
+     what it counts, and the row is prefixed so it reads as one sentence: "counting: everything / ...". */
   const b=(k,lbl,title)=>`<button class="nchip ${NET===k?'on':''}" onclick="setNet('${k}')" title="${title}">${lbl}</button>`;
-  const chips=[b('gross','gross','every row exactly as the bank printed it')]
-    .concat(c.pairs?[b('clean','hide cancelled',`${c.pairs} cancelled pair${c.pairs!==1?'s':''} — money that went out and came straight back`)]:[])
-    .concat(c.people?[b('net','net per person',`${c.people} people money moved both ways with`)]:[]);
+  const chips=[b('gross','everything','every row exactly as the bank printed it — the only view that reconciles line-by-line against your statement')]
+    .concat(c.pairs?[b('clean','skip refunded',`${c.pairs} charge${c.pairs!==1?'s':''} that came straight back — a failed booking or a bounced transfer. money that never really left`)]:[])
+    .concat(c.people?[b('net','settle up friends',`${c.people} people you both paid and got money back from. shows only what you ended up out of pocket`)]:[]);
   /* The share toggle appears only once something IS split — before that it is a control that cannot
      change any number, and those teach you to ignore controls. */
   const share=sp.n?`<span class="nsep"></span>
@@ -779,7 +785,7 @@ function netRow(){
       title="the full amount the bank billed — what reconciles against your statement">billed</button>
     <button class="nchip ${SHARE==='mine'?'on':''}" onclick="setShare('mine')"
       title="${sp.n} shared charge${sp.n!==1?'s':''} · ${fmtK(sp.recoverable)} is someone else's">my share</button>`:'';
-  return `<div class="nrow">${chips.join('')}${share}${netNote(c)}${shareNote(sp)}</div>`;}
+  return `<div class="nrow"><span class="nlbl">counting</span>${chips.join('')}${share}${netNote(c)}${shareNote(sp)}</div>`;}
 
 /* Same rule as netNote: if a mode changes the headline, say by how much, in money, every time. */
 function shareNote(sp){
@@ -905,7 +911,7 @@ function home(){
     ${slfNote}
     ${DATA.insights.length?`<div class="st"><h2>for you</h2></div><div class="insrow">${ins}</div>`:''}
     ${M.is_card?cardFlowCard():bankFlowCard(R,inW)}
-    ${monthChart(R)}
+    ${monthChart()}
     ${FLOW==='out'?topSpendsGrid(R):''}
     ${detail}
     ${rec?`<div class="st"><h2>recurring</h2><a onclick="go('recurring')">see all</a></div><div class="list rise">${rec}</div>`:''}
@@ -1151,7 +1157,17 @@ function heroDelta(R){
    a chart captioned "past trends" that silently answered a different question than the number above
    it. Same `moOut`/`moIn`/`moInv` maps compute() already builds, so nothing is derived twice. */
 const MOKEY={out:'moOut',in:'moIn',inv:'moInv'};
-function monthChart(R){
+function monthChart(){
+  /* Built from the whole history, NOT the selected period — the chart is the SELECTOR, so filtering it
+     by its own selection is circular. It used to take the period-filtered rows, so clicking a bar
+     narrowed the range to one month, which left one bar, which tripped the "<2 months is not a trend"
+     guard below and DELETED THE CHART — removing the only control that could undo the click. There was
+     no way back short of finding the period row.
+
+     It still follows the FLOW (incoming / investments / spends), which is what a trend chart must do to
+     agree with the hero above it. It just doesn't follow the period. The selected month is highlighted
+     instead, so the chart doubles as the indicator of what is currently filtered. */
+  const R=compute(shareRows(netFilter(ALL)));
   const by=R[MOKEY[FLOW]||'moOut']||{};
   const keys=Object.keys(by).sort();
   if(keys.length<2)return'';                       // one bar is not a trend
@@ -1176,15 +1192,18 @@ function monthChart(R){
   // say when the chart is a window over a longer history — an unlabelled 12-month chart next to an
   // all-time hero number reads as "this is everything", and its average as an all-time average
   const word={out:'spend',in:'income',inv:'investing'}[FLOW]||'spend';
-  // "all time" is only true when the chart shows every month AND the picker isn't filtering. With a
-  // range selected it was captioning six filtered bars as the whole history.
-  const scope=hidden?`last ${shown.length} months`
-             :(RANGE==='all'?'all time':`${shown.length} months`);
+  // the chart's own scope, which no longer depends on the picker: it always shows history so it can
+  // act as the selector. Saying so matters because the hero above it IS period-filtered.
+  const scope=hidden?`last ${shown.length} months`:'all time';
+  // when a month is selected from this chart, name the way out in the chart itself rather than making
+  // the user hunt for the period row they never touched
+  const sel=shown.find(k=>RANGE==='C'&&CF===monthStart(k)&&CT===monthEnd(k));
+  const clear=sel?`<button class="nnote link" onclick="setR('all')">showing ${esc(dayLabel(monthStart(sel)).replace(/^\d+ /,''))} only · show all time</button>`:'';
   return `<div class="card rise"><div class="mtop"><div><div class="l">${word} trends · ${scope}</div>
       <div class="v num">${fmtK(avg)} <span class="avgt">avg / month</span></div></div></div>
     <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>
       <span class="avgpill num" style="bottom:${avgPct}%">AVG ${fmtK(avg)}</span>${bars}</div>
-    ${hidden?`<div class="cardfee">${hidden} earlier month${hidden!==1?'s':''} not shown.</div>`:''}</div>`;}
+    ${clear||(hidden?`<div class="cardfee">${hidden} earlier month${hidden!==1?'s':''} not shown.</div>`:'')}</div>`;}
 /* "2026-07" -> the first and last day of that month. Computed rather than assumed: month lengths
    differ and February moves, so a hardcoded 30 would silently drop or over-claim days. */
 function monthStart(mo){return mo+'-01';}
