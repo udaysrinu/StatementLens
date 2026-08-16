@@ -332,10 +332,16 @@ class CashFlow:
 
 
 def cash_flow(txns: Iterable[Transaction], own_names: Iterable[str] = ()) -> CashFlow:
-    """Aggregate a three-way cash flow, excluding self-transfers from both sides."""
+    """Aggregate a three-way cash flow, excluding self-transfers from both sides.
+
+    Deduped like card_flow, and for the same reason: an issuer that prints one bill payment under
+    three narrations was inflating `self_transfers` here while card_flow reported it correctly, so the
+    dashboard showed ₹8.33L of self-transfers beside a card card saying ₹4.13L PAID — the same money,
+    two figures, ₹4,20,230 apart. Any aggregate over a card's rows has to dedupe or none of them agree.
+    """
     inc = inv = spd = slf = 0
     slf_n = 0
-    for t in txns:
+    for t in dedupe_bill_payments(txns):
         bucket = classify_flow(t, own_names)
         minor = t.amount.minor
         if bucket == INCOMING:

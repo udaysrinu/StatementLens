@@ -311,6 +311,54 @@ class SqliteTransactionRepository:
         self._conn.commit()
         return backup
 
+    def recategorize(self, categorizer, *, dry_run: bool = True) -> Dict[str, Any]:
+        """Re-run the categorizer over stored rows, so engine fixes reach data already imported.
+
+        Categories are written at INGEST time, so every later improvement to the categorizer applied
+        only to new statements — the store kept whatever the engine believed on the day each row
+        arrived. On a real store that left 407 of 3,510 rows (12%) stale, including 117 cashback rows
+        still filed as "Food & Dining" from a bug that had already been fixed: the reward was inflating
+        food spending months after the code stopped doing that.
+
+        User corrections are NOT touched. They live in tag_merchant/tag_txn and are applied over the
+        top at read time, so re-deriving the base category can never overwrite a fix the user made.
+
+        Defaults to a dry run and returns the diff, because a silent rewrite of every category in a
+        financial store is exactly the kind of change that should have to be asked for twice.
+        """
+        rows = self._conn.execute(
+            "SELECT content_hash, category FROM txns WHERE content_hash IS NOT NULL").fetchall()
+        by_hash = {t.source_ref: t for t in self.all()}
+        changes = []
+        for chash, current in rows:
+            txn = by_hash.get(chash)
+            if txn is None:
+                continue
+            fresh = categorizer.categorize(txn)
+            if fresh and fresh != (current or "").strip():
+                changes.append((chash, current or "", fresh, txn.amount.minor))
+
+        out: Dict[str, Any] = {
+            "examined": len(rows), "changed": len(changes), "dry_run": dry_run,
+            "moves": sorted(({"from": a, "to": b, "count": sum(
+                1 for _, x, y, _m in changes if x == a and y == b)}
+                for a, b in {(c[1], c[2]) for c in changes}),
+                key=lambda d: -d["count"])[:20],
+        }
+        if dry_run or not changes:
+            return out
+
+        import shutil
+        from datetime import datetime, timezone
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup = f"{self.path}.bak-recat-{stamp}"
+        shutil.copy2(self.path, backup)
+        self._conn.executemany("UPDATE txns SET category=? WHERE content_hash=?",
+                              [(new, h) for h, _old, new, _m in changes])
+        self._conn.commit()
+        out["backup"] = backup
+        return out
+
     def stats(self) -> Dict[str, Any]:
         s = self._conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0]
         n = self._conn.execute("SELECT COUNT(*) FROM txns").fetchone()[0]

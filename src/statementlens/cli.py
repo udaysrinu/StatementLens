@@ -95,6 +95,11 @@ def main(argv=None) -> int:
                      help="actually write the changes (default is a preview)")
     sub.add_parser("stats", help="show what's stored")
 
+    rec = sub.add_parser("recategorize",
+                         help="re-tag stored rows with the current engine (shows a diff first)")
+    rec.add_argument("--apply", action="store_true",
+                     help="actually write the changes (default: dry run)")
+
     args = p.parse_args(argv)
     from .app import App
 
@@ -216,6 +221,19 @@ def main(argv=None) -> int:
     if args.cmd == "stats":
         app = App(db_path=args.db)
         print(app.stats())
+        return 0
+    if args.cmd == "recategorize":
+        app = App(db_path=args.db, own_names=getattr(args, "own_names", None))
+        r = app.recategorize(dry_run=not args.apply)
+        print(f"examined {r['examined']} rows · {r['changed']} would change"
+              if r["dry_run"] else
+              f"examined {r['examined']} rows · {r['changed']} updated")
+        for m in r["moves"]:
+            print(f"   {m['count']:5}  {m['from'] or '(blank)'} -> {m['to']}")
+        if r["dry_run"] and r["changed"]:
+            print("\nnothing written. re-run with --apply to commit (a backup is taken first).")
+        elif r.get("backup"):
+            print(f"\nbackup: {r['backup']}")
         return 0
     return 1
 

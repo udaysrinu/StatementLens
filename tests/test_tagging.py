@@ -118,3 +118,43 @@ def test_review_queue_excludes_credits():
 
 def test_untagged_count_measures_categorizer_quality():
     assert untagged_count([txn(1, "A"), txn(1, "B", "grocery")]) == 1
+
+
+def test_recategorize_is_a_dry_run_by_default_and_conserves_money():
+    """Categories are written at INGEST, so engine fixes never reached rows already imported.
+
+    On the real store that left 407 of 3,510 rows (12%) stale — including 117 cashback rows still filed
+    as "Food & Dining" from a bug fixed months earlier, so a reward was still inflating food spending.
+    There was no way to re-derive them.
+
+    Two invariants: it must not write unless asked, and it must only MOVE money between categories,
+    never change the total.
+    """
+    import tempfile
+    from datetime import date
+    from pathlib import Path
+
+    from statementlens.app import App
+    from statementlens.domain.models import Direction, Statement, Transaction
+    from statementlens.domain.money import Money
+
+    with tempfile.TemporaryDirectory() as tmp:
+        app = App(db_path=str(Path(tmp) / "t.db"))
+        # stored with a deliberately wrong category, as an older engine would have written it
+        app.repo.save_statement(Statement("HDFC", "s1", "c.pdf", "012026", (
+            Transaction(txn_date=date(2026, 1, 5), description="BUNDL TECHNOLOGIES BENGALURU",
+                        amount=Money.of(500, "INR"), direction=Direction.DEBIT,
+                        merchant="BUNDL TECHNOLOGIES", category="Other", raw_date="05-01-26"),)))
+
+        def total():
+            return sum(t.amount.minor for t in app.repo.all())
+
+        before = total()
+        dry = app.recategorize()                      # default must not write
+        assert dry["dry_run"] is True and dry["changed"] >= 1
+        assert (app.repo.all()[0].category or "") == "Other", "a dry run must not write"
+
+        done = app.recategorize(dry_run=False)
+        assert done["changed"] >= 1 and "backup" in done
+        assert app.repo.all()[0].category != "Other", "the fresh category was not applied"
+        assert total() == before, "recategorising must never change the money, only its label"

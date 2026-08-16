@@ -248,6 +248,15 @@ class App:
     def stats(self) -> Dict[str, Any]:
         return self.repo.stats()
 
+    def recategorize(self, *, dry_run: bool = True) -> Dict[str, Any]:
+        """Re-derive stored categories with the CURRENT engine. Dry run unless told otherwise.
+
+        Needed because categories are written at ingest, so every categorizer improvement previously
+        applied only to statements imported after it. User corrections are applied at read time and are
+        never touched by this.
+        """
+        return self.repo.recategorize(self.categorizer, dry_run=dry_run)
+
     def refresh(self, *, account: str, hints: Dict[str, Any], force: bool = False,
                 limit: int = 100):
         """Re-run ingest and record the outcome so a broken connector is visible, not silent."""
