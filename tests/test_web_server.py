@@ -362,6 +362,47 @@ def test_nothing_styled_clickable_is_actually_dead():
     assert not dead, "styled clickable but no handler:\n  " + "\n  ".join(dead)
 
 
+def test_interactive_controls_declare_a_touch_target():
+    """Every tappable control needs a 44px hit area — measured on the live page, pinned here.
+
+    A live audit found "see all" at 35x19px (less than half the minimum, and it is the primary link
+    between screens), the account and period chips at 31px, and the theme toggle at 40px. Small targets
+    are invisible in a screenshot and fine with a mouse, so nothing catches them except measurement.
+
+    Asserted on the CSS rather than by rendering: this test has no browser. Each selector below must
+    carry an explicit min-height, so a future edit that drops one fails loudly instead of silently
+    shrinking a target back under the minimum.
+    """
+    import re
+
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    # selector -> the minimum it must declare. 36 is legitimate for chips that sit inside a 4px-padded
+    # pill (36 + 8 = a 44px row); everything standalone must reach 44 on its own.
+    required = {".st a": 44, ".achip": 44, ".fresh button": 44, ".pchip": 36, ".back": 44}
+    missing = []
+    for selector, floor in required.items():
+        block = re.search(re.escape(selector) + r"\{([^}]*)\}", page)
+        if block is None:
+            missing.append(f"{selector}: rule not found")
+            continue
+        found = re.search(r"min-height:(\d+)px", block.group(1))
+        if not found:
+            missing.append(f"{selector}: no min-height declared")
+        elif int(found.group(1)) < floor:
+            missing.append(f"{selector}: min-height {found.group(1)}px < {floor}px")
+
+    assert not missing, "touch targets under the minimum:\n  " + "\n  ".join(missing)
+
+    # the theme toggle is a fixed square, so it is sized rather than min-height'd
+    av = re.search(r"\.av\{([^}]*)\}", page).group(1)
+    assert "width:44px" in av and "height:44px" in av, f"theme toggle is under 44px: {av[:60]}"
+    # and it must have a real accessible name — the glyph reads as "circle with left half black"
+    assert 'aria-label="switch between light and dark"' in page
+
+
 def test_styled_buttons_inherit_their_text_colour():
     """A <button> gets the UA's black text unless told otherwise, and `font:inherit` does NOT carry it.
 

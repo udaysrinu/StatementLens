@@ -170,12 +170,13 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 /* top */
 .top{display:flex;justify-content:space-between;align-items:center;padding-top:8px}
 .hi{font-size:13px;color:var(--ink2)}.nm{font:600 19px/1.15 var(--disp);margin-top:2px}
-.av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,var(--acc),var(--acc2));display:grid;place-items:center;color:var(--onacc);font-weight:700;cursor:pointer}
+.av{width:44px;height:44px;border-radius:50%;background:linear-gradient(150deg,var(--acc),var(--acc2));display:grid;place-items:center;color:var(--onacc);font-weight:700;cursor:pointer;border:none;font-size:15px}
+.av:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 /* account switcher — one chip per account, cards marked as cards. Horizontally scrollable: six
    accounts will not fit a phone, and wrapping to a second line pushes the hero below the fold. */
 .accswitch{display:flex;gap:7px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
 .accswitch::-webkit-scrollbar{display:none}
-.achip{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;text-decoration:none;
+.achip{flex:0 0 auto;display:inline-flex;align-items:center;min-height:44px;gap:7px;text-decoration:none;
   background:var(--s1);border:1px solid var(--line);border-radius:100px;padding:7px 13px;
   font:500 12px var(--body);color:var(--ink2);white-space:nowrap;
   transition:border-color .18s var(--ease),color .18s var(--ease),background .18s var(--ease)}
@@ -189,11 +190,14 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .fresh.stale{color:var(--down)}
 /* measured 40x15 — the smallest tap target in the app, on the two controls ("refresh", "which?") that
    matter when something is wrong. Vertical padding brings it to 40x33 without moving the text. */
+/* 44px tall with a negative block margin: the hit area meets the touch minimum while the row keeps its
+   original height, so raising the target does not push the hero down the page. */
 .fresh button{background:none;border:none;color:var(--acc);font:600 12px var(--body);cursor:pointer;
-  padding:9px 2px;text-decoration:underline;min-height:32px}
+  padding:0 6px;text-decoration:underline;min-height:44px;min-width:44px;
+  display:inline-flex;align-items:center;justify-content:center;margin-block:-6px}
 /* the skipped-files affordance: present, tappable, and quiet. No underline and no accent colour, so it
    reads as "there is more here" rather than as a warning about something that is not wrong. */
-.fresh .skipdot{color:var(--ink3);text-decoration:none;letter-spacing:1px;padding:9px 6px}
+.fresh .skipdot{color:var(--ink3);text-decoration:none;letter-spacing:1px;padding:0 8px}
 .fresh .skipdot:hover{color:var(--ink2)}
 .acct .d{width:7px;height:7px;border-radius:50%;background:var(--acc)}
 
@@ -207,7 +211,13 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 /* section title */
 .st{display:flex;justify-content:space-between;align-items:baseline;padding:0 2px;margin-bottom:-6px}
 .st h2{font:600 15px/1 var(--disp);font-style:italic;color:var(--ink)}
-.st a{font-size:12.5px;color:var(--acc);text-decoration:none;cursor:pointer}
+/* "see all" measured 35x19px — under half the 44px minimum, on the primary link between screens.
+   Padded to a 44px-tall hit area with a negative margin so the visual position does not move: the
+   target grows, the layout does not. align-items:baseline on .st keeps the text optically aligned. */
+.st a{font-size:12.5px;color:var(--acc);text-decoration:none;cursor:pointer;
+  display:inline-flex;align-items:center;min-height:44px;padding:0 6px;margin:-12px -6px}
+.st a:hover{text-decoration:underline}
+.st a:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:6px}
 
 /* insights */
 .insrow{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 6px;scroll-snap-type:x mandatory;scrollbar-width:none}
@@ -349,7 +359,10 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
   border:1px solid var(--line);border-radius:100px;
   overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .prow::-webkit-scrollbar{display:none}
-.pchip{flex:1 1 auto;min-width:34px;background:transparent;border:none;color:var(--ink2);
+/* 36px tall inside a 4px-padded pill = a 44px row. The chips measured 31px, under the touch minimum,
+   and these are the most-tapped controls on the screen. Height goes on the CHIP rather than the row so
+   the pill still hugs its contents. */
+.pchip{flex:1 1 auto;min-width:38px;min-height:36px;background:transparent;border:none;color:var(--ink2);
   border-radius:100px;padding:8px 7px;font:600 12px var(--body);cursor:pointer;
   white-space:nowrap;transition:background .18s var(--ease),color .18s var(--ease)}
 .pchip:hover{color:var(--ink)}
@@ -591,7 +604,10 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
  <div class="wrap">
   <div class="top">
     <div><div class="hi" id="greet">welcome back,</div><div class="nm">__LABEL__</div></div>
-    <button class="av" onclick="TT()" title="theme">◐</button>
+    <!-- aria-label, not just title: the glyph announces as "circle with left half black", and title is
+         inconsistently read. aria-hidden on the glyph so the name is not doubled. -->
+    <button class="av" onclick="TT()" title="switch between light and dark"
+            aria-label="switch between light and dark"><span aria-hidden="true">◐</span></button>
   </div>
   <div class="accswitch" id="accswitch"></div>
   <div class="acctrow">
