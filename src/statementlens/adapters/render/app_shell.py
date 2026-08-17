@@ -1280,7 +1280,12 @@ function monthChart(){
   const by=R[MOKEY[FLOW]||'moOut']||{};
   const keys=Object.keys(by).sort();
   if(keys.length<2)return'';                       // one bar is not a trend
-  const shown=keys.slice(-12),hidden=keys.length-shown.length;
+  /* EVERY month, scrolled — not the last 12 with a note admitting the rest exist. Truncating to a
+     window and printing "26 earlier months not shown" is the worst of both: the data is withheld AND
+     the withholding is advertised. A scroll container costs nothing and 38 months of history is the
+     whole point of keeping years of statements.
+     The average is now genuinely over everything displayed, so the reference line means what it says. */
+  const shown=keys,hidden=0;
   const vals=shown.map(k=>by[k]);
   const peak=Math.max(...vals)||1,avg=Math.round(vals.reduce((s,v)=>s+v,0)/vals.length);
   const avgPct=Math.min(100,avg/peak*100);
