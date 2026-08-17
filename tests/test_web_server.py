@@ -362,6 +362,41 @@ def test_nothing_styled_clickable_is_actually_dead():
     assert not dead, "styled clickable but no handler:\n  " + "\n  ".join(dead)
 
 
+def test_the_hero_is_a_pager_with_all_three_flows_present():
+    """The three flows are peers, so all three panes render at once and the hero swipes between them.
+
+    Two things this pins. First, every pane is in the DOM — that is what makes the swipe feel instant,
+    since the number is already there rather than fetched on settle. Second, the scroller must re-park
+    itself on EVERY draw: innerHTML replaces it with a fresh node at scrollLeft 0, so a swipe-triggered
+    redraw left the pager showing pane 0 while the dots and the breakdown said pane 2.
+    """
+    import re
+
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    # money in -> money out -> money kept, and all three are laid out, not just the active one
+    assert "const FLOWORDER=['in','out','inv']" in page
+    assert "FLOWORDER.map(f=>" in page, "every flow must render a pane"
+    assert "heroValueFor(R,f)" in page, "panes need their values read without mutating FLOW"
+
+    # native scroll-snap, not a hand-rolled gesture handler
+    css = re.search(r"\.hpager\{([^}]*)\}", page)
+    assert css and "scroll-snap-type:x mandatory" in css.group(1)
+    pane = re.search(r"\.hpane\{([^}]*)\}", page)
+    assert pane and "scroll-snap-align:start" in pane.group(1)
+    assert "flex:0 0 100%" in pane.group(1), "a pane must be exactly one viewport wide, or snap drifts"
+
+    # the re-park is unconditional — a guard here is the desync bug
+    assert re.search(r"syncPager\(\);", page), "draw() must re-park the pager"
+    assert "keepPager" not in page, "skipping the re-park desyncs the pager from the dots"
+
+    # dots are a real control for pointer users, who have no swipe
+    assert "setFlow('${f}')" in page and 'class="hdot' in page
+    assert 'aria-current="${FLOW===f}"' in page
+
+
 def test_interactive_controls_declare_a_touch_target():
     """Every tappable control needs a 44px hit area — measured on the live page, pinned here.
 

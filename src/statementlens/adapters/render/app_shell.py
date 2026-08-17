@@ -203,10 +203,40 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 
 /* hero */
 .hero{display:flex;flex-direction:column;gap:5px;padding:6px 2px 2px}
-.hero .l{font-size:11.5px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase}
-.hero .big{font:500 50px/1 var(--disp);letter-spacing:-.02em}
-.hero .sub{font-size:13.5px;color:var(--ink2);margin-top:5px}
+.hero .l,.hpane .l{font-size:11.5px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase}
+.hero .big,.hpane .big{font:500 50px/1 var(--disp);letter-spacing:-.02em}
+.hero .sub,.hpane .sub{font-size:13.5px;color:var(--ink2);margin-top:5px}
+.hero .avg,.hpane .avg{font-size:12px;color:var(--ink3);margin-top:3px}
 .up{color:var(--up);font-weight:600}.down{color:var(--down);font-weight:600}
+
+/* ---- hero pager: three flows as peers, swipeable ----
+   CSS scroll-snap, not a JS gesture handler: swipe, momentum, rubber-band at the ends, trackpad and
+   keyboard all come from the platform, and it degrades to a plain horizontal scroll rather than to
+   nothing. Panes are full-width children of a mandatory-snap scroller. */
+.hwrap{display:flex;flex-direction:column;gap:10px}
+.hpager{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  /* the panes carry the hero's own padding, so the scroller adds none */
+  scroll-behavior:auto}
+.hpager::-webkit-scrollbar{display:none}
+.hpane{flex:0 0 100%;min-width:100%;scroll-snap-align:start;scroll-snap-stop:always;
+  display:flex;flex-direction:column;gap:5px;padding:6px 2px 2px;
+  /* the off-screen panes are dimmed, so a half-swipe reads as "there is another number there"
+     rather than as two equally-live figures */
+  opacity:.4;transition:opacity .28s var(--ease)}
+.hpane.on{opacity:1}
+/* dots: the affordance that says "swipe". Also tappable, because a mouse has no swipe. */
+.hdots{display:flex;gap:7px;padding:0 2px;align-items:center}
+.hdot{width:26px;height:4px;border-radius:100px;border:none;padding:0;cursor:pointer;
+  background:var(--line);transition:background .2s var(--ease),width .2s var(--ease)}
+.hdot:hover{background:var(--ink3)}
+.hdot.on{background:var(--acc);width:34px}
+/* the dot is a 4px bar, far under the touch minimum — grow the HIT area without growing the ink */
+.hdots{position:relative}
+.hdot::before{content:'';position:absolute;top:-20px;bottom:-20px;left:-4px;right:-4px}
+.hdot{position:relative}
+.hdot:focus-visible{outline:2px solid var(--acc);outline-offset:6px}
+@media(prefers-reduced-motion:reduce){.hpane{transition:none}.hpager{scroll-behavior:auto}}
 
 /* section title */
 .st{display:flex;justify-content:space-between;align-items:baseline;padding:0 2px;margin-bottom:-6px}
@@ -1033,7 +1063,7 @@ function home(){
                 <div class="list rise">${cats||'<div class="empty">no spends in range</div>'}</div>`;
 
   return `<div class="view on">
-    <div class="hero rise"><div class="l">${hv.label} ${rangeLabel()}</div><div class="big num" id="hero" data-to="${hv.amount}">${fmtH(hv.amount)}</div>${deltaHtml}${avgLine}</div>
+    ${heroPager(R)}
     ${rangeRow()}
     ${slfNote}
     ${DATA.insights.length?`<div class="st"><h2>for you</h2></div><div class="insrow">${ins}</div>`:''}
@@ -1046,6 +1076,72 @@ function home(){
     <div class="list rise">${rec2||'<div class="empty">nothing here</div>'}</div>
   </div>`;
 }
+
+/* ---- the hero as a swipeable pager ----
+   Three flows are PEERS, not one default with two alternates. The old hero showed `spent` permanently
+   and put its control in a card further down the page — so the thing you were looking at was changed
+   from somewhere else, and "spent · all time" read as the app's only question.
+
+   Built on CSS scroll-snap rather than a JS gesture handler: the swipe, the momentum, the rubber-band
+   at the ends and the keyboard/trackpad cases all come from the platform, and it degrades to a
+   horizontal scroll if anything goes wrong. All three panes are in the DOM at once, which is what makes
+   the swipe feel instant — the number is already there, not fetched on settle.
+
+   `scrollend` tells us which pane won. It is not in older Safari, so a scroll-position fallback keeps
+   the dots and the breakdown in step there too. */
+const FLOWORDER=['in','out','inv'];      // money in -> money out -> money kept: the story order
+function heroPager(R){
+  const panes=FLOWORDER.map(f=>{
+    const hv=heroValueFor(R,f);
+    const on=FLOW===f;
+    const delta=on?heroDelta(R):'';       // only the visible pane needs its comparison computed
+    const avg=hv.avg?`<div class="avg num">avg per month ${fmtK(hv.avg)}</div>`:'';
+    return `<div class="hpane ${on?'on':''}" data-flow="${f}" role="group"
+        aria-label="${hv.label} ${esc(rangeLabel().replace(/^·\s*/,''))}">
+      <div class="l">${hv.label} ${rangeLabel()}</div>
+      <div class="big num" ${on?'id="hero"':''} data-to="${hv.amount}">${fmtH(hv.amount)}</div>
+      ${delta}${avg}</div>`;}).join('');
+  const dots=FLOWORDER.map(f=>
+    `<button class="hdot ${FLOW===f?'on':''}" onclick="setFlow('${f}')"
+       aria-label="show ${FLOWS[f].label}" aria-current="${FLOW===f}"></button>`).join('');
+  return `<div class="hwrap rise">
+    <div class="hpager" id="hpager" onscroll="heroScrolled()">${panes}</div>
+    <div class="hdots">${dots}</div>
+  </div>`;}
+
+/* Read the pane values without disturbing FLOW — the pager needs all three at once. */
+function heroValueFor(R,f){
+  const spec=FLOWS[f]||FLOWS.out;
+  return {label:M.is_card&&f==='out'?'charged':spec.label,
+          amount:R[spec.key],
+          avg:(spec.avg&&R.months>1)?R[spec.avg]:0};}
+
+/* Keep the pager scrolled to the active pane after a redraw. Without this, tapping a dot or a flow
+   tile would update every number but leave the pager parked on the previous pane. */
+function syncPager(){
+  const p=document.getElementById('hpager');if(!p)return;
+  const i=FLOWORDER.indexOf(FLOW);if(i<0)return;
+  const x=p.clientWidth*i;
+  if(Math.abs(p.scrollLeft-x)>2){p.dataset.snap='1';p.scrollLeft=x;
+    // clear the guard on the next frame, after the programmatic scroll has been observed
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{delete p.dataset.snap;}));}}
+
+/* A swipe changes the flow, which redraws the breakdown below. Debounced to the settle, so dragging
+   across three panes does not redraw three times. */
+let _hsettle=null;
+function heroScrolled(){
+  const p=document.getElementById('hpager');if(!p||p.dataset.snap)return;
+  clearTimeout(_hsettle);
+  _hsettle=setTimeout(()=>{
+    /* Re-read the element: a redraw between the scroll and this settle replaces it, and holding the
+       stale node measured scrollLeft on a detached div — which reported 0 and desynced the pager from
+       the pane it was actually showing. */
+    const el=document.getElementById('hpager');if(!el||el.dataset.snap)return;
+    const w=el.clientWidth||1;
+    const i=Math.round(el.scrollLeft/w);
+    const f=FLOWORDER[Math.max(0,Math.min(FLOWORDER.length-1,i))];
+    if(f&&f!==FLOW)setFlow(f);
+  },120);}
 
 /* ---- which side of the flow the hero shows ----
    Three numbers were computed but only one was ever displayed at full precision: `spends`. Incoming
@@ -1685,6 +1781,11 @@ function draw(){
       try{el.setSelectionRange(keep.s,keep.e);}catch(_){}}}   // range is invalid on date/number inputs
 
   nav();showFreshness();accSwitch();if(TAB==='home'&&fresh)countUp();
+  /* Park the pager on the active flow. This runs on EVERY draw, including one triggered by a swipe:
+     innerHTML replaces the scroller with a fresh node at scrollLeft 0, so "the finger already put it
+     there" is never true by the time we get here. Skipping it left the pager showing pane 0 while the
+     dots and the breakdown said pane 2. */
+  syncPager();
   /* Open the trend chart at the NEWEST month. It scrolls to reveal years of history, and left-aligned
      that means landing on 2023 — the least interesting end. This month is what you came to see. */
   const cw=document.getElementById('chartwrap');
