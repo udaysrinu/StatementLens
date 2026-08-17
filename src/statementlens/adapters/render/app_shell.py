@@ -225,17 +225,26 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
      rather than as two equally-live figures */
   opacity:.4;transition:opacity .28s var(--ease)}
 .hpane.on{opacity:1}
-/* dots: the affordance that says "swipe". Also tappable, because a mouse has no swipe. */
-.hdots{display:flex;gap:7px;padding:0 2px;align-items:center}
-.hdot{width:26px;height:4px;border-radius:100px;border:none;padding:0;cursor:pointer;
-  background:var(--line);transition:background .2s var(--ease),width .2s var(--ease)}
-.hdot:hover{background:var(--ink3)}
-.hdot.on{background:var(--acc);width:34px}
-/* the dot is a 4px bar, far under the touch minimum — grow the HIT area without growing the ink */
-.hdots{position:relative}
-.hdot::before{content:'';position:absolute;top:-20px;bottom:-20px;left:-4px;right:-4px}
-.hdot{position:relative}
-.hdot:focus-visible{outline:2px solid var(--acc);outline-offset:6px}
+/* NAMED TABS, not anonymous dots.
+   Three 4px pills communicated POSITION but never CONTENT: the screen said "SPENT · ALL TIME" with
+   nothing to indicate that received and invested existed at all, so "where is incoming?" had no answer
+   visible on the page. A swipe is also a hidden gesture — fine as a shortcut, wrong as the only route
+   to a third of the product. Naming the tabs makes all three flows legible at rest, and the active
+   underline doubles as the pager indicator so one element carries both label and position. */
+.hdots{display:flex;gap:2px;padding:0 2px;align-items:stretch;
+  border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.hdots::-webkit-scrollbar{display:none}
+.hdot{position:relative;flex:0 0 auto;background:none;border:none;padding:11px 13px 10px;
+  cursor:pointer;min-height:44px;white-space:nowrap;
+  font:600 11.5px var(--body);letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);
+  transition:color .18s var(--ease)}
+.hdot:hover{color:var(--ink2)}
+.hdot.on{color:var(--acc)}
+/* the active underline sits ON the container hairline, so the row reads as one object */
+.hdot::after{content:'';position:absolute;left:9px;right:9px;bottom:-1px;height:2px;border-radius:2px;
+  background:transparent;transition:background .18s var(--ease)}
+.hdot.on::after{background:var(--acc)}
+.hdot:focus-visible{outline:2px solid var(--acc);outline-offset:-3px;border-radius:8px}
 @media(prefers-reduced-motion:reduce){.hpane{transition:none}.hpager{scroll-behavior:auto}}
 
 /* section title */
@@ -405,6 +414,37 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .pcustom:hover{color:var(--ink)}
 .pcustom svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
 .pcustom.on{background:var(--acc);border-color:var(--acc);color:var(--onacc);font-weight:600}
+/* ---- month picker ---- */
+.mpick{margin-top:10px;background:var(--s1);border:1px solid var(--line);border-radius:16px;
+  padding:12px;animation:rise .3s var(--ease) both}
+.yrow{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin-bottom:11px}
+.yrow::-webkit-scrollbar{display:none}
+.ychip{flex:0 0 auto;background:transparent;border:1px solid var(--line);border-radius:100px;
+  color:var(--ink3);padding:0 13px;min-height:34px;cursor:pointer;
+  font:600 12px var(--body);font-variant-numeric:tabular-nums;
+  transition:color .16s var(--ease),border-color .16s var(--ease),background .16s var(--ease)}
+.ychip:hover{color:var(--ink2)}
+.ychip.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+/* 4 x 3: reads as a calendar year at a glance, and every cell clears the touch minimum */
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mcell{min-height:44px;background:var(--s2);border:1px solid transparent;border-radius:10px;
+  color:var(--ink2);cursor:pointer;font:600 12px var(--body);text-transform:uppercase;
+  letter-spacing:.04em;transition:background .16s var(--ease),color .16s var(--ease),
+  border-color .16s var(--ease)}
+.mcell:hover{color:var(--ink);border-color:var(--ink3)}
+/* a month with no statements is shown, not hidden: a gap in coverage is information */
+.mcell.off{opacity:.32;cursor:not-allowed;background:transparent;
+  text-decoration:line-through;text-decoration-thickness:1px}
+.mcell.off:hover{color:var(--ink2);border-color:transparent}
+/* interior months are included but were not tapped; the two endpoints carry the accent */
+.mcell.in{background:rgba(var(--glow),.13);color:var(--ink)}
+.mcell.end{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.mcell:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.mfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px}
+.mhint{font-size:11px;color:var(--ink3);line-height:1.35}
+.mexact{flex:0 0 auto;background:none;border:none;color:var(--acc);cursor:pointer;
+  font:600 11.5px var(--body);text-decoration:underline;min-height:44px;padding:0 4px}
+
 .drow{display:flex;align-items:center;gap:8px;margin-top:10px;animation:rise .3s var(--ease) both}
 .drow input[type=date]{flex:1;min-width:0;background:var(--s1);border:1px solid var(--line);
   color:var(--ink);border-radius:12px;padding:10px 12px;font:500 13px var(--body);
@@ -902,8 +942,14 @@ function periodRows(){
   if(!from)return ALL;                          // "All", unknown key, or no dates -> everything
   return ALL.filter(t=>t.d&&t.d>=from);}
 function rangeLabel(){
-  if(RANGE==='C')return (CF||'start')+' → '+(CT||'now');
-  if(RANGE==='S'){const c=salaryCycle();return c?'salary cycle':'salary cycle';}
+  if(RANGE==='C'){
+    /* An unset custom range covers everything, so say so. "start → now" described the same period as
+       "all time" in words that sound like a filter is applied, and with neither date chosen it was
+       "start → now" — a caption that tells you nothing about what you are looking at. */
+    if(!CF&&!CT)return '· all time';
+    if(CF&&CT)return `· ${dayLabel(CF)} → ${dayLabel(CT)}`;
+    return CF?`· since ${dayLabel(CF)}`:`· up to ${dayLabel(CT)}`;}
+  if(RANGE==='S')return '· salary cycle';
   return {W:'· last week',M:'· last month','3M':'· last 3 months','6M':'· last 6 months',
           Y:'· last year','5Y':'· last 5 years',all:'· all time'}[RANGE]||'';}
 /* The whole period control: presets, then Cycle if a salary day was detected, then custom.
@@ -915,11 +961,65 @@ function rangeRow(){
       ? `<button class="pchip ${RANGE==='S'?'on':''}" onclick="setR('S')" title="your salary cycle, not the calendar month">Cycle</button>` : '';
   const cal='<svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>';
   const custom=`<button class="pcustom ${RANGE==='C'?'on':''}" onclick="setR('C')" title="pick exact dates">${cal}Custom</button>`;
-  const dates=RANGE==='C'
-      ? `<div class="drow"><input id="dt-from" type="date" value="${CF}" max="${M.max_date||''}" onchange="setCF(this.value)">
-         <span class="to">→</span>
-         <input id="dt-to" type="date" value="${CT}" max="${M.max_date||''}" onchange="setCT(this.value)"></div>` : '';
-  return `<div class="pwrap"><div class="prow">${chips}${cycle}</div>${custom}</div>${dates}${netRow()}`;}
+  return `<div class="pwrap"><div class="prow">${chips}${cycle}</div>${custom}</div>
+    ${RANGE==='C'?monthPicker():''}${netRow()}`;}
+
+/* ---- month picker ----
+   A statement app's real unit is the MONTH: statements arrive monthly, "how much in March" is the
+   question people actually ask, and typing 2026-03-01 into a date field to express it is work the app
+   should be doing. Two bare <input type=date> fields also hid which periods even hold data — this
+   store has 38 months across four years, and nothing said so.
+
+   Tap one month to see it. Tap a second to make a range. Months with no transactions are visibly
+   disabled rather than silently empty, so a gap in coverage is information instead of a dead end.
+   The exact-date inputs stay, below, for the rare non-month-aligned query. */
+let PICKYEAR=null, PICKANCHOR=null;
+const MONTHNAMES=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function monthsWithData(){
+  if(!monthsWithData._c)monthsWithData._c=new Set(ALL.map(t=>t.mo).filter(Boolean));
+  return monthsWithData._c;}
+function pickYears(){
+  const ys=[...new Set([...monthsWithData()].map(m=>m.slice(0,4)))].sort();
+  return ys.length?ys:[String(new Date().getUTCFullYear())];}
+function monthPicker(){
+  const have=monthsWithData(), years=pickYears();
+  if(PICKYEAR===null||!years.includes(PICKYEAR))
+    PICKYEAR=(CF&&years.includes(CF.slice(0,4)))?CF.slice(0,4):years[years.length-1];
+  const yTabs=years.map(y=>
+    `<button class="ychip ${y===PICKYEAR?'on':''}" onclick="setPickYear('${y}')">${y}</button>`).join('');
+  const cells=MONTHNAMES.map((nm,i)=>{
+    const mo=`${PICKYEAR}-${String(i+1).padStart(2,'0')}`;
+    const has=have.has(mo);
+    // inside the chosen range, and the two endpoints, are styled differently: an interior month is
+    // included but was not what you tapped
+    const inRange=CF&&CT&&mo>=CF.slice(0,7)&&mo<=CT.slice(0,7);
+    const isEnd=(CF&&mo===CF.slice(0,7))||(CT&&mo===CT.slice(0,7));
+    return `<button class="mcell ${has?'':'off'} ${inRange?'in':''} ${isEnd?'end':''}"
+       ${has?`onclick="pickMonth('${mo}')"`:'disabled aria-disabled="true"'}
+       title="${has?mo:mo+' — no transactions'}">${nm}</button>`;}).join('');
+  const hint=PICKANCHOR
+      ? `<span class="mhint">tap another month to end the range, or the same one again for just ${esc(PICKANCHOR)}</span>`
+      : '<span class="mhint">tap a month, or two to span a range</span>';
+  return `<div class="mpick rise">
+    <div class="yrow">${yTabs}</div>
+    <div class="mgrid">${cells}</div>
+    <div class="mfoot">${hint}
+      <button class="mexact" onclick="toggleExact()">exact dates</button></div>
+    ${EXACT?`<div class="drow">
+      <input id="dt-from" type="date" value="${CF}" max="${M.max_date||''}" onchange="setCF(this.value)">
+      <span class="to">→</span>
+      <input id="dt-to" type="date" value="${CT}" max="${M.max_date||''}" onchange="setCT(this.value)">
+    </div>`:''}
+  </div>`;}
+let EXACT=false;
+function toggleExact(){EXACT=!EXACT;draw();}
+function setPickYear(y){PICKYEAR=y;draw();}
+/* First tap sets an anchor; second tap completes the range in whichever order they were tapped, so
+   picking backwards (December then March) works without an error message. */
+function pickMonth(mo){
+  if(!PICKANCHOR){PICKANCHOR=mo;CF=monthStart(mo);CT=monthEnd(mo);RANGE='C';draw();return;}
+  const [a,b]=[PICKANCHOR,mo].sort();
+  CF=monthStart(a);CT=monthEnd(b);PICKANCHOR=null;RANGE='C';draw();}
 
 /* The netting control. Only rendered when the data HAS something to net — on an account with no
    cancelled pairs and no two-way counterparties this is three dead buttons, and a control that never
@@ -1077,18 +1177,21 @@ function home(){
   </div>`;
 }
 
-/* ---- the hero as a swipeable pager ----
-   Three flows are PEERS, not one default with two alternates. The old hero showed `spent` permanently
-   and put its control in a card further down the page — so the thing you were looking at was changed
-   from somewhere else, and "spent · all time" read as the app's only question.
+/* ---- the hero: named tabs over a swipeable pager ----
+   Three flows are PEERS, not one default with two alternates. The hero used to show `spent`
+   permanently with its control in a card further down the page, so the thing you were looking at got
+   changed from somewhere else and "spent · all time" read as the app's only question.
 
-   Built on CSS scroll-snap rather than a JS gesture handler: the swipe, the momentum, the rubber-band
-   at the ends and the keyboard/trackpad cases all come from the platform, and it degrades to a
-   horizontal scroll if anything goes wrong. All three panes are in the DOM at once, which is what makes
-   the swipe feel instant — the number is already there, not fetched on settle.
+   The first fix — swipe with three dots — was not enough, and the giveaway was being asked "what about
+   incoming, where is it?". Dots communicate POSITION, never CONTENT: nothing on screen said received and
+   invested existed. A swipe is also a hidden gesture, which is acceptable as a shortcut and wrong as the
+   only route to two thirds of the numbers. So the tabs are named and sit above the figure: you read what
+   it is, then the amount, and the swipe stays as the fast path.
 
-   `scrollend` tells us which pane won. It is not in older Safari, so a scroll-position fallback keeps
-   the dots and the breakdown in step there too. */
+   The pager itself is CSS scroll-snap rather than a JS gesture handler — swipe, momentum, the
+   rubber-band at the ends, trackpad and keyboard all come from the platform, and it degrades to a
+   horizontal scroll rather than to nothing. All three panes are in the DOM at once, which is what makes
+   switching feel instant: the number is already there, not computed on settle. */
 const FLOWORDER=['in','out','inv'];      // money in -> money out -> money kept: the story order
 function heroPager(R){
   const panes=FLOWORDER.map(f=>{
@@ -1096,18 +1199,29 @@ function heroPager(R){
     const on=FLOW===f;
     const delta=on?heroDelta(R):'';       // only the visible pane needs its comparison computed
     const avg=hv.avg?`<div class="avg num">avg per month ${fmtK(hv.avg)}</div>`:'';
-    return `<div class="hpane ${on?'on':''}" data-flow="${f}" role="group"
+    return `<div class="hpane ${on?'on':''}" data-flow="${f}" role="tabpanel"
         aria-label="${hv.label} ${esc(rangeLabel().replace(/^·\s*/,''))}">
       <div class="l">${hv.label} ${rangeLabel()}</div>
       <div class="big num" ${on?'id="hero"':''} data-to="${hv.amount}">${fmtH(hv.amount)}</div>
       ${delta}${avg}</div>`;}).join('');
-  const dots=FLOWORDER.map(f=>
-    `<button class="hdot ${FLOW===f?'on':''}" onclick="setFlow('${f}')"
-       aria-label="show ${FLOWS[f].label}" aria-current="${FLOW===f}"></button>`).join('');
+  /* Tabs ABOVE the number: you read what it is, then the figure. Named, so all three flows are legible
+     without touching anything — the previous dots said only "there are three of something". */
+  const tabs=FLOWORDER.map(f=>
+    `<button class="hdot ${FLOW===f?'on':''}" onclick="setFlow('${f}')" role="tab"
+       aria-selected="${FLOW===f}">${esc(tabLabel(f))}</button>`).join('');
   return `<div class="hwrap rise">
+    <div class="hdots" role="tablist" aria-label="which flow to show">${tabs}</div>
     <div class="hpager" id="hpager" onscroll="heroScrolled()">${panes}</div>
-    <div class="hdots">${dots}</div>
   </div>`;}
+
+/* Tab wording differs from the hero label on purpose. The hero reads as a sentence with its period
+   ("spent · all time"); a tab is a noun you scan ("money out"). Pairing them as in/out also frames the
+   three as one set, which "received / spent / invested" does not.
+   On a CARD, money does not flow out — it is charged, and the payment comes from a bank account. Using
+   the bank wording there would describe the wrong thing. */
+function tabLabel(f){
+  if(M.is_card)return {in:'paid off',out:'charged',inv:'invested'}[f]||f;
+  return {in:'money in',out:'money out',inv:'invested'}[f]||f;}
 
 /* Read the pane values without disturbing FLOW — the pager needs all three at once. */
 function heroValueFor(R,f){

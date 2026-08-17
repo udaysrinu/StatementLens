@@ -392,9 +392,17 @@ def test_the_hero_is_a_pager_with_all_three_flows_present():
     assert re.search(r"syncPager\(\);", page), "draw() must re-park the pager"
     assert "keepPager" not in page, "skipping the re-park desyncs the pager from the dots"
 
-    # dots are a real control for pointer users, who have no swipe
+    # The tabs must be NAMED, not anonymous dots. Position-only indicators left "where is incoming?"
+    # unanswerable on the page: nothing said the other two flows existed.
     assert "setFlow('${f}')" in page and 'class="hdot' in page
-    assert 'aria-current="${FLOW===f}"' in page
+    assert "function tabLabel(" in page, "tabs must carry a readable name per flow"
+    assert "'money in'" in page and "'money out'" in page
+    assert "'charged'" in page, "a card is charged, not 'money out'"
+    # a real tablist, so the relationship is exposed to assistive tech too
+    assert 'role="tablist"' in page and 'role="tab"' in page and 'role="tabpanel"' in page
+    assert 'aria-selected="${FLOW===f}"' in page
+    # and the labels sit ABOVE the figure: read what it is, then the amount
+    assert page.index('class="hdots"') < page.index('class="hpager"')
 
 
 def test_interactive_controls_declare_a_touch_target():
