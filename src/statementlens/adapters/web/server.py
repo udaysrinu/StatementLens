@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import socket
 import tempfile
 import threading
 import webbrowser
@@ -277,7 +278,35 @@ def serve(app, *, account: str, host: str = "127.0.0.1", port: int = 8770,
     it only changes what is PRINTED; the caller decides the bind address.
     """
     token = secrets.token_urlsafe(16)
-    httpd = ThreadingHTTPServer((host, port), _Handler)
+
+    class _Server(ThreadingHTTPServer):
+        """Dual-stack when serving beyond loopback.
+
+        The server was IPv4-only, which is invisible over a literal IPv4 address and fatal over a
+        Bonjour name: mDNS hands the client BOTH an A and an AAAA record, Happy Eyeballs (RFC 8305)
+        usually tries IPv6 first, gets connection-refused, and only then falls back — sometimes slowly,
+        sometimes not at all. A `.local` name is the only address that survives a DHCP change, so it is
+        the one worth making work.
+
+        AF_INET6 with IPV6_V6ONLY=0 accepts both families on one socket, and IPv4 clients appear as
+        ::ffff:a.b.c.d. Falls back to IPv4-only where dual-stack is unavailable rather than refusing to
+        start — a dashboard that will not open is worse than one reachable on fewer addresses.
+        """
+        allow_reuse_address = True
+        address_family = socket.AF_INET6
+
+        def server_bind(self):
+            try:
+                self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            except (AttributeError, OSError):
+                pass
+            super().server_bind()
+
+    bind = "::" if host in ("0.0.0.0", "") else host
+    try:
+        httpd = _Server((bind, port), _Handler)
+    except OSError:
+        httpd = ThreadingHTTPServer((host, port), _Handler)   # no IPv6 on this box
     httpd.sl_app = app                      # type: ignore[attr-defined]
     httpd.sl_account = account              # type: ignore[attr-defined]
     httpd.sl_token = token                  # type: ignore[attr-defined]

@@ -93,10 +93,20 @@ _PAGE = r"""<!DOCTYPE html>
    * THE ACCENT IS NOT GREEN, deliberately. --up is green because green means gain; if the accent were
      also green, every selected chip and button would read as a gain. Blue keeps the semantic pair
      (green up / red down) unambiguous, which matters more here than brand prettiness. */
+/* Dark, tuned to Tickertape: a cool near-black ground with three tight surface steps, cool grey text,
+   and GREEN as the primary accent rather than blue — on a markets screen green is the resting state of
+   a good number, so using it for the accent means the interface and the data agree.
+   Semantic pair is green/red (--up/--down), and --acc deliberately EQUALS --up: a selected filter and a
+   positive figure being the same green is the thing that makes the palette read as financial.
+
+   Every value is contrast-checked against all four surfaces, not eyeballed. Worst case is --s2, the
+   LIGHTEST surface, which inverts the light theme's rule where the darkest ground was hardest. --ink3
+   started at #7d8b9f and measured 4.39:1 on --s2 — under AA, and it carries row subtitles, chart month
+   labels and every "avg per month" line, so it is not decoration. Lifted to #8593a7 = 4.87:1. */
 :root{
-  --bg:#0b1017;--s1:#171f2c;--s2:#232e3e;--ink:#e9eef7;--ink2:#9babc0;--ink3:#8697ad;
-  --line:rgba(148,178,214,.14);--acc:#5aa2ff;--up:#00c48c;--down:#f6465d;
-  --page:#04070c;--onacc:#04070c;--glow:90,162,255;--navbg:rgba(11,16,23,.92);--acc2:#3d7fd8;
+  --bg:#0e1219;--s1:#161b24;--s2:#1f2632;--ink:#eaeff6;--ink2:#93a1b5;--ink3:#8593a7;
+  --line:rgba(147,161,181,.15);--acc:#00c07f;--up:#00c07f;--down:#f0616d;
+  --page:#080b10;--onacc:#04120c;--glow:0,192,127;--navbg:rgba(14,18,25,.93);--acc2:#009966;
   --disp:'Fraunces',Georgia,serif;--body:'Instrument Sans',system-ui,sans-serif;--ease:cubic-bezier(.2,.7,.3,1);
 }
 /* Warm editorial (default) — the palette from the Stitch design system: parchment surfaces, a single
@@ -258,9 +268,11 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .fbi.in{background-color:#6f9ed8;--face:#3f6ba8}
 .fbi.inv{background-color:#d8b98a;--face:#a8875a}
 .fbi.out{background-color:#b98ad8;--face:#8a5aa8}
-/* Brighter on the slate ground than on the old near-black one: the same hues at the previous
-   lightness sank into the card surface. Still three clearly separate hues, not three greens. */
-[data-theme=dark] .fbi.in{background-color:#5aa2ff;--face:#2f6bb8}
+/* Incoming takes the accent GREEN in dark mode, matching the semantic pair — money arriving should be
+   the same colour as a positive figure everywhere else. Investments amber, spends violet: still three
+   clearly separate hues, and none of them competes with the green. Brighter than the light-theme
+   values because the same lightness sinks into a dark card surface. */
+[data-theme=dark] .fbi.in{background-color:#00c07f;--face:#008054}
 [data-theme=dark] .fbi.inv{background-color:#d9b26a;--face:#9c7a3c}
 [data-theme=dark] .fbi.out{background-color:#b586e8;--face:#7d51ab}
 
@@ -516,7 +528,11 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 /* height grows by the home-indicator inset so the tab row is not sitting under it on an iPhone */
 .nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;
   height:calc(70px + env(safe-area-inset-bottom,0px));z-index:5;background:var(--navbg);
-  backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;
+  /* Safari needs the prefix, and running on an iPhone is this feature's whole point. Unprefixed, the
+     tab bar loses its blur in WebKit — it degrades rather than breaks (navbg is 92% opaque), which is
+     precisely why Chromium-only testing never surfaced it. */
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  border-top:1px solid var(--line);display:flex;
   justify-content:space-around;align-items:center;
   padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}
 /* min 44x44: this is the primary navigation, so it should be the LAST thing anyone has to aim at.
@@ -1063,10 +1079,15 @@ function avatar(name){
    ranking legible (darkest = biggest) instead of asking the eye to map arbitrary colours to names.
    Rendered as a conic-gradient with a mask for the hole — no SVG, no library, no arc arithmetic.
    Only worth drawing above ~2 slices; below that a bar list says the same thing with less ink. */
+/* Per THEME, because dark uses the accent green for incoming to match the semantic pair. A single
+   theme-independent table left the donut blue while the bar beside it was green — the same quantity in
+   two colours on one screen, which is worse than either choice. */
 const FLOWHUE={out:[186,138,216],in:[111,158,216],inv:[216,185,138]};
+const FLOWHUE_DARK={out:[181,134,232],in:[0,192,127],inv:[217,178,106]};
 function isDark(){return document.documentElement.dataset.theme!=='light';}
 function tint(flow,i,n){
-  const [r,g,b]=FLOWHUE[flow]||FLOWHUE.out;
+  const tbl=isDark()?FLOWHUE_DARK:FLOWHUE;
+  const [r,g,b]=tbl[flow]||tbl.out;
   /* Step the ramp toward the SURFACE, which differs by theme: fading toward white (252) on a dark
      ground made every small slice glow brighter than the big one, inverting the ranking the ramp
      exists to convey. On dark we fade toward the card colour instead, so smaller still reads as

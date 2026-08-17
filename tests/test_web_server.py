@@ -437,4 +437,25 @@ def test_redrawing_the_same_screen_neither_reanimates_nor_drops_the_caret():
         assert f'id="{ident}"' in page, f"input {ident} needs a stable id for focus restore"
 
 
+def test_properties_safari_needs_prefixed_are_prefixed():
+    """This app's point is running on an iPhone, and iOS Safari is WebKit-only.
+
+    All browser testing here happens in Chromium, so a property that WebKit needs prefixed degrades
+    silently rather than failing: `backdrop-filter` without `-webkit-` just dropped the tab bar's blur,
+    invisible in Chromium and invisible in a screenshot of a 92%-opaque bar.
+    """
+    import re
+
+    from statementlens.adapters.render.app_shell import AppShellRenderer
+
+    page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
+
+    # each of these must appear with the -webkit- prefix at least as often as unprefixed
+    for prop in ("backdrop-filter", "mask", "line-clamp", "box-orient"):
+        plain = len(re.findall(rf"(?<!-){prop}\s*:", page))
+        pref = len(re.findall(rf"-webkit-{prop}\s*:", page))
+        if plain:
+            assert pref >= 1, f"{prop} is used unprefixed with no -webkit-{prop} fallback for Safari"
+
+
 import urllib.parse  # noqa: E402  (used above; imported late to keep the header tidy)
