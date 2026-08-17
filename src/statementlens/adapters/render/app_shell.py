@@ -440,8 +440,17 @@ body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:1
 .nnote.link:hover{color:var(--acc)}
 
 /* monthly bars + avg reference line */
-/* padding-top leaves room for the callout above the tallest bar, which would otherwise be clipped */
-.chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:24px}
+/* padding-top leaves room for the callout above the tallest bar, which would otherwise be clipped.
+   Scrolls horizontally so EVERY month is reachable instead of showing 12 and admitting the rest are
+   hidden. `min-width:max-content` on the track is what makes the absolutely-positioned average line
+   span the full scrollable width rather than only the visible slice — without it the line stops at
+   the viewport edge and the pill floats over the wrong bars once you scroll. */
+.chartwrap{overflow-x:auto;overflow-y:visible;scrollbar-width:thin;-webkit-overflow-scrolling:touch;
+  margin:0 -4px;padding:0 4px}
+.chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:24px;
+  min-width:max-content}
+/* enough width to stay legible at 38 months; the container scrolls rather than squeezing them */
+.chart .bcol{min-width:26px}
 /* a button, because each bar narrows the period to its month */
 /* `color:inherit` is not optional here. Turning .bcol into a <button> gave it the UA default black
    text, which made the callout above the newest bar 1.19:1 on the dark card — invisible. `font:inherit`
@@ -651,9 +660,23 @@ function accSwitch(){
   if(list.length<2){el.style.display='none';return;}   // one account needs no switcher
   el.innerHTML=list.map(a=>{
     const on=a.account===M.account;
+    /* Switching account is a real navigation, so the browser resets scroll — jarring when you are
+       part-way down comparing two accounts. Stash the position on the way out and restore it on the
+       way in, so the switch feels like a filter change rather than a page load. */
     return `<a class="achip ${on?'on':''}" href="?t=${encodeURIComponent(API||'')}&a=${encodeURIComponent(a.account)}"
+        onclick="try{sessionStorage.setItem('sl-scroll',window.scrollY)}catch(_){}"
         title="${esc(a.account)} · ${a.count} transactions">
         ${I(a.is_card?'card':'bank')}<span>${esc(a.account)}</span></a>`;}).join('');}
+
+/* Restore the scroll position saved by an account switch. Runs once, after the first paint, and only
+   if the page is still tall enough to hold it — a card with 57 rows is shorter than a bank account
+   with 2,307, and scrolling to a position that no longer exists just lands you at the bottom. */
+function restoreScroll(){
+  let y=null;
+  try{y=sessionStorage.getItem('sl-scroll');sessionStorage.removeItem('sl-scroll');}catch(_){}
+  if(y==null)return;
+  const target=Math.min(+y, document.body.scrollHeight-window.innerHeight);
+  if(target>0)window.scrollTo(0,target);}
 function doRefresh(b){if(!API)return;b.disabled=true;b.textContent='checking…';
   post('/api/refresh',{}).then(r=>{
     if(r&&r.error){b.disabled=false;b.textContent='refresh';return toast(r.error);}
@@ -1308,16 +1331,17 @@ function monthChart(){
   const word={out:'spend',in:'income',inv:'investing'}[FLOW]||'spend';
   // the chart's own scope, which no longer depends on the picker: it always shows history so it can
   // act as the selector. Saying so matters because the hero above it IS period-filtered.
-  const scope=hidden?`last ${shown.length} months`:'all time';
+  // nothing is withheld now, so the scope is simply how much history there is
+  const scope=`${shown.length} months`;
   // when a month is selected from this chart, name the way out in the chart itself rather than making
   // the user hunt for the period row they never touched
   const sel=shown.find(k=>RANGE==='C'&&CF===monthStart(k)&&CT===monthEnd(k));
   const clear=sel?`<button class="nnote link" onclick="setR('all')">showing ${esc(dayLabel(monthStart(sel)).replace(/^\d+ /,''))} only · show all time</button>`:'';
   return `<div class="card rise"><div class="mtop"><div><div class="l">${word} trends · ${scope}</div>
       <div class="v num">${fmtK(avg)} <span class="avgt">avg / month</span></div></div></div>
-    <div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>
-      <span class="avgpill num" style="bottom:${avgPct}%">AVG ${fmtK(avg)}</span>${bars}</div>
-    ${clear||(hidden?`<div class="cardfee">${hidden} earlier month${hidden!==1?'s':''} not shown.</div>`:'')}</div>`;}
+    <div class="chartwrap" id="chartwrap"><div class="chart"><span class="avgline" style="bottom:${avgPct}%"></span>
+      <span class="avgpill num" style="bottom:${avgPct}%">AVG ${fmtK(avg)}</span>${bars}</div></div>
+    ${clear||`<div class="cardfee">scroll for older months →</div>`}</div>`;}
 /* "2026-07" -> the first and last day of that month. Computed rather than assumed: month lengths
    differ and February moves, so a hardcoded 30 would silently drop or over-claim days. */
 function monthStart(mo){return mo+'-01';}
@@ -1661,6 +1685,10 @@ function draw(){
       try{el.setSelectionRange(keep.s,keep.e);}catch(_){}}}   // range is invalid on date/number inputs
 
   nav();showFreshness();accSwitch();if(TAB==='home'&&fresh)countUp();
+  /* Open the trend chart at the NEWEST month. It scrolls to reveal years of history, and left-aligned
+     that means landing on 2023 — the least interesting end. This month is what you came to see. */
+  const cw=document.getElementById('chartwrap');
+  if(cw)cw.scrollLeft=cw.scrollWidth;
   // the similar-transactions list is fetched, so it renders after the view paints
   if(TAB==='txn'&&TXNREF)loadSimilar(TXNREF);}
 function go(t){TAB=t;window.scrollTo(0,0);draw();}
@@ -1675,5 +1703,7 @@ function TT(){const h=document.documentElement;
   h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';
   draw();}
 draw();
+// after the first paint, so the page has its real height before we scroll into it
+restoreScroll();
 </script>
 </body></html>"""
