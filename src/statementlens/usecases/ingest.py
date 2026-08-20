@@ -58,7 +58,18 @@ class IngestStatements:
         picks the wrong presentation frame. Pass False to force one label.
         """
         result = IngestResult()
-        for raw in self._source.fetch(limit=limit):
+        raws = self._source.fetch(limit=limit)
+        # A source that hit its own cap has MORE history than it returned. Reported through `skipped`
+        # so it surfaces in the UI's "which?" panel rather than being a silently shorter ledger — the
+        # failure mode here is that a truncated history looks exactly like a short one.
+        if getattr(self._source, "truncated", False):
+            result.skipped.append({
+                "source": "mailbox",
+                "problem": "truncated",
+                "message": (f"Stopped after {limit} emails, and more statements exist further back. "
+                            f"Re-run with a higher limit to reach them."),
+                "detail": ""})
+        for raw in raws:
             try:
                 decrypted = self._decryptor.decrypt(raw.data, hints)
                 text = self._extractor.extract(decrypted)

@@ -18,6 +18,13 @@ from pathlib import Path
 from typing import List, Optional
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+#: Gmail's own per-page maximum for messages.list().
+_MAX_PAGE = 500
+
+#: High enough for five years of monthly statements across several banks. The old default of 100 was
+#: below one real mailbox's match count (111), so it cut the oldest months off without a word.
+DEFAULT_LIMIT = 1000
+
 DEFAULT_QUERY = (
     'has:attachment filename:pdf newer_than:5y '
     'subject:(statement OR "e-statement" OR "account statement" OR "credit card" OR bill) '
@@ -61,14 +68,45 @@ class GmailStatementSource:
         self._token = _cfg("gmail_token.json", token_path, "STATEMENTLENS_GMAIL_TOKEN")
 
     # -- port method -------------------------------------------------------
-    def fetch(self, limit: int = 100) -> List["_RawStatement"]:
+    def fetch(self, limit: int = DEFAULT_LIMIT) -> List["_RawStatement"]:
+        """Every matching message, following Gmail's pagination.
+
+        Three separate things were wrong, and the third is the one that mattered:
+
+        1. One list() call returns at most `maxResults` messages, NEWEST FIRST. `limit` was passed
+           straight through as maxResults, so there was no paging at all.
+        2. The default was 100. A real mailbox matched 111 statement emails, so the oldest 11 were
+           never fetched — the account looked like it began in May 2023 when statements existed back
+           to Sep 2022. Backfilling recovered 8 months and 555 transactions.
+        3. It was SILENT. No error, no flag, just a shorter list — and a truncated history is
+           indistinguishable from a short one. That is why it survived; the numbers all looked
+           self-consistent.
+
+        So: page properly, default high enough for years of statements, and when the cap IS hit while
+        more messages remain, say so via `truncated` instead of quietly returning less history.
+        """
         svc = self._service or self._authorize()
-        resp = svc.users().messages().list(userId="me", q=self._query, maxResults=limit).execute()
         out: List[_RawStatement] = []
-        for m in resp.get("messages", []):
-            for att in self._pdf_attachments(svc, m["id"]):
-                data = self._download(svc, m["id"], att["attachment_id"])
-                out.append(_RawStatement(m["id"], att["filename"], data))
+        self.truncated = False
+        seen = 0
+        token = None
+        while True:
+            page = min(_MAX_PAGE, limit - seen) if limit else _MAX_PAGE
+            resp = svc.users().messages().list(
+                userId="me", q=self._query, maxResults=page, pageToken=token).execute()
+            msgs = resp.get("messages", [])
+            for m in msgs:
+                for att in self._pdf_attachments(svc, m["id"]):
+                    data = self._download(svc, m["id"], att["attachment_id"])
+                    out.append(_RawStatement(m["id"], att["filename"], data))
+            seen += len(msgs)
+            token = resp.get("nextPageToken")
+            if not token:
+                break
+            if limit and seen >= limit:
+                # more history exists than we were allowed to read — the caller must be able to say so
+                self.truncated = True
+                break
         return out
 
     # -- helpers -----------------------------------------------------------
