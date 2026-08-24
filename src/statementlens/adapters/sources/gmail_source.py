@@ -25,11 +25,34 @@ _MAX_PAGE = 500
 #: below one real mailbox's match count (111), so it cut the oldest months off without a word.
 DEFAULT_LIMIT = 1000
 
+# Bank names WITHOUT a domain suffix, so each matches whatever TLD the bank currently sends from.
+#
+# Indian banks migrated to `.bank.in` in 2025-26 (RBI's exclusive banking domain), and the old list
+# said `icicibank`, which Gmail tokenises as one word. It matches `icicibank.com` but NOT
+# `credit_cards@icici.bank.in`, because there the tokens are `icici` and `bank`. Ten ICICI statements —
+# every one from Mar to Aug 2026 — stopped matching the moment they switched, and the sync reported a
+# clean run each time because nothing it *did* find had changed. `hdfcbank.bank.in` and
+# `alerts.sbi.bank.in` kept working purely by luck: they still contain `hdfcbank` and `sbi`.
+#
+# So: match the bare bank name and let Gmail's tokeniser do the rest. `icici` matches both domains;
+# `icicibank` matches only the old one.
+_BANK_SENDERS = (
+    # split form, matching the new `<bank>.bank.in` domains. Only names distinctive enough to stand
+    # alone — bare "yes" and "au" would match half the mailbox, so those use the full domain below.
+    "sbi", "hdfc", "icici", "axis", "kotak", "rbl", "idfcfirst", "indusind",
+    "yes.bank.in", "au.bank.in",
+    # joined form, matching the legacy `<bank>bank.com` / `.co.in` domains. BOTH are needed:
+    # Gmail tokenises the address, so `icici` does not match the token `icicibank` and vice versa.
+    # Listing only the joined form lost every ICICI statement after their migration; listing only the
+    # split form lost every one before it. Verified by match count against the live mailbox.
+    "icicibank", "hdfcbank", "axisbank", "rblbank", "yesbank", "idfcfirstbank", "aubank",
+    # card-only and non-bank issuers
+    "sbicard", "onecard", "amex", "citibank", "hsbc", "scapia", "federal", "federalbank")
+
 DEFAULT_QUERY = (
     'has:attachment filename:pdf newer_than:5y '
     'subject:(statement OR "e-statement" OR "account statement" OR "credit card" OR bill) '
-    'from:(sbi OR hdfcbank OR icicibank OR axisbank OR sbicard OR onecard OR idfcfirstbank '
-    'OR kotak OR amex OR citibank OR hsbc OR rblbank OR yesbank OR scapia OR federal)')
+    'from:(' + ' OR '.join(_BANK_SENDERS) + ')')
 
 
 @dataclass

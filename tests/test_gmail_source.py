@@ -113,3 +113,28 @@ def test_an_empty_mailbox_is_not_an_error():
     svc = _FakeService([])
     src = GmailStatementSource(service=svc)
     assert src.fetch(limit=100) == [] and not src.truncated
+
+
+def test_sender_list_covers_both_the_old_and_new_bank_domains():
+    """Indian banks moved to `<bank>.bank.in` (RBI's exclusive banking domain) during 2025-26.
+
+    Gmail TOKENISES the address, so a substring of a token does not match: `icicibank` matches
+    `credit_cards@icicibank.com` but NOT `credit_cards@icici.bank.in`, where the tokens are `icici`
+    and `bank`. The reverse is also true. Listing only one form silently loses half the history — ten
+    ICICI statements (Mar-Aug 2026) stopped matching the day they migrated, and every sync afterwards
+    reported a clean run because nothing it still found had changed.
+
+    Measured against the live mailbox: old list 111 matches, both forms 131.
+    """
+    from statementlens.adapters.sources.gmail_source import DEFAULT_QUERY, _BANK_SENDERS
+
+    for bank in ("icici", "hdfc", "axis", "rbl"):
+        assert bank in _BANK_SENDERS, f"{bank} missing — new {bank}.bank.in mail will not match"
+        assert f"{bank}bank" in _BANK_SENDERS, f"{bank}bank missing — legacy mail will not match"
+
+    # bare names short enough to match unrelated senders must NOT be listed on their own
+    for risky in ("yes", "au", "in", "bank"):
+        assert risky not in _BANK_SENDERS, f"{risky!r} is too generic to use as a from: term"
+
+    assert "sbi" in _BANK_SENDERS          # alerts.sbi.bank.in AND alerts.sbi.co.in both contain it
+    assert "from:(" in DEFAULT_QUERY and "has:attachment" in DEFAULT_QUERY
