@@ -12,7 +12,7 @@ from pathlib import Path
 
 from statementlens.adapters.crypto.secret_store import SecretStore, migrate_file_secret
 
-SERVICE = "statementlens_pytest"
+SERVICE = f"statementlens_pytest_{os.getpid()}"   # per run: concurrent suites must not share an item
 
 
 def _store(tmp) -> SecretStore:
@@ -119,39 +119,41 @@ def test_delete_removes_the_dpapi_blob_too():
         assert not dpapi_path.exists(), "the DPAPI blob was left on disk"
 
 
-def test_macos_write_hex_encodes_and_never_sends_plaintext_argv():
-    """The secret goes to `security` as HEX on argv — a deliberate, documented tradeoff.
+def test_macos_write_keeps_the_secret_off_argv():
+    """The secret must not appear in ANY process's argv, as plaintext or as hex.
 
-    It used to travel via stdin (`-w`), which keeps it out of `ps` entirely. But `-w` from stdin
-    TRUNCATES AT 128 CHARACTERS and returns success, so every ~500-byte Gmail token was silently
-    stored corrupt. A credential you cannot read back is a worse failure than one briefly visible to a
-    local process, so -X won.
-
-    What must stay true: the plaintext never appears in argv, and the hex round-trips.
+    History: stdin `-w` truncated at 128 characters, so the hex moved onto argv (`-X <hex>`), where
+    `ps` can read it. Now the whole command goes to `security -i` on stdin. This spies on every
+    subprocess call and fails if the value, in either form, is on a command line.
     """
     import platform
     if platform.system() != "Darwin":
         return
     import subprocess
-    seen = {}
+    secret = '{"refresh_token":"S3CRET-' + "x" * 600 + '"}'      # Gmail-token sized
+    argvs, stdins = [], []
     real_run = subprocess.run
 
     def spy(cmd, *a, **kw):
-        if isinstance(cmd, list) and "add-generic-password" in cmd:
-            seen["argv"] = list(cmd)
+        if isinstance(cmd, list):
+            argvs.append(" ".join(cmd))
+            stdins.append(kw.get("input") or "")
         return real_run(cmd, *a, **kw)
 
     subprocess.run = spy
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            SecretStore(service=SERVICE + "_argv", fallback_dir=str(Path(tmp))).set("k", "S3CRET")
+            store = SecretStore(service=SERVICE + "_argv", fallback_dir=str(Path(tmp)))
+            r = store.set("k", secret)
+            assert store.get("k") == secret, "round-trip failed"
+            store.delete("k")
     finally:
         subprocess.run = real_run
-
-    assert "argv" in seen, "expected a keychain write"
-    joined = " ".join(seen["argv"])
-    assert "S3CRET" not in joined, "plaintext secret leaked into argv"
-    assert "S3CRET".encode().hex() in joined, "secret should be hex-encoded on argv"
+    assert r.backend == "keychain" and r.secure and not r.detail
+    joined = " ".join(argvs)
+    assert "S3CRET" not in joined, "plaintext secret on argv"
+    assert secret.encode().hex() not in joined, "hex secret on argv: visible to ps"
+    assert any(secret.encode().hex() in s for s in stdins), "expected the write to travel via stdin"
 
 
 def test_a_long_secret_survives_the_keychain_intact():

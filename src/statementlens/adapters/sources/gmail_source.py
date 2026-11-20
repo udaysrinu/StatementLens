@@ -4,26 +4,19 @@ Read-only Gmail (scope gmail.readonly). It only READS: it returns RawStatement d
 provenance); it never writes anything. Google libraries are imported lazily so the package imports
 without them (install the [gmail] extra to use this adapter).
 
-Setup (one-time, by the user): a Google Cloud project with the Gmail API enabled and OAuth *Desktop*
-credentials at ~/.statementlens/gmail_client_secret.json. First fetch opens a browser consent and
-caches a token at ~/.statementlens/gmail_token.json.
+Setup: none with a bundled OAuth client (bundled_client.py); otherwise Desktop OAuth credentials at
+~/.statementlens/gmail_client_secret.json. The first fetch opens a browser consent; the token is then
+kept in the OS keychain (service "statementlens"), never in a plain file.
 """
 
 from __future__ import annotations
 
-import base64
-import os
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-#: Gmail's own per-page maximum for messages.list().
-_MAX_PAGE = 500
-
-#: High enough for five years of monthly statements across several banks. The old default of 100 was
-#: below one real mailbox's match count (111), so it cut the oldest months off without a word.
-DEFAULT_LIMIT = 1000
+# Paging, the truncation flag, the MIME walk and keychain token storage live in inboxkit (shared with
+# sharecase). DEFAULT_LIMIT is 1000 there too: the old 100 cut a real mailbox's oldest months silently.
+from inboxkit.inbox import DEFAULT_LIMIT, SCOPES, GmailDocuments, _MAX_PAGE  # noqa: F401
 
 # Bank names WITHOUT a domain suffix, so each matches whatever TLD the bank currently sends from.
 #
@@ -57,182 +50,30 @@ DEFAULT_QUERY = (
     'from:(' + ' OR '.join(_BANK_SENDERS) + ')')
 
 
-@dataclass
-class _RawStatement:
-    source_id: str
-    source_name: str
-    data: bytes
-
 
 #: Where a sibling ExpensifyAI / splitwise-mcp install already keeps its Google credentials. Read as a
 #: FALLBACK so someone who has already authorised Gmail for that tool is not made to create a second
-#: Google Cloud project and consent again — same user, same mailbox, same read-only scope. Only ever
-#: read, never written, and only consulted when this app has no credential of its own.
+#: Google Cloud project and consent again: same user, same mailbox, same read-only scope. Only ever
+#: read, never written or moved (inboxkit treats a fallback dir's token as borrowed).
 _SIBLING_DIR = Path.home() / ".expensifyai"
 
 
-def _cfg(name: str, override: Optional[str], env: str) -> Path:
-    explicit = override or os.getenv(env)
-    if explicit:
-        return Path(explicit)
-    own = Path.home() / ".statementlens" / name
-    if not own.exists() and (_SIBLING_DIR / name).exists():
-        return _SIBLING_DIR / name
-    return own
+def _bundled_client() -> Optional[dict]:
+    """The app's bundled OAuth client, used only when the user has no client file of their own.
+
+    Shipping the client id/secret is the normal pattern for *installed* apps: the "secret" cannot be
+    kept confidential in a distributed binary, which is why the loopback flow does not rely on it.
+    """
+    from .bundled_client import bundled_client_config
+    return bundled_client_config()
 
 
-class GmailStatementSource:
-    """Fetches statement PDFs from Gmail. `service` is injectable for testing (no creds needed)."""
+class GmailStatementSource(GmailDocuments):
+    """Statement PDFs from Gmail: inboxkit's GmailDocuments with StatementLens's bank query, keychain
+    namespace and bundled client. `service` is injectable for testing (no creds needed)."""
 
     def __init__(self, service=None, query: Optional[str] = None,
                  client_secret_path: Optional[str] = None, token_path: Optional[str] = None):
-        self._service = service
-        self._query = query or DEFAULT_QUERY
-        self._secret = _cfg("gmail_client_secret.json", client_secret_path,
-                            "STATEMENTLENS_GMAIL_SECRET")
-        self._token = _cfg("gmail_token.json", token_path, "STATEMENTLENS_GMAIL_TOKEN")
-
-    # -- port method -------------------------------------------------------
-    def fetch(self, limit: int = DEFAULT_LIMIT) -> List["_RawStatement"]:
-        """Every matching message, following Gmail's pagination.
-
-        Three separate things were wrong, and the third is the one that mattered:
-
-        1. One list() call returns at most `maxResults` messages, NEWEST FIRST. `limit` was passed
-           straight through as maxResults, so there was no paging at all.
-        2. The default was 100. A real mailbox matched 111 statement emails, so the oldest 11 were
-           never fetched — the account looked like it began in May 2023 when statements existed back
-           to Sep 2022. Backfilling recovered 8 months and 555 transactions.
-        3. It was SILENT. No error, no flag, just a shorter list — and a truncated history is
-           indistinguishable from a short one. That is why it survived; the numbers all looked
-           self-consistent.
-
-        So: page properly, default high enough for years of statements, and when the cap IS hit while
-        more messages remain, say so via `truncated` instead of quietly returning less history.
-        """
-        svc = self._service or self._authorize()
-        out: List[_RawStatement] = []
-        self.truncated = False
-        seen = 0
-        token = None
-        while True:
-            page = min(_MAX_PAGE, limit - seen) if limit else _MAX_PAGE
-            resp = svc.users().messages().list(
-                userId="me", q=self._query, maxResults=page, pageToken=token).execute()
-            msgs = resp.get("messages", [])
-            for m in msgs:
-                for att in self._pdf_attachments(svc, m["id"]):
-                    data = self._download(svc, m["id"], att["attachment_id"])
-                    out.append(_RawStatement(m["id"], att["filename"], data))
-            seen += len(msgs)
-            token = resp.get("nextPageToken")
-            if not token:
-                break
-            if limit and seen >= limit:
-                # more history exists than we were allowed to read — the caller must be able to say so
-                self.truncated = True
-                break
-        return out
-
-    # -- helpers -----------------------------------------------------------
-    def _pdf_attachments(self, svc, msg_id: str) -> List[dict]:
-        full = svc.users().messages().get(userId="me", id=msg_id, format="full").execute()
-        found: List[dict] = []
-
-        def walk(part):
-            body = part.get("body", {}) or {}
-            fn = part.get("filename", "")
-            if fn.lower().endswith(".pdf") and body.get("attachmentId"):
-                found.append({"filename": fn, "attachment_id": body["attachmentId"]})
-            for c in part.get("parts", []) or []:
-                walk(c)
-
-        walk(full.get("payload", {}) or {})
-        return found
-
-    def _download(self, svc, msg_id: str, attachment_id: str) -> bytes:
-        att = svc.users().messages().attachments().get(
-            userId="me", messageId=msg_id, id=attachment_id).execute()
-        return base64.urlsafe_b64decode(att["data"].encode("utf-8"))
-
-    def _client_config(self) -> Optional[dict]:
-        """OAuth client config: the user's own file if present, else the app's bundled client.
-
-        Shipping the client id/secret is the normal pattern for *installed* apps — the "secret"
-        cannot be kept confidential in a distributed binary, which is why the loopback flow does not
-        rely on it for security. Bundling it is what makes onboarding one click instead of "go create
-        a Google Cloud project".
-        """
-        import json
-        if self._secret.exists():
-            return json.loads(self._secret.read_text(encoding="utf-8"))
-        from .bundled_client import bundled_client_config
-        return bundled_client_config()
-
-    def _authorize(self):
-        try:
-            from google.oauth2.credentials import Credentials
-            from google_auth_oauthlib.flow import InstalledAppFlow
-            from google.auth.transport.requests import Request
-            from googleapiclient.discovery import build
-        except ImportError as e:  # pragma: no cover
-            raise RuntimeError("Gmail libraries missing — pip install 'statementlens[gmail]'") from e
-        creds = self._load_credentials(Credentials)
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                config = self._client_config()
-                if config is None:
-                    raise RuntimeError(
-                        "Gmail isn't set up in this build. Either ship a bundled OAuth client "
-                        f"(see bundled_client.py) or save Desktop OAuth credentials at {self._secret}. "
-                        "You can import statements from a folder instead — no Google setup needed.")
-                creds = InstalledAppFlow.from_client_config(
-                    config, SCOPES).run_local_server(
-                        port=0, open_browser=True,
-                        authorization_prompt_message="",
-                        success_message="Connected. You can close this tab and return to StatementLens.")
-            self._save_credentials(creds.to_json())
-        return build("gmail", "v1", credentials=creds, cache_discovery=False)
-
-    # -- token storage -----------------------------------------------------
-    TOKEN_KEY = "gmail_token"
-
-    def _store(self):
-        from ..crypto.secret_store import SecretStore
-        return SecretStore()
-
-    def _load_credentials(self, Credentials):
-        """Prefer the OS keychain; migrate a legacy plaintext token file on first use.
-
-        A refresh token is a long-lived key to the whole mailbox, so it should not sit in a file that
-        any process running as this user can read and that backup tools will copy.
-        """
-        import json
-        store = self._store()
-        raw = store.get(self.TOKEN_KEY)
-        if not raw and self._token.exists():
-            # Migration DELETES the file it read (see migrate_file_secret), which is right for our own
-            # legacy token and WRONG for a sibling tool's: _cfg() may have resolved self._token to
-            # ~/.expensifyai/, and unlinking that would silently break the tool that created it. So a
-            # borrowed credential is read, never moved.
-            borrowed = self._token.parent == _SIBLING_DIR
-            if borrowed:
-                raw = self._token.read_text(encoding="utf-8")
-            else:
-                from ..crypto.secret_store import migrate_file_secret
-                try:
-                    migrate_file_secret(store, self.TOKEN_KEY, self._token)
-                    raw = store.get(self.TOKEN_KEY)
-                except Exception:
-                    raw = self._token.read_text(encoding="utf-8")   # never block on a failed migration
-        if not raw:
-            return None
-        try:
-            return Credentials.from_authorized_user_info(json.loads(raw), SCOPES)
-        except Exception:
-            return None
-
-    def _save_credentials(self, payload: str) -> None:
-        self._store().set(self.TOKEN_KEY, payload)
+        super().__init__(query or DEFAULT_QUERY, app="statementlens", service=service,
+                         client_config=_bundled_client, client_secret_path=client_secret_path,
+                         token_path=token_path, fallback_dirs=[str(_SIBLING_DIR)])
