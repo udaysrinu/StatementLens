@@ -158,6 +158,12 @@ class App:
         except (OSError, ValueError):
             return {}
 
+    def set_owner(self, name: str) -> None:
+        """Remember whose dashboard this is, for the band's label ("Asha's balance")."""
+        prefs = self.prefs()
+        prefs["owner"] = name.strip()
+        self._prefs_path.write_text(json.dumps(prefs), encoding="utf-8")
+
     def set_net_with(self, names: List[str]) -> None:
         """Remember names to net as ONE counterparty each (e.g. a family surname)."""
         prefs = self.prefs()
@@ -174,6 +180,10 @@ class App:
                            net_with=self.prefs().get("net_with"))
         # loans and deposits sit beside the cash flow, never inside it
         ds["meta"]["positions"] = getattr(self.repo, "positions", list)()
+        # each monthly NPS value, for its history; only the figures the chart needs travel to the page
+        ds["meta"]["nps_history"] = [{"as_of": p["as_of"], "value": p["value"], "contributed": p["contributed"],
+                                      "label": p["label"]} for p in getattr(self.repo, "position_history", lambda k: [])("nps")]
+        ds["meta"]["owner"] = self.prefs().get("owner")
         # live payments a statement covering their date did not confirm (failed, reversed)
         ds["meta"]["unsettled"] = getattr(self.repo, "unsettled", lambda a=None: [])(account)
         return ds

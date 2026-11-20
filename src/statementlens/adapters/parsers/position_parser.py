@@ -1,4 +1,4 @@
-"""Loans and deposits — POSITIONS, not transactions.
+"""Loans, deposits and pensions — POSITIONS, not transactions.
 
 A loan statement and an FD advice describe a balance you hold or owe, not money you spent. Booking
 them as transactions double-counts: every EMI is already a debit on the bank account it was collected
@@ -147,10 +147,90 @@ def parse_fd_advice(text: str) -> Dict[str, Any]:
     return snap
 
 
+# --------------------------------------------------------------------------- NPS (Protean CRA)
+
+_NPS_PERIOD = re.compile(r"(\w{3} \d{1,2}, \d{4}) To (\w{3} \d{1,2}, \d{4})")
+_NPS_PRAN = re.compile(r"PRAN\s+(\d{12})")
+_NPS_TIER = re.compile(r"Transaction Statement for Tier (I{1,2})\b")
+_NPS_XIRR = re.compile(r"(?:Return on Investment|\(XIRR\))\s+(-?[\d.]+)%")
+# the summary's figures row: value (A), number of contributions, contributed (B), withdrawn (C),
+# notional gain D=(A-B)+C, intermediary charges in units (E)
+# Older statements print no (E) column, and some print amounts without thousands separators
+_NPS_SUMMARY = re.compile(r"\(A\)\s*\(B\)\s*\(C\)\s*D=\(A-B\)\+C(?:\s*\(E\))?\s*\n\s*"
+                          r"([\d,]+\.\d{2})\s+(\d+)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})(?:\s+([\d.]+))?")
+# a scheme line: "...SCHEME 3,75,220.41 7,314.8228 51.2959" with its asset class ("E - TIER I") on the next line
+_NPS_SCHEME = re.compile(r"MANAGEMENT LIMITED SCHEME\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{4})\s+([\d.]+)\s*\n\s*([A-Z]{1,2})\s*-\s*TIER")
+# older statements lay the scheme summary out as COLUMNS: one row each for value, units and NAV
+_NPS_COLS = re.compile(r"E=U\*N\s+([\d,. ]+?)\s*\nTotal Units U\s+([\d,. ]+?)\s*\nNAV as on \S+ N\s+([\d,. ]+?)\s*\n")
+_NPS_CONTRIB = re.compile(r"(\d{2}-[A-Za-z]{3}-\d{2})\s+For\s+(\w+),?\s+(\d{4}).*?\s([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$", re.M)
+_NPS_PREF = re.compile(r"Scheme Choice\s*:\s*(.+)")
+
+
+def is_nps_statement(text: str) -> bool:
+    return "NPS TRANSACTION STATEMENT" in text and bool(_NPS_PRAN.search(text))
+
+
+def parse_nps_statement(text: str) -> Dict[str, Any]:
+    """A Protean CRA monthly NPS transaction statement -> a pension position. Amounts in paise.
+
+    The statement prints its own arithmetic, and all of it must hold: gain D = A - B + C to the paisa,
+    the scheme values add up to A, each scheme value is units x NAV (to within a rupee of rounding),
+    and each contribution's employee + employer share equals its total.
+    """
+    pran, summ = _NPS_PRAN.search(text), _NPS_SUMMARY.search(text)
+    period = _NPS_PERIOD.search(text)
+    if not (pran and summ and period):
+        raise PositionParseError("NPS statement missing its PRAN, period or investment summary")
+    value, n, contributed, withdrawn, gain = (_paise(summ.group(1)), int(summ.group(2)), _paise(summ.group(3)),
+                                             _paise(summ.group(4)), _paise(summ.group(5)))
+    if value - contributed + withdrawn != gain:
+        raise PositionParseError(f"NPS summary does not reconcile: {value} - {contributed} + {withdrawn} != {gain}")
+    schemes = []
+    for v, u, nav, cls in _NPS_SCHEME.findall(text):
+        sv, units, navf = _paise(v), float(u.replace(",", "")), float(nav)
+        if abs(units * navf * 100 - sv) > 100:
+            raise PositionParseError(f"NPS scheme {cls}: units x NAV != value")
+        schemes.append({"scheme": cls, "value": sv, "units": units, "nav": navf})
+    cols = _NPS_COLS.search(text) if not schemes else None
+    if cols:
+        block = text[text.find("Scheme Wise Summary"):cols.start()]
+        classes = re.findall(r"SCHEME ([A-Z]{1,2}) - TIER", block)
+        vals, units, navs = (c.split() for c in cols.groups())
+        if not (len(classes) == len(vals) == len(units) == len(navs)):
+            raise PositionParseError("NPS scheme columns do not line up")
+        for cls, v, u, nav in zip(classes, vals, units, navs):
+            sv, uf, nf = _paise(v), float(u.replace(",", "")), float(nav)
+            if abs(uf * nf * 100 - sv) > 100:
+                raise PositionParseError(f"NPS scheme {cls}: units x NAV != value")
+            schemes.append({"scheme": cls, "value": sv, "units": uf, "nav": nf})
+    if schemes and sum(x["value"] for x in schemes) != value:
+        raise PositionParseError("NPS scheme values do not add up to the holdings value")
+    contributions = []
+    for d, mon, yr, emp, er, tot in _NPS_CONTRIB.findall(text):
+        e, r, t = _paise(emp), _paise(er), _paise(tot)
+        if e + r != t:
+            raise PositionParseError("NPS contribution: employee + employer != total")
+        contributions.append({"date": datetime.strptime(d, "%d-%b-%y").date().isoformat(), "for": f"{mon} {yr}",
+                              "employee": e, "employer": r, "total": t})
+    tier = (_NPS_TIER.search(text) or [None, "I"])[1]
+    xirr = _NPS_XIRR.search(text)
+    pref = _NPS_PREF.search(text)
+    return {
+        "kind": "nps", "label": f"NPS Tier {tier} ••{pran.group(1)[-4:]}",
+        "as_of": _date(period.group(2)).isoformat(), "period_from": _date(period.group(1)).isoformat(),
+        "value": value, "contributed": contributed, "withdrawn": withdrawn, "gain": gain,
+        "contributions_count": n, "xirr_pct": float(xirr.group(1)) if xirr else None,
+        "schemes": schemes, "contributions": contributions,
+        "preference": pref.group(1).strip() if pref else None,
+    }
+
+
 def parse_position(text: str) -> Optional[Dict[str, Any]]:
-    """The snapshot this document describes, or None when it is not a loan or deposit document."""
+    """The snapshot this document describes, or None when it is not a loan, deposit or pension document."""
     if is_bob_loan(text):
         return parse_bob_loan(text)
     if is_fd_advice(text):
         return parse_fd_advice(text)
+    if is_nps_statement(text):
+        return parse_nps_statement(text)
     return None

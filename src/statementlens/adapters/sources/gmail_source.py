@@ -48,8 +48,8 @@ _BANK_SENDERS = (
     "icicibank", "hdfcbank", "axisbank", "rblbank", "yesbank", "idfcfirstbank", "aubank",
     # card-only and non-bank issuers
     "sbicard", "onecard", "amex", "citibank", "hsbc", "scapia", "federal", "federalbank",
-    # loan and deposit documents (stored as positions, not transactions)
-    "bankofbaroda", "suryoday", "suryodaybank")
+    # loan, deposit and pension documents (stored as positions, not transactions)
+    "bankofbaroda", "suryoday", "suryodaybank", "proteantech")
 
 DEFAULT_QUERY = (
     'has:attachment filename:pdf newer_than:5y '

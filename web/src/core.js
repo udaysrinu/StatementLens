@@ -603,6 +603,19 @@ function tagMany(tag, refs) {
   });
 }
 
+/* ---- the first page's asset dock (CRED Money's All / Bank / MF / Stocks): which holdings the band's
+   figure and the accounts section show. Only classes the store actually tracks are offered. ---- */
+let ASSET = 'bank';
+function setAsset(k) { ASSET = k; draw(); }
+/* net worth from what is TRACKED: bank balances + deposits (principal) + NPS value - loans outstanding.
+   Cards carry no balance in statements, and mutual funds / stocks wait on the CAS reader, so the
+   result is labelled as tracked, never presented as the whole picture. */
+function netWorth() {
+  const P = M.positions || [], sum = (k, f) => P.filter((p) => p.kind === k).reduce((s, p) => s + (p[f] || 0), 0);
+  const parts = { bank: totalBalance(), fd: sum('deposit', 'principal'), nps: sum('nps', 'value'), loans: sum('loan', 'outstanding') };
+  return { ...parts, all: parts.bank + parts.fd + parts.nps - parts.loans };
+}
+
 /* openTag/openMerchant/openPerson/openTxn mutate the view keys BEFORE calling openDetail, so take the
    snapshot of the screen being left first, or "back" would restore the screen you are already on */
 const __wrapBack = (f) => function () { prevSnap = DET ? snap() : null; return f.apply(this, arguments); };
@@ -619,11 +632,15 @@ openTag = __wrapBack(openTag); openMerchant = __wrapBack(openMerchant); openPers
   else if(v==='breakdown'){const q=new URLSearchParams(location.search);FLOW=q.get('flow')||'out';DET='breakdown';}
   else if(v==='tag'){TAGVIEW=new URLSearchParams(location.search).get('tag')||'';DET=TAGVIEW?'tagdetail':'';}
   else if(v==='search'||v==='netting'){DET=v;if(new URLSearchParams(location.search).get('range'))RANGE=new URLSearchParams(location.search).get('range');}
+  const as=new URLSearchParams(location.search).get('asset');if(as)ASSET=as;
   const dn=new URLSearchParams(location.search).get('density');if(dn)document.documentElement.dataset.density=dn;})();
 draw();
 restoreScroll();
 
 export {
+  ASSET,
+  setAsset,
+  netWorth,
   viewMonthTxns,
   viewAllHigh,
   heroDeltaData,

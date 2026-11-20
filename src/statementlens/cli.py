@@ -77,6 +77,7 @@ def main(argv=None) -> int:
     srv.add_argument("--phone", action="store_true",
                      help="also serve on your local network so a phone can open it (prints a QR code)")
     srv.add_argument("--no-open", action="store_true", help="don't auto-open a browser")
+    srv.add_argument("--owner", help="your first name, for the header (\"Asha's balance\"); remembered")
     srv.add_argument("--sms", action="store_true",
                      help="live: read bank SMS from macOS Messages (iPhone text forwarding) on each page load")
     srv.add_argument("--own-name", dest="own_names", nargs="*",
@@ -158,6 +159,8 @@ def main(argv=None) -> int:
         from .adapters.web.server import serve
         app = App(db_path=args.db, own_names=getattr(args, "own_names", None))
         app.live_sms = args.sms
+        if args.owner:
+            app.set_owner(args.owner)
         if args.net_with:
             app.set_net_with(args.net_with)
             print("netting as one party each:", ", ".join(args.net_with))

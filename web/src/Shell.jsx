@@ -21,20 +21,68 @@ const NAMES = { accounts: 'accounts', txns: 'transactions', recurring: 'recurrin
 const ORDER = C.MAIN.map((m) => m[0]);            // accounts, txns, recurring, cashflow
 const secId = (k) => `sec-${k}`;
 
+/* the classes the dock offers: only what the store actually tracks (MF / stocks arrive with the CAS reader) */
+const ASSETS = [['all', 'apps', 'all'], ['bank', 'bank', 'bank'], ['fd', 'shield', 'fd'], ['nps', 'trend', 'nps'], ['loans', 'loan', 'loans']];
+export function assetsAvailable() {
+  const P = C.M.positions || [], has = (k) => P.some((p) => p.kind === k);
+  return ASSETS.filter(([k]) => k === 'all' || k === 'bank' || (k === 'fd' && has('deposit')) || (k === 'nps' && has('nps')) || (k === 'loans' && has('loan')));
+}
+
+/* CRED Money's first page: whose money, how much, how current. The figure follows the dock. */
 function Band() {
-  const tot = C.totalBalance();
-  const hasBal = (C.M.accounts || []).some((a) => a.balance != null);
+  const nw = C.netWorth(), who = C.M.owner ? `${C.M.owner}'s` : 'your';
+  const [label, figure] = { all: [`${who} net worth`, nw.all], bank: [`${who} balance`, nw.bank], fd: ['fixed deposits', nw.fd],
+    nps: ['nps', nw.nps], loans: ['loans owed', nw.loans] }[C.ASSET] || [`${who} balance`, nw.bank];
+  /* the caption dates the FIGURE, not the feed: a bank balance is the newest printed running balance,
+     and SMS carry none, so live rows after it are named separately rather than implied in the figure */
+  const P = C.M.positions || [], live = C.ALL.filter((t) => t.p).map((t) => t.d).sort().pop();
+  const balOn = (C.M.accounts || []).filter((a) => !a.is_card && a.balance_on).map((a) => a.balance_on).sort().pop();
+  const asOf = (kind) => P.filter((p) => p.kind === kind).map((p) => p.as_of).sort().pop();
+  const fresh = {
+    bank: balOn ? `as of ${C.shortDate(balOn)}${live && live > balOn ? ` · live to ${C.shortDate(live)}` : ''}` : '',
+    fd: asOf('deposit') ? `deposited by ${C.shortDate(asOf('deposit'))}` : '', nps: asOf('nps') ? `as of ${C.shortDate(asOf('nps'))}` : '',
+    loans: asOf('loan') ? `as of ${C.shortDate(asOf('loan'))}` : '', all: 'each holding as of its latest statement',
+  }[C.ASSET] || '';
+  const initials = (C.M.owner || C.M.account || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   return (
     <header className="band">
       <div className="btop">
         <button className="av" onClick={() => C.TT()} title="switch between light and dark" aria-label="switch between light and dark"><Icon n="theme" /></button>
-        <div className="balpill">{hasBal
-          ? <><span className="l">total balance</span><Money p={tot} className="v" /></>
-          : <><span className="l">{C.M.account || ''}</span><span className="v num">{C.M.txn_count || 0} rows</span></>}</div>
+        <span className="me" aria-hidden="true">{initials}</span>
         <button className={`lock ${C.HUSH ? 'on' : ''}`} onClick={() => C.toggleHush()} aria-pressed={C.HUSH}
           aria-label={C.HUSH ? 'show amounts' : 'hide amounts'} title={C.HUSH ? 'show amounts' : 'hide amounts'}><Icon n={C.HUSH ? 'lock' : 'unlock'} /></button>
       </div>
+      <div className="bhero">
+        <span className="l">{label}</span>
+        <Money p={figure} className="v" />
+        {fresh && <span className="f">{fresh}</span>}
+      </div>
     </header>);
+}
+
+/* the one thing on the first page most worth a look, as CRED's dock shows "Investment liquidated" */
+function topAlert() {
+  const P = C.M.positions || [], today = new Date().toISOString().slice(0, 10);
+  const loan = P.find((p) => p.kind === 'loan' && p.next_due && p.next_due < today && p.as_of < p.next_due);
+  if (loan) return { text: `${C.shortDate(loan.next_due)} EMI isn't in a statement yet`, go: 'loans', tone: 'gold' };
+  const U = C.M.unsettled || [];
+  if (U.length) return { text: `${U.length} live payment${U.length > 1 ? 's' : ''} never reached a statement`, go: 'bank', tone: 'gold' };
+  const fd = P.find((p) => p.kind === 'deposit' && p.renews && p.principal && p.maturity_amount * p.maturity_amount / p.principal > 50000000);
+  if (fd) return { text: 'an FD will outgrow the ₹5L DICGC cover on renewal', go: 'fd', tone: 'gold' };
+  return null;
+}
+
+/* floating asset dock, shown while the accounts section is in view */
+function Dock() {
+  if (C.DET || C.TAB !== 'accounts') return null;
+  const items = assetsAvailable(), alert = topAlert();
+  return (
+    <div className="dock" role="toolbar" aria-label="what to show">
+      {alert && <button className="dalert" onClick={() => C.setAsset(alert.go)}><i className={alert.tone} />{alert.text}<Icon n="chev" size={16} /></button>}
+      <div className="ditems">{items.map(([k, ic, label]) => (
+        <button key={k} className={`ditem ${C.ASSET === k ? 'on' : ''}`} aria-pressed={C.ASSET === k} onClick={() => C.setAsset(k)}>
+          <Icon n={ic} size={22} /><span>{label}</span></button>))}</div>
+    </div>);
 }
 
 function Tabs({ onTab }) {
@@ -121,6 +169,7 @@ export function Shell() {
       <main className="sheet">
         {C.DET ? (Detail ? <Detail /> : <NotYet what={NAMES[C.DET] || C.DET} />) : <Sections />}
       </main>
+      <Dock />
       {C.TOAST && <div className="toast on" role="status">{C.TOAST}</div>}
     </div>);
 }

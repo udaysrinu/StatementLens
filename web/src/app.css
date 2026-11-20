@@ -101,7 +101,7 @@
 .bm.big{width:64px;height:64px;font-size:.875rem;box-shadow:0 3px 0 var(--edge)}
 .arow{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:none;border:none;cursor:pointer;color:inherit;text-align:left;font:inherit}
 .am{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.an{font:700 .9375rem/1.25 var(--body)}
+.an{display:flex;align-items:center;gap:4px;font:700 .9375rem/1.25 var(--body)}
 .aa{display:flex;align-items:center;gap:6px;font:600 .625rem/1.2 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
 .aa i{flex:none;width:7px;height:7px;border-radius:50%;background:var(--gold)}
 .ar{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
@@ -259,3 +259,47 @@
 .simamt{font:700 .875rem/1 var(--body);flex:none}
 .simbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .simbar .field{flex:1;min-width:150px;width:auto}
+
+/* ---- first page: CRED Money's hero band and asset dock ---- */
+.band .btop{align-items:center}
+.me{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--bg);border:1.5px solid var(--edge);
+  box-shadow:0 3px 0 var(--edge);font:800 .9375rem/1 var(--body);letter-spacing:.04em;color:var(--ink)}
+.bhero{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:14px 0 4px}
+.bhero .l{font:600 .6875rem/1 var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--ink2)}
+.bhero .v{font:400 2.25rem/1.05 var(--disp)}
+.bhero .f{font:700 .625rem/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+@media (max-width:359px){.bhero .v{font-size:1.75rem}}
+.dock{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:8;
+  width:min(440px,calc(100% - 24px));background:var(--np);color:var(--onnp);border-radius:18px;padding:6px 8px;
+  box-shadow:0 6px 0 var(--npb)}
+.dalert{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 10px;background:none;border:none;
+  border-bottom:1px solid color-mix(in oklab,var(--onnp) 18%,transparent);color:inherit;cursor:pointer;text-align:left;
+  font:600 .8125rem/1.3 var(--body)}
+.dalert i{width:8px;height:8px;border-radius:50%;flex:none;background:var(--up)}
+.dalert i.gold{background:var(--goldfill)}
+.dalert svg{margin-left:auto;flex:none}
+.ditems{display:flex;justify-content:space-around;gap:4px;padding-top:4px}
+.ditem{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:56px;padding:6px 4px;border-radius:12px;
+  background:none;border:none;color:color-mix(in oklab,var(--onnp) 62%,transparent);cursor:pointer;
+  font:700 .5625rem/1 var(--body);letter-spacing:.14em;text-transform:uppercase}
+.ditem.on{color:var(--onnp);background:color-mix(in oklab,var(--onnp) 12%,transparent)}
+.section:first-child{padding-bottom:150px}
+
+/* ---- NPS ---- */
+.split3{display:flex;height:28px;border:1.5px solid var(--ink)}
+.seg{display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;overflow:hidden;white-space:nowrap;
+  font:700 .625rem/1 var(--body);letter-spacing:.06em;color:var(--ink)}
+.seg+.seg{border-left:1.5px solid var(--ink)}
+/* the investment flow's own hue triplet, stepped by asset class (equity strongest) */
+.sE{background:var(--invF)}.sC{background:color-mix(in oklab,var(--invF) 55%,var(--bg))}.sG{background:color-mix(in oklab,var(--invF) 25%,var(--bg))}
+.lsw.sE,.lsw.sC,.lsw.sG{border-color:var(--invS)}
+.npsh{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;height:150px;align-items:end;border-bottom:1.5px solid var(--ink)}
+.npsc{display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;gap:6px}
+.npsb{position:relative;width:100%;flex:1;display:flex;align-items:flex-end;justify-content:center}
+.npsb i{display:block;width:70%;background:var(--invF);border:1px solid var(--invS)}
+.npsb s{position:absolute;left:15%;right:15%;bottom:0;border-top:2px dotted var(--invS)}
+.key{display:inline-block;width:10px;height:10px;margin:0 4px 0 10px;vertical-align:-1px}
+.key.kv1{background:var(--invF);border:1px solid var(--invS)}.key.kv2{border-top:2px dotted var(--invS);height:0;width:14px}
+
+.npsc .blab{font-size:.5625rem;letter-spacing:.06em;margin-top:6px;text-align:center;line-height:1.3}
+.npsc .blab small{display:block;font-size:.5rem;color:var(--ink3);letter-spacing:.02em}

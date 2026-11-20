@@ -88,3 +88,56 @@ def test_ingest_stores_positions_and_never_reaches_the_transaction_parsers():
         assert [p["kind"] for p in got] == ["loan", "deposit"]
         assert got[0]["outstanding"] == 927_000_00
         assert repo.all("x") == []              # nothing landed in transactions
+
+
+# ---- NPS (Protean CRA monthly transaction statement), both layouts, made-up figures that reconcile ----
+NPS_NEW = """NPS TRANSACTION STATEMENT
+Oct 01, 2026 To Oct 31, 2026
+NPS Transaction Statement for Tier I Account
+PRAN 110000001234 Registration Date 03-Jan-23
+Scheme Choice : Life Cycle 50 - Moderate
+(in Rs) intermediary charges Return on Investment 6.10%
+(A) (B) (C) D=(A-B)+C (E)
+3,00,000.00 20 2,50,000.00 0.00 50,000.00 1.25
+Investment Details - Scheme Wise Summary
+NPS TRUST- A/C SAMPLE PENSION FUND MANAGEMENT LIMITED SCHEME 1,50,000.00 3,000.0000 50.0000
+E - TIER I POP
+NPS TRUST- A/C SAMPLE PENSION FUND MANAGEMENT LIMITED SCHEME 1,00,000.00 4,000.0000 25.0000
+C - TIER I POP
+NPS TRUST- A/C SAMPLE PENSION FUND MANAGEMENT LIMITED SCHEME 50,000.00 2,000.0000 25.0000
+G - TIER I POP
+08-Oct-26 For September, 2026 Sample Securities Limited 0.00 10,000.00 10,000.00
+"""
+
+NPS_OLD = """NPS TRANSACTION STATEMENT
+Aug 01, 2026 To Aug 31, 2026
+PRAN 110000001234 Registration Date 03-Jan-23
+Aug 31, 2026 (in Rs) No of Contributions (XIRR) 7.00%
+(A) (B) (C) D=(A-B)+C
+300000.00 20 250000.00 0.00 50000.00
+Investment Details - Scheme Wise Summary
+MANAGEMENT LIMITED SCHEME E - TIER MANAGEMENT LIMITED SCHEME C - TIER MANAGEMENT LIMITED SCHEME G - TIER
+Holdings (Investments) (in Rs) E=U*N 150000.00 100000.00 50000.00
+Total Units U 3000.0000 4000.0000 2000.0000
+NAV as on 31-Aug-26 N 50.0000 25.0000 25.0000
+"""
+
+
+def test_nps_statement_parses_in_both_layouts():
+    for text, xirr in ((NPS_NEW, 6.10), (NPS_OLD, 7.00)):
+        s = parse_position(text)
+        assert s["kind"] == "nps" and s["label"] == "NPS Tier I ••1234"
+        assert (s["value"], s["contributed"], s["gain"]) == (300_000_00, 250_000_00, 50_000_00)
+        assert [x["scheme"] for x in s["schemes"]] == ["E", "C", "G"] and s["xirr_pct"] == xirr
+    assert parse_position(NPS_NEW)["contributions"][0]["total"] == 10_000_00
+
+
+def test_nps_statement_whose_sums_do_not_hold_is_rejected():
+    for broken in (NPS_NEW.replace("50,000.00 1.25", "51,000.00 1.25"),          # gain != A - B + C
+                   NPS_NEW.replace("SCHEME 50,000.00 2,000.0000", "SCHEME 49,000.00 1,960.0000"),  # schemes != A
+                   NPS_NEW.replace("0.00 10,000.00 10,000.00", "0.00 10,000.00 11,000.00")):   # employee + employer != total
+        try:
+            parse_position(broken)
+        except PositionParseError:
+            continue
+        raise AssertionError("an NPS statement that does not add up must not be stored")

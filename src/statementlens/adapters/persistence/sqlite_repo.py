@@ -464,6 +464,11 @@ class SqliteTransactionRepository:
             " ON p.label=l.label AND p.as_of=l.m ORDER BY p.kind DESC, p.label").fetchall()
         return [json.loads(r[0]) for r in rows]
 
+    def position_history(self, kind: str) -> List[Dict[str, Any]]:
+        """Every snapshot of one kind (e.g. each monthly NPS statement), oldest first."""
+        rows = self._conn.execute("SELECT data FROM positions WHERE kind=? ORDER BY as_of", (kind,)).fetchall()
+        return [json.loads(r[0]) for r in rows]
+
     def accounts(self) -> List[Dict[str, Any]]:
         """Every account in the store, busiest first — what the dashboard's switcher is built from.
 
