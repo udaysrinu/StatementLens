@@ -30,3 +30,15 @@ def test_data_is_embedded_where_core_reads_it_and_cannot_break_out():
     raw = page.split('<script type="application/json" id="data">', 1)[1].split("</script>", 1)[0]
     assert json.loads(raw.replace("<\\/", "</"))["meta"]["account"] == "</script><b>x"
     assert "<title>&lt;/script&gt;&lt;b&gt;x · Money</title>" in page
+
+
+def test_placeholders_inside_the_data_are_never_filled():
+    """A narration is untrusted text. "__JS__" in it must stay text, not pull the bundle into the data."""
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer
+    ds = {**DATASET, "meta": {"account": "__DATA__ __JS__"},
+          "txns": [{"ref": "a", "d": "2026-07-01", "a": 1, "dir": "D", "f": "s", "m": "__JS__ __FONTS__"}]}
+    for page in (AppShellRenderer().render(ds), LegacyShellRenderer().render(ds)):
+        raw = page.split('<script type="application/json" id="data">', 1)[1].split("</script>", 1)[0]
+        data = json.loads(raw.replace("<\\/", "</"))
+        assert data["txns"][0]["m"] == "__JS__ __FONTS__" and data["meta"]["account"] == "__DATA__ __JS__"
+        assert page.count('<script type="application/json" id="data">') == 1

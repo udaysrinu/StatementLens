@@ -74,6 +74,15 @@ def _font_css() -> str:
     return "\n".join(rules)
 
 
+_SLOT = __import__("re").compile(r"__(FONTS|CSS|LABEL|ICON|MANIFEST|DATA|JS)__")
+
+
+def _fill(page: str, values: Dict[str, str]) -> str:
+    """Fill every __SLOT__ in ONE pass. Chained str.replace() would re-scan inserted values, so a
+    statement narration containing "__JS__" would have the whole bundle pasted into the data."""
+    return _SLOT.sub(lambda m: values[m.group(1)] if m.group(1) in values else m.group(0), page)
+
+
 class LegacyShellRenderer:
     def render(self, dataset: Dict[str, Any]) -> str:
         label = html.escape(str(dataset.get("meta", {}).get("account", "Account")))
@@ -88,11 +97,8 @@ class LegacyShellRenderer:
             "icons": [{"src": icon, "sizes": "512x512", "type": "image/svg+xml",
                        "purpose": "any maskable"}],
         }, separators=(",", ":")))
-        return (_PAGE.replace("__FONTS__", _font_css())
-                     .replace("__LABEL__", label)
-                     .replace("__ICON__", icon)
-                     .replace("__MANIFEST__", manifest)
-                     .replace("__DATA__", payload))
+        return _fill(_PAGE, {"FONTS": _font_css(), "LABEL": label, "ICON": icon,
+                             "MANIFEST": manifest, "DATA": payload})
 
 
 _PAGE = r"""<!DOCTYPE html>

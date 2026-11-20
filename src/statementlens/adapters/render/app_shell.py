@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-from .legacy_shell import _ICON_SVG, _data_uri, _font_css
+from .legacy_shell import _ICON_SVG, _data_uri, _fill, _font_css
 
 _DIST = Path(__file__).with_name("web_dist")
 
@@ -46,13 +46,8 @@ class AppShellRenderer:
             "icons": [{"src": icon, "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable"}],
         }, separators=(",", ":")))
         b = _bundle()
-        return (_PAGE.replace("__FONTS__", _font_css())
-                     .replace("__CSS__", b["css"])
-                     .replace("__LABEL__", label)
-                     .replace("__ICON__", icon)
-                     .replace("__MANIFEST__", manifest)
-                     .replace("__DATA__", payload)
-                     .replace("__JS__", b["js"]))
+        return _fill(_PAGE, {"FONTS": _font_css(), "CSS": b["css"], "LABEL": label, "ICON": icon,
+                             "MANIFEST": manifest, "DATA": payload, "JS": b["js"]})
 
 
 _PAGE = """<!DOCTYPE html>
