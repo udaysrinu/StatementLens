@@ -573,6 +573,36 @@ try{const th=localStorage.getItem('sl-theme');if(th)document.documentElement.dat
    in view without the go() side effects (closing details, scrolling to the top). */
 function setTabInView(t) { if (TAB !== t) { TAB = t; draw(); } }
 
+/* ---- helpers for the NeoPOP screens: the same actions the plain-CSS page did inline or through the
+   DOM, now as functions, because a React component cannot assign this module's state ---- */
+function viewMonthTxns(mo) { CF = monthStart(mo); CT = monthEnd(mo); RANGE = 'C'; openDetail('search'); }
+function viewAllHigh() { SORT = 'high'; openDetail('search'); }
+/* heroDelta() as data: the same comparison (same span of days just before the range, same flow) */
+function heroDeltaData(R) {
+  const w = currentWindow(); if (!w) return null;
+  const days = Math.round((new Date(w.to) - new Date(w.from)) / 864e5) + 1;
+  const prevTo = shiftDays(w.from, -1), prevFrom = shiftDays(prevTo, -(days - 1));
+  if (prevFrom < w.first) return null;
+  const prev = flowBetween(prevFrom, prevTo, FLOW_CODE[FLOW] || 's'); if (prev <= 0) return null;
+  const pc = Math.round((heroValue(R).amount / prev - 1) * 100), up = pc > 0;
+  const label = days <= 8 ? 'week' : days <= 32 ? 'month' : days <= 95 ? 'quarter' : days <= 370 ? 'year' : `${days} days`;
+  return { pc: Math.abs(pc), up, good: FLOW === 'out' ? !up : up, label, prev };
+}
+/* similar transactions for bulk retagging (server-side grouping), and the bulk retag itself */
+function similarFor(ref) {
+  if (!API) return Promise.resolve(null);
+  return fetch('/api/similar?t=' + encodeURIComponent(API) + '&ref=' + encodeURIComponent(ref))
+    .then((r) => r.json()).then((g) => (g && g.count ? g : null)).catch(() => null);
+}
+function tagMany(tag, refs) {
+  if (!refs.length) { toast('nothing selected'); return Promise.resolve(false); }
+  return post('/api/tag-many', { tag, refs }).then((r) => {
+    if (r && r.error) { toast('could not save: ' + r.error); return false; }
+    refs.forEach((ref) => { const row = ALL.find((x) => x.ref === ref); if (row) row.c = tag; });
+    toast(`tagged ${r.tagged || refs.length} transactions as ${tag}`); draw(); return true;
+  });
+}
+
 /* openTag/openMerchant/openPerson/openTxn mutate the view keys BEFORE calling openDetail, so take the
    snapshot of the screen being left first, or "back" would restore the screen you are already on */
 const __wrapBack = (f) => function () { prevSnap = DET ? snap() : null; return f.apply(this, arguments); };
@@ -584,11 +614,21 @@ openTag = __wrapBack(openTag); openMerchant = __wrapBack(openMerchant); openPers
   /* ?v=txn[&ref=..] opens one transaction (default: the newest spend) */
   else if(v==='txn'){TAB='txns';DET='txn';TXNREF=new URLSearchParams(location.search).get('ref')||((ALL.filter(x=>x.f==='s').slice(-1)[0])||{}).ref;}
   else if(MAIN.some(m=>m[0]===v)){TAB=v;}
+  /* drilled-in screens, so a view can be bookmarked or captured: ?v=breakdown&flow=in, ?v=tag&tag=rent,
+     ?v=search, ?v=netting */
+  else if(v==='breakdown'){const q=new URLSearchParams(location.search);FLOW=q.get('flow')||'out';DET='breakdown';}
+  else if(v==='tag'){TAGVIEW=new URLSearchParams(location.search).get('tag')||'';DET=TAGVIEW?'tagdetail':'';}
+  else if(v==='search'||v==='netting'){DET=v;if(new URLSearchParams(location.search).get('range'))RANGE=new URLSearchParams(location.search).get('range');}
   const dn=new URLSearchParams(location.search).get('density');if(dn)document.documentElement.dataset.density=dn;})();
 draw();
 restoreScroll();
 
 export {
+  viewMonthTxns,
+  viewAllHigh,
+  heroDeltaData,
+  similarFor,
+  tagMany,
   setTabInView,
   ALL,
   API,

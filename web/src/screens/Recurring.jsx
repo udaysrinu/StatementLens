@@ -14,8 +14,8 @@ export function Recurring() {
     <div className="view">
       <div><h1 className="h1">recurring payments</h1><div className="cap" style={{ marginTop: 6 }}>{n} detected from your statements</div></div>
       <div className="chips">
-        <NBtn variant={C.RECDIR === 'out' ? 'primary' : 'secondary'} onClick={() => C.setRecDir('out')}>outgoing</NBtn>
-        <NBtn variant={C.RECDIR === 'in' ? 'primary' : 'secondary'} onClick={() => C.setRecDir('in')}>incoming</NBtn>
+        <NBtn variant={C.RECDIR === 'out' ? 'secondary' : 'primary'} onClick={() => C.setRecDir('out')}>outgoing</NBtn>
+        <NBtn variant={C.RECDIR === 'in' ? 'secondary' : 'primary'} onClick={() => C.setRecDir('in')}>incoming</NBtn>
       </div>
       {r ? <>
         <ElevatedCard backgroundColor="var(--bg)" edgeColors={{ bottom: 'var(--edge)', right: 'var(--edge)' }} style={{ width: '100%' }}>

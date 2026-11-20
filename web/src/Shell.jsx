@@ -9,9 +9,12 @@ import { CashFlow } from './screens/CashFlow.jsx';
 import { Accounts, AccountDetail } from './screens/Accounts.jsx';
 import { Transactions, TxnDetail } from './screens/Transactions.jsx';
 import { Recurring } from './screens/Recurring.jsx';
+import { Breakdown } from './screens/Breakdown.jsx';
+import { TagDetail, Search, Netting, Bills } from './screens/Ledger.jsx';
 
 const SECTIONS = { accounts: Accounts, txns: Transactions, recurring: Recurring, cashflow: CashFlow };
-const DETAILS = { txn: TxnDetail, account: AccountDetail };       // the rest land next
+const DETAILS = { txn: TxnDetail, account: AccountDetail, breakdown: Breakdown, tagdetail: TagDetail,
+  search: Search, netting: Netting, bills: Bills };
 const NAMES = { accounts: 'accounts', txns: 'transactions', recurring: 'recurring payments', cashflow: 'cash flow',
   breakdown: 'breakdown', tagdetail: 'category', txn: 'transaction', search: 'search', netting: 'netting',
   bills: 'card bills', account: 'account' };
@@ -83,15 +86,19 @@ export function Shell() {
     window.addEventListener('resize', onScroll);
     // ?v=<tab> opens the page at that section
     const v = new URLSearchParams(location.search).get('v');
-    if (!C.DET && ORDER.includes(v)) document.getElementById(secId(v))?.scrollIntoView();
+    if (C.DET) window.scrollTo(0, 0);
+    else if (ORDER.includes(v) && v !== ORDER[0]) document.getElementById(secId(v))?.scrollIntoView();
     spy();
     return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
   }, []);
 
-  // coming back from a drilled-in screen lands where you left the page
+  // coming back from a drilled-in screen lands where you left the page; opening one starts at its top,
+  // after any field that focuses itself on mount (NeoPOP's SearchBar does) has pulled the page down
+  const lastDet = useRef(C.DET);
   useLayoutEffect(() => {
     if (wasDetail.current && !C.DET) window.scrollTo(0, mainScroll.current);
-    wasDetail.current = !!C.DET;
+    else if (C.DET && C.DET !== lastDet.current) window.scrollTo(0, 0);
+    wasDetail.current = !!C.DET; lastDet.current = C.DET;
   });
 
   const onTab = (k) => {

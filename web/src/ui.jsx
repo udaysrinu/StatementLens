@@ -28,9 +28,9 @@ export const dark = () => C.isDark();
 /** A NeoPOP button in the current theme.
 
  NeoPOP's colorMode names the BUTTON's colour, not the page's: on our light page its "secondary" is the
- solid black button and "primary" the white one (dark theme: the reverse). The owner chose that black
- look, so the default is 'secondary' (strong) for chips and main actions, and 'primary' (inverse) marks
- the picked chip and the lesser action of a pair. */
+ solid ink button and "primary" the white one (dark theme: the reverse). So: actions default to
+ 'secondary' (ink, the owner's choice); a toggle is 'secondary' when ON and 'primary' when off, so the
+ picked chip fills with ink, as in CRED Money; the lesser action of a pair (Skip, Previous) is 'primary'. */
 export function NBtn({ children, variant = 'secondary', size = 'small', kind = 'elevated', onClick, disabled, fullWidth, ...rest }) {
   return (
     <Button variant={variant} kind={kind} size={size} colorMode={dark() ? 'dark' : 'light'}

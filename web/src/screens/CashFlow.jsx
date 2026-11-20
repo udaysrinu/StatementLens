@@ -5,6 +5,7 @@ import React from 'react';
 import { ElevatedCard } from '@cred/neopop-web/lib/components';
 import * as C from '../core.js';
 import { Icon, Money, Highlighted, NBtn } from '../ui.jsx';
+import { PeriodPanel } from './period.jsx';
 
 const BAR = { in: { cls: 'in', code: 'i' }, inv: { cls: 'inv', code: 'v' }, out: { cls: 'out', code: 's' } };
 const edge = (cls) => ({ bottom: `var(--${cls}S)`, right: `var(--${cls}S)` });
@@ -65,12 +66,7 @@ export function CashFlow() {
         <NBtn onClick={() => C.go('accounts')}>{C.M.account || 'account'}</NBtn>
         <NBtn onClick={() => C.togglePeriod()} aria-expanded={C.PERIODOPEN}>{C.periodText()}</NBtn>
       </div>
-      {C.PERIODOPEN && (
-        <div className="chips">
-          {C.PRESETS.map(([k, label]) => (
-            <NBtn key={k} variant={C.RANGE === k ? 'primary' : 'secondary'} onClick={() => { C.setR(k); C.togglePeriod(); }}>{label}</NBtn>))}
-          {C.M.salary_day > 1 && <NBtn variant={C.RANGE === 'S' ? 'primary' : 'secondary'} onClick={() => { C.setR('S'); C.togglePeriod(); }}>salary cycle</NBtn>}
-        </div>)}
+      {C.PERIODOPEN && <PeriodPanel />}
       {C.M.salary_day > 1 && C.CYCLENOTE && (
         <Note icon="star" gold>
           introducing salary cycle. your cash flow can start from your salary date, the {C.ord(C.M.salary_day)}, instead of the calendar month.

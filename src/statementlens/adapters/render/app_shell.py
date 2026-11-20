@@ -68,7 +68,7 @@ _PAGE = """<!DOCTYPE html>
 __FONTS__
 </style>
 <style>__CSS__</style>
-<script>try{var th=localStorage.getItem('sl-theme');if(th)document.documentElement.dataset.theme=th;}catch(_){}</script>
+<script>try{var th=new URLSearchParams(location.search).get('theme')||localStorage.getItem('sl-theme');if(th)document.documentElement.dataset.theme=th;}catch(_){}</script>
 </head>
 <body>
 <div id="root"></div>
