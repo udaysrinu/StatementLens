@@ -281,6 +281,11 @@ The browser recomputes every total from the rows; a parity test runs the same `c
 One rule decides it: **anything that touches someone's money data or credentials runs on their own
 device; anything public and stateless can be a website; shared code is a library, never a service.**
 
+The other pieces document themselves:
+[Netfolio](https://github.com/udaysrinu/netfolio/blob/main/ARCHITECTURE.md),
+[sharecase](https://github.com/udaysrinu/sharecase/blob/main/docs/ARCHITECTURE.md) and
+[inboxkit](https://github.com/udaysrinu/inboxkit/blob/main/ARCHITECTURE.md).
+
 ```mermaid
 flowchart LR
   subgraph device["<b>Your computer</b> · your data stays here"]
@@ -389,14 +394,9 @@ sequenceDiagram
   App->>App: parse: bank/card parser, or inboxkit.positions for loan, FD, NPS
 ```
 
-| Module | Does | Worth knowing |
-|---|---|---|
-| `inboxkit.inbox` | `GmailDocuments(query, app=…)` returns the PDF attachments of matching mail as `Document`s | read-only scope; pages through every result; sets `truncated` instead of silently returning less; `skip_ids` makes a daily sync cheap |
-| `Document.authenticated(domain)` | proves a mail really came from `domain`, from the verdict Gmail's own server prepended (DKIM, DMARC) | fails closed. Planned for StatementLens's ingest: measured against 182 real statement emails, all pass with one domain per bank |
-| `inboxkit.pdf` | unlocks a password-protected PDF, then reads its text | passwords are derived in memory from hints and never stored |
-| `inboxkit.passwords` | turns hints (name, date of birth, mobile, card last 4, PAN) or a bank's stated rule ("first 4 letters of your name + DDMM") into candidates | a password you give explicitly is tried first, then the bank's stated rule, then the usual formats |
-| `inboxkit.secrets` | small secrets in the OS keychain (macOS, Windows, Linux); a 0600 file only when there is no keychain, and it says so | each app has its own namespace (`service`) |
-| `inboxkit.positions` | a loan statement, FD advice or NPS statement becomes a snapshot in paise | checks the document's own sums and refuses one that does not add up |
+inboxkit's own [ARCHITECTURE.md](https://github.com/udaysrinu/inboxkit/blob/main/ARCHITECTURE.md) is the
+reference for its modules, the sender-authentication decision flow and the order passwords are tried in.
+This section keeps only the path as StatementLens uses it.
 
 Who owns what: Google Cloud holds the OAuth *client* (the app's identity). Your keychain holds the
 *token* (your consent). The documents and everything parsed from them stay on your disk.
