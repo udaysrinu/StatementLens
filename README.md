@@ -60,6 +60,9 @@ Every monetary value is an integer number of minor units (paise) inside a `Money
 
 ## Architecture (Ports & Adapters / Hexagonal)
 
+The full engineering walkthrough, with diagrams for every layer, what runs where, and how the shared
+Gmail/PDF library works, is in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
 The domain and use-cases depend only on **interfaces** (`domain/ports.py`); concrete Gmail / PDF /
 SQLite / HTML implementations are swappable adapters. Add a bank format or a new data source by
 writing an adapter — never by editing the core.
