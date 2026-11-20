@@ -8,14 +8,14 @@ account, no account-aggregator licence.
 > and never written to disk.
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="330" alt="Home — one hero number, insight cards, honest three-way cash flow">
+  <img src="docs/screenshots/home.png" width="330" alt="One scroll page: balance, accounts, transactions, recurring and cash flow under pinned tabs">
   &nbsp;
-  <img src="docs/screenshots/spends.png" width="330" alt="Spends grouped by tag, sortable, with a review queue">
+  <img src="docs/screenshots/spends.png" width="330" alt="Spends breakdown: lines that sum to the headline, top spends, past trends">
 </p>
 <p align="center">
-  <img src="docs/screenshots/recurring.png" width="330" alt="Recurring payments with usual day and next expected date">
+  <img src="docs/screenshots/recurring.png" width="330" alt="Recurring payments: usual day, months seen, next expected date">
   &nbsp;
-  <img src="docs/screenshots/txn.png" width="330" alt="Transaction detail with tag correction and notes">
+  <img src="docs/screenshots/txn.png" width="330" alt="Transaction detail with one-tap tag correction, remembered per merchant">
 </p>
 <p align="center"><em>Screenshots use synthetic demo data — regenerate with
 <code>python docs/make_screenshots.py</code>.</em></p>

@@ -283,7 +283,7 @@
   background:none;border:none;color:color-mix(in oklab,var(--onnp) 62%,transparent);cursor:pointer;
   font:700 .5625rem/1 var(--body);letter-spacing:.14em;text-transform:uppercase}
 .ditem.on{color:var(--onnp);background:color-mix(in oklab,var(--onnp) 12%,transparent)}
-.section:first-child{padding-bottom:150px}
+.section.docked{padding-bottom:150px}   /* room for the floating asset dock */
 
 /* ---- NPS ---- */
 .split3{display:flex;height:28px;border:1.5px solid var(--ink)}

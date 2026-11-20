@@ -27,6 +27,8 @@ export function assetsAvailable() {
   const P = C.M.positions || [], has = (k) => P.some((p) => p.kind === k);
   return ASSETS.filter(([k]) => k === 'all' || k === 'bank' || (k === 'fd' && has('deposit')) || (k === 'nps' && has('nps')) || (k === 'loans' && has('loan')));
 }
+/* with bank accounts alone, "all" and "bank" are the same figure: no dock, and no room kept for one */
+const hasDock = () => assetsAvailable().length > 2;
 
 /* CRED Money's first page: whose money, how much, how current. The figure follows the dock. */
 function Band() {
@@ -74,7 +76,7 @@ function topAlert() {
 
 /* floating asset dock, shown while the accounts section is in view */
 function Dock() {
-  if (C.DET || C.TAB !== 'accounts') return null;
+  if (C.DET || C.TAB !== 'accounts' || !hasDock()) return null;
   const items = assetsAvailable(), alert = topAlert();
   return (
     <div className="dock" role="toolbar" aria-label="what to show">
@@ -108,7 +110,7 @@ function NotYet({ what }) {
 function Sections() {
   return (<>{ORDER.map((k) => {
     const S = SECTIONS[k];
-    return (<section key={k} id={secId(k)} className="section"><S /></section>);
+    return (<section key={k} id={secId(k)} className={k === 'accounts' && hasDock() ? 'section docked' : 'section'}><S /></section>);
   })}</>);
 }
 
