@@ -99,6 +99,8 @@ def main(argv=None) -> int:
     ref.add_argument("--card-last4", dest="card_last4"); ref.add_argument("--rule-text", dest="rule_text")
 
     sub.add_parser("status", help="when did it last sync, and did it work?")
+    bal = sub.add_parser("balances", help="latest balance per account (for Netfolio); non-zero if a chain breaks")
+    bal.add_argument("--json", action="store_true", help="machine-readable output")
     sub.add_parser("security", help="show where credentials and data are stored")
     dis = sub.add_parser("disconnect", help="forget the stored Gmail token")
     dis.add_argument("--yes", action="store_true", help="don't ask for confirmation")
@@ -185,6 +187,19 @@ def main(argv=None) -> int:
             print(" ", a.reason)
         # non-zero on failure so launchd/cron surfaces a broken connector instead of hiding it
         return 0 if a.ok else 2
+    if args.cmd == "balances":
+        import json
+        b = App(db_path=args.db).balances()
+        breaks = b.pop("breaks")
+        if args.json:
+            print(json.dumps(b, indent=2, ensure_ascii=False))
+        else:
+            for x in b["accounts"]:
+                amt = "no balance (card)" if x["balance_paise"] is None else f"Rs {x['balance_paise'] / 100:,.2f} on {x['as_of']}"
+                print(f"{x['account']:<28} {amt}")
+        for k in breaks:   # a stale or misread figure must not pass silently
+            print(f"BALANCE CHAIN BROKEN: {k['account']} {k['from']} -> {k['to']}", file=sys.stderr)
+        return 3 if breaks else 0
     if args.cmd == "status":
         st = App(db_path=args.db).sync_status()
         if st.get("healthy"):

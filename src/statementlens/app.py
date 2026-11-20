@@ -362,6 +362,33 @@ class App:
         from .usecases.account_id import account_label
         return self.repo.relabel_accounts(account_label)
 
+    def balances(self) -> Dict[str, Any]:
+        """Latest balance per account in the shape Netfolio reads; `breaks` lists chains that fail.
+
+        Cards report balance_paise None: their statements carry dues, not a running balance, and
+        "Total Amount Due" is not parsed yet. Never a guess.
+        """
+        from datetime import datetime
+        from .usecases.balances import walk
+        rows: Dict[str, list] = {}
+        for r in self.repo._conn.execute(
+                "SELECT id, account, iso_date, minor, direction, balance_minor, statement_id, description "
+                "FROM txns WHERE provisional = 0 ORDER BY account, iso_date, id"):
+            rows.setdefault(r[1], []).append(r)
+        out, breaks = [], []
+        for a in self.repo.accounts():
+            rs = rows.get(a["account"], [])
+            signed, on, br = walk(rs)
+            card = a["is_card"]
+            breaks += [{"account": a["account"], "from": p[2], "to": c[2], "off_by_paise": off} for p, c, off in br]
+            out.append({"account": a["account"], "institution": a["account"].split()[0],
+                        "kind": "card" if card else "bank",   # savings vs current is not on the statements
+                        "balance_paise": None if card else signed, "as_of": None if card else on,
+                        "source": "statement",                # live alerts carry no balance today
+                        "statement_period_to": rs[-1][2] if rs else None})
+        return {"generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "accounts": out, "breaks": breaks}
+
     def stats(self) -> Dict[str, Any]:
         return self.repo.stats()
 

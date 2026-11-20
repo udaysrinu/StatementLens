@@ -29,9 +29,7 @@ from pathlib import Path
 
 STORE = Path(os.getenv("STATEMENTLENS_DB", Path.home() / ".statementlens" / "store.db"))
 
-#: A balance chain may legitimately break across a statement the bank never sent: the rows on either
-#: side are both right, the month between is simply absent. Shorter breaks are a lost or misread row.
-MISSING_STATEMENT_DAYS = 25
+#: The missing-statement allowance for balance chains lives in usecases/balances.py.
 
 
 def _have_store() -> bool:
@@ -60,33 +58,16 @@ def _days(a: str, b: str) -> int:
 # ---------------------------------------------------------------------------------------- INGEST
 
 def balance_chain_breaks():
-    """[(account, prev_row, row, off_by_minor)] for every link that does not reconcile.
-
-    Banks print an overdrawn balance as its magnitude — SBI shows −₹78,628.35 as "78628.35" — so a
-    printed balance equal to |expected| while expected is negative reconciles, and the SIGNED value is
-    carried forward, or the next link would break on the bank's formatting rather than on data.
-    """
-    breaks = []
-    for acct, rs in _by_account().items():
-        bal = [r for r in rs if r[5] is not None]
-        carried = None
-        for prev, cur in zip(bal, bal[1:]):
-            base = carried if carried is not None else prev[5]
-            exp = base + (cur[3] if cur[4] == "credit" else -cur[3])
-            if exp == cur[5]:
-                carried = None
-            elif exp < 0 and -exp == cur[5]:
-                carried = exp                       # overdrawn, printed unsigned
-            else:
-                breaks.append((acct, prev, cur, cur[5] - exp))
-                carried = None
-    return breaks
+    """[(account, prev_row, row, off_by_minor)] for every link inside a statement period that does not
+    reconcile. The walk is the one `statementlens balances` uses, so the test and the CLI cannot drift."""
+    from statementlens.usecases.balances import walk
+    return [(acct, p, c, off) for acct, rs in _by_account().items() for p, c, off in walk(rs)[2]]
 
 
 def test_balance_chain_has_no_unexplained_break():
     if not _have_store():
         return
-    bad = [b for b in balance_chain_breaks() if _days(b[1][2], b[2][2]) < MISSING_STATEMENT_DAYS]
+    bad = balance_chain_breaks()
     assert not bad, "rows lost or misread (balance chain broken inside a statement period):\n" + \
         "\n".join(f"  {a}: {p[2]} → {c[2]} off by ₹{off / 100:,.2f}  row {c[0]} | {c[7][:60]}"
                   for a, p, c, off in bad)
