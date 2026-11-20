@@ -45,7 +45,7 @@ statementlens = "statementlens.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-statementlens = ["py.typed"]
+statementlens = ["py.typed", "adapters/render/fonts/*.woff2", "adapters/render/fonts/*.json", "adapters/render/fonts/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

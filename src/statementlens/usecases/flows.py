@@ -50,14 +50,13 @@ _INVESTMENT_CATEGORIES = {"investments", "investment", "mutual funds", "stocks",
 
 #: Merchant fragments that are unambiguously brokers / fund platforms.
 #:
-#: INDmoney (legal entity FINZOOM Insurance Brokers, VPA `indmoney*`) is deliberately NOT here. It is
-#: a RAIL, not an activity: the same handle carries investment orders AND credit-card bill payments,
-#: and this user confirmed they only ever use it to pay card bills. Listing it as a broker booked
-#: ₹2.71L of bill payments as investments — money that had already been counted as card charges, so it
-#: was double-counted across the two accounts. A platform that does several things cannot be
-#: classified by its name alone; see _CARD_RAIL below.
+#: INDmoney is BOTH a card-bill rail and a US-stocks broker, and the narration says which. Bill payments
+#: go to the payee FINZOOM (UPI id `indmoney3…`) — 9 of 11 match a "payment received" on a tracked card
+#: the same day. US-stock funding goes to payee INDMoney (`finzoomers`, `indmoney46`). So `finzoom` is
+#: the rail (see _CARD_RAIL) and bare `indmoney` is a broker. `\bfinzoom\b` does not match
+#: "finzoomers", and `\bindmoney\b` does not match "indmoney3", so the two never collide.
 _INVESTMENT_MERCHANTS = re.compile(
-    r"(?i)\b(zerodha|groww|upstox|smallcase|indianclearing|nse\s*clearing|bse|"
+    r"(?i)\b(zerodha|groww|upstox|indmoney|smallcase|indianclearing|nse\s*clearing|bse|"
     r"iccl|nsccl|mf\s*utility|mfu|camsonline|kfintech|coin|"
     r"sip|mutual\s*fund|elss|nps|ppf)\b"
 )
@@ -66,7 +65,11 @@ _INVESTMENT_MERCHANTS = re.compile(
 #: payment names the rail, not the card, so nothing in the narration says "card" — which is why these
 #: need naming explicitly. Both legs must land in SELF_TRANSFER or the money counts twice: once as the
 #: bank debit and again as the card charges it settled.
-_CARD_RAIL = re.compile(r"(?i)\b(finzoom|indmoney|cred(?:club)?|paytm\s*cc|mobikwik\s*cc)\b")
+#: CRED is also a SHOP and a FASTag top-up channel: "CRED ECOM GURGAON" on a card is a purchase, and
+#: "Dreamplug … cred.fasta…" is a FASTag recharge — both are real spending, and matching bare "cred"
+#: filed them as bill payments. Only CRED-the-bill-payment-rail (CredClub) is a self-transfer.
+_CARD_RAIL = re.compile(
+    r"(?i)\b(finzoom|cred(?:club)?|paytm\s*cc|mobikwik\s*cc)\b(?![\s.]*(?:ecom|fasta))")
 
 
 def is_self_transfer(txn: Transaction, own_names: Iterable[str]) -> bool:
@@ -106,12 +109,20 @@ def classify_flow(txn: Transaction, own_names: Iterable[str] = ()) -> str:
     if is_card_bill_payment(txn):
         return SELF_TRANSFER
     if not txn.is_debit:
-        return INCOMING
+        # Money back FROM a broker is a redemption, not income. Counting it as incoming inflated
+        # "money in" by every payout while "invested" stayed gross — ₹5.55L of Zerodha withdrawals
+        # sat on both sides. It lands in INVESTMENT and nets against what went in.
+        # Only when the credit NAMES a broker/platform, though — not on category alone: dividends are
+        # auto-categorized "investment" too, and a dividend is income, not capital coming back.
+        hay = f"{txn.merchant} {txn.description}"
+        return INVESTMENT if _INVESTMENT_MERCHANTS.search(hay) else INCOMING
+    return INVESTMENT if _is_investment(txn) else SPEND
+
+
+def _is_investment(txn: Transaction) -> bool:
     cat = (txn.category or "").strip().lower()
-    if cat in _INVESTMENT_CATEGORIES or _INVESTMENT_MERCHANTS.search(
-            f"{txn.merchant} {txn.description}"):
-        return INVESTMENT
-    return SPEND
+    return cat in _INVESTMENT_CATEGORIES or bool(
+        _INVESTMENT_MERCHANTS.search(f"{txn.merchant} {txn.description}"))
 
 
 def looks_like_card(txns: Sequence[Transaction], account: str = "") -> bool:
@@ -318,12 +329,17 @@ _CARD_FEE_RE = re.compile(
 
 @dataclass(frozen=True)
 class CashFlow:
-    """Honest three-way flow for a period. All amounts are positive integer paise."""
+    """Honest three-way flow for a period, in integer paise.
+
+    `investments` is NET of redemptions, so it can go negative in a period where more came back
+    from a broker than went in. `redeemed` keeps the payback visible beside it.
+    """
     incoming: int = 0
     investments: int = 0
     spends: int = 0
     self_transfers: int = 0        # reported, never folded into in/out
     self_transfer_count: int = 0
+    redeemed: int = 0              # money back from brokers, already netted out of `investments`
 
     @property
     def net(self) -> int:
@@ -339,7 +355,7 @@ def cash_flow(txns: Iterable[Transaction], own_names: Iterable[str] = ()) -> Cas
     dashboard showed ₹8.33L of self-transfers beside a card card saying ₹4.13L PAID — the same money,
     two figures, ₹4,20,230 apart. Any aggregate over a card's rows has to dedupe or none of them agree.
     """
-    inc = inv = spd = slf = 0
+    inc = inv = spd = slf = red = 0
     slf_n = 0
     for t in dedupe_bill_payments(txns):
         bucket = classify_flow(t, own_names)
@@ -347,13 +363,16 @@ def cash_flow(txns: Iterable[Transaction], own_names: Iterable[str] = ()) -> Cas
         if bucket == INCOMING:
             inc += minor
         elif bucket == INVESTMENT:
-            inv += minor
+            if t.is_debit:
+                inv += minor
+            else:
+                red += minor
         elif bucket == SPEND:
             spd += minor
         else:
             slf += minor
             slf_n += 1
-    return CashFlow(inc, inv, spd, slf, slf_n)
+    return CashFlow(inc, inv - red, spd, slf, slf_n, redeemed=red)
 
 
 def incoming_breakdown(txns: Iterable[Transaction], own_names: Iterable[str] = (),
@@ -413,7 +432,10 @@ def income_source(txn: Transaction) -> str:
     # "untagged" is the SPEND categorizer admitting it has no rule; surfacing it as an income source
     # reads as a real category next to Salary and People when it means the opposite.
     tag = (txn.category or "").strip()
-    return tag if tag and tag.lower() not in ("untagged", "other") else "Other income"
+    # Tags are stored lowercase ("people") while the narration rules return "People", so the same
+    # source appeared as two breakdown rows. One spelling per source.
+    return tag[:1].upper() + tag[1:] if tag and tag.lower() not in ("untagged", "other") \
+        else "Other income"
 
 
 def _guess_income_source(txn: Transaction) -> Optional[str]:

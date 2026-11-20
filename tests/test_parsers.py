@@ -95,3 +95,53 @@ def test_card_parser_date_time_rows_with_plus_for_credits():
     assert {t.amount.minor for t in purchases} == {19200, 150800}
     assert {t.amount.minor for t in credits} == {2500, 680200}
     assert purchases[0].txn_date.isoformat() == "2026-07-01"
+
+
+def test_an_emi_schedule_row_is_not_a_purchase():
+    """Real ICICI layout: the EMI table sits among the transactions and matched the row pattern."""
+    from statementlens.adapters.parsers.card_parser import CardStatementParser
+    text = ("Statement period 08/11/2025 to 07/12/2025\n"
+            "28/11/2025 12413112054 IBIBO GROUP PRIVATE LIM -227 11,357.00 CR\n"
+            "28/11/2025 28/01/2026 3 11,357.00 1 3,887.00\n"
+            "28/11/2025 12413112083 Principal Amount Amortization - <1/3>IBIBO 0 3,735.67\n")
+    rows = CardStatementParser().parse(text, account="ICICI ••3456", source_id="s",
+                                       source_name="x.pdf").transactions
+    assert [round(t.amount.minor / 100, 2) for t in rows] == [11357.0, 3735.67]
+
+
+def _rbl(extra_rows, credits, emi_out="0.00"):
+    return ("Statement Period 21-07-2026 to 20-08-2026\n"
+            f"- Payments & Credits {credits}\n- Transferred to EMI {emi_out}\n+ New Debits 0.00\n"
+            + "\n".join(extra_rows) + "\n")
+
+
+def test_rbl_credits_are_settled_from_the_printed_totals():
+    """Real RBL layout: no Cr flag on any row; the refund reads exactly like a purchase."""
+    from statementlens.adapters.parsers.card_parser import CardStatementParser
+    text = _rbl(["Card Number XX20 5 Jul 2026 PYU*MYNTRA DESIGNS PRI Bangalore IND 6,925.00",
+                 "Total Amount Due -6,335.10 21 Jul 2026 PAYMENT RECEIVED - BBPS 6,948.00",
+                 "Min. Amt. Due 0.00 20 Aug 2026 MEMBERSHIP FEE 500.00"], "13,873.00")
+    rows = CardStatementParser().parse(text, account="RBL ••7788", source_id="s",
+                                       source_name="x.pdf").transactions
+    got = {(round(t.amount.minor / 100), t.is_debit) for t in rows}
+    assert got == {(6925, False), (6948, False), (500, True)}
+
+
+def test_rbl_emi_transfer_is_a_credit():
+    from statementlens.adapters.parsers.card_parser import CardStatementParser
+    text = _rbl(["9 Feb 2026 AMAZON PAY INDIA Bangalore 10,843.22",
+                 "Total Amount Due PAY NOW 3,906.00 9 Feb 2026 TRANSFERRED TO EMI(MERCHANT EMI - 3 MON- 10,843.22"],
+                "0.00", emi_out="10,843.22")
+    rows = CardStatementParser().parse(text, account="RBL ••7788", source_id="s",
+                                       source_name="x.pdf").transactions
+    assert sorted((t.is_debit, round(t.amount.minor / 100, 2)) for t in rows) == \
+        [(False, 10843.22), (True, 10843.22)]
+
+
+def test_an_ambiguous_remainder_is_left_alone():
+    """Two rows could be the ₹500 credit: guessing one would be worse than the known gap."""
+    from statementlens.adapters.parsers.card_parser import CardStatementParser
+    text = _rbl(["5 Jul 2026 SWIGGY Bangalore 500.00", "6 Jul 2026 ZOMATO Gurgaon 500.00"], "500.00")
+    rows = CardStatementParser().parse(text, account="RBL ••7788", source_id="s",
+                                       source_name="x.pdf").transactions
+    assert all(t.is_debit for t in rows)

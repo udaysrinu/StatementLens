@@ -197,7 +197,10 @@ def test_statement_ingest_supersedes_stored_alerts_end_to_end():
                                   extractor=Passthrough(), parser_registry=Registry(),
                                   categorizer=Cat(), repository=repo).run(account="A", hints={})
         assert result.inserted == 1
-        assert result.superseded == 1                     # the 11 Jul pre-auth was cleared
+        # the ₹50 pre-auth has no ₹50 statement line, so nothing CONFIRMED it: it is set aside for
+        # the user to see rather than silently purged (reconcile, not replace)
+        assert result.superseded == 0
+        assert [u["minor"] for u in repo.unsettled("A")] == [5000]
         left = repo.all("A")
         assert sorted(t.amount.minor for t in left) == [70000, 150800]
         assert sum(t.amount.minor for t in left) == 220800   # no double count

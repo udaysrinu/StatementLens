@@ -303,22 +303,24 @@ def test_paise_are_dimmed_typographically_never_rounded_away():
     assert "function fmtH(" in page
     # it wraps the decimal tail in a span and returns the untouched fmt() output otherwise
     assert "s.lastIndexOf('.')" in page and 'class="ps"' in page
-    assert ".ps{opacity:" in page, "the paise span needs the dimming rule"
+    assert ".ps{color:color-mix(" in page, "the paise span needs its recessive (but legible) colour rule"
 
 
-def test_flow_hues_do_not_clobber_the_guilloche_texture():
-    """The bar hue must be background-COLOR, not the `background` shorthand.
+def test_flow_faces_keep_their_banknote_texture():
+    """Each flow's hue must be background-COLOR, and the weave a separate layer on top.
 
-    The shorthand resets background-image, which silently wiped out the banknote texture layered on by
-    .guil — the bars still rendered, just flat, so nothing failed loudly.
+    The old bars set the hue with the `background` shorthand, which resets background-image and wiped
+    the texture: the bars still rendered, just flat, so nothing failed loudly. The weave now lives in an
+    SVG pattern laid over the face, and the face colour must still never reach for the shorthand.
     """
     from statementlens.adapters.render.app_shell import AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
-    assert ".guil{background-image:" in page
     for flow in ("in", "inv", "out"):
-        assert f".fbi.{flow}{{background-color:" in page, \
-            f".fbi.{flow} must set background-color, not the background shorthand"
+        assert f".cff.{flow}{{background-color:" in page, \
+            f".cff.{flow} must set background-color, not the background shorthand"
+        assert f'<pattern id="wv-{flow}"' in page, f"the {flow} weave pattern is missing"
+    assert 'fill="url(#wv-${cls})"' in page, "each bar must lay its flow's weave over the face"
 
 
 def test_nothing_styled_clickable_is_actually_dead():
@@ -362,47 +364,33 @@ def test_nothing_styled_clickable_is_actually_dead():
     assert not dead, "styled clickable but no handler:\n  " + "\n  ".join(dead)
 
 
-def test_the_hero_is_a_pager_with_all_three_flows_present():
-    """The three flows are peers, so all three panes render at once and the hero swipes between them.
+def test_cash_flow_shows_all_three_flows_as_peers():
+    """Incoming, investments and spends are peers: all three drawn on one scale, each its own door.
 
-    Two things this pins. First, every pane is in the DOM — that is what makes the swipe feel instant,
-    since the number is already there rather than fetched on settle. Second, the scroller must re-park
-    itself on EVERY draw: innerHTML replaces it with a fresh node at scrollLeft 0, so a swipe-triggered
-    redraw left the pager showing pane 0 while the dots and the breakdown said pane 2.
+    What this replaced pinned a swipeable hero pager; the invariant underneath it survives the move to
+    CRED's tabs. Nothing may show only spends with the other two flows reachable by a hidden gesture —
+    "where is incoming?" must be answerable by looking. So every flow gets a bar AND a row on the cash
+    flow tab, each opening that flow's breakdown, and the four sections are a real tablist.
     """
-    import re
-
     from statementlens.adapters.render.app_shell import AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
-    # money in -> money out -> money kept, and all three are laid out, not just the active one
-    assert "const FLOWORDER=['in','out','inv']" in page
-    assert "FLOWORDER.map(f=>" in page, "every flow must render a pane"
-    assert "heroValueFor(R,f)" in page, "panes need their values read without mutating FLOW"
+    cash = page[page.index("function cashflowV("):page.index("function cardFlowCard(")]
+    for k, label in (("in", "incoming"), ("inv", "investments"), ("out", "spends")):
+        assert f"bar('{k}','{label}'" in cash, f"the {label} bar must be drawn"
+        assert f"frow('{k}'" in cash, f"the {label} row must be listed"
+    assert "setFlow('${k}')" in cash, "bars and rows must open their flow's breakdown"
+    assert "const FLOWORDER=['in','inv','out']" in page
 
-    # native scroll-snap, not a hand-rolled gesture handler
-    css = re.search(r"\.hpager\{([^}]*)\}", page)
-    assert css and "scroll-snap-type:x mandatory" in css.group(1)
-    pane = re.search(r"\.hpane\{([^}]*)\}", page)
-    assert pane and "scroll-snap-align:start" in pane.group(1)
-    assert "flex:0 0 100%" in pane.group(1), "a pane must be exactly one viewport wide, or snap drifts"
+    # a card is charged and paid off; the bank wording would describe the wrong thing
+    assert "function tabLabel(" in page and "'charged'" in page and "'paid off'" in page
 
-    # the re-park is unconditional — a guard here is the desync bug
-    assert re.search(r"syncPager\(\);", page), "draw() must re-park the pager"
-    assert "keepPager" not in page, "skipping the re-park desyncs the pager from the dots"
-
-    # The tabs must be NAMED, not anonymous dots. Position-only indicators left "where is incoming?"
-    # unanswerable on the page: nothing said the other two flows existed.
-    assert "setFlow('${f}')" in page and 'class="hdot' in page
-    assert "function tabLabel(" in page, "tabs must carry a readable name per flow"
-    assert "'money in'" in page and "'money out'" in page
-    assert "'charged'" in page, "a card is charged, not 'money out'"
-    # a real tablist, so the relationship is exposed to assistive tech too
-    assert 'role="tablist"' in page and 'role="tab"' in page and 'role="tabpanel"' in page
-    assert 'aria-selected="${FLOW===f}"' in page
-    # and the labels sit ABOVE the figure: read what it is, then the amount
-    assert page.index('class="hdots"') < page.index('class="hpager"')
+    # CRED's four sections, exposed as a real tablist
+    for key in ("'accounts'", "'txns'", "'recurring'", "'cashflow'"):
+        assert key in page[page.index("const MAIN="):page.index("function totalBalance(")]
+    assert 'role="tablist"' in page and 'role="tab"' in page
+    assert 'aria-selected="${TAB===k}"' in page
 
 
 def test_interactive_controls_declare_a_touch_target():
@@ -427,7 +415,8 @@ def test_interactive_controls_declare_a_touch_target():
     required = {".st a": 44, ".achip": 44, ".fresh button": 44, ".pchip": 36, ".back": 44}
     missing = []
     for selector, floor in required.items():
-        block = re.search(re.escape(selector) + r"\{([^}]*)\}", page)
+        # anchored to a rule's start: ".pane.root .back{display:none}" must not stand in for ".back{...}"
+        block = re.search(r"(?m)(?:^|\})" + re.escape(selector) + r"\{([^}]*)\}", page)
         if block is None:
             missing.append(f"{selector}: rule not found")
             continue
@@ -510,9 +499,13 @@ def test_redrawing_the_same_screen_neither_reanimates_nor_drops_the_caret():
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
     # animations are suppressed while re-rendering the SAME screen, and only then
-    assert "const fresh=(TAB!==LASTVIEW)" in page, "must distinguish a new screen from a value change"
+    # a SCREEN is the tab plus any drilled-in detail; a value change on the same one must not re-animate
+    assert "const fresh=(KEY!==LASTVIEW)" in page, "must distinguish a new screen from a value change"
+    assert "const KEY=" in page and "TAB" in page[page.index("const KEY="):page.index("const KEY=") + 60]
     assert "v.classList.toggle('nofx',!fresh)" in page
-    assert ".nofx .rise" in page and "animation:none!important" in page
+    # the one entrance (the cash-flow bars growing) is what .nofx holds still on a same-screen redraw
+    assert ".nofx .cff" in page and "animation:none!important" in page
+    assert "countUp" not in page, "a hero that counts up disagrees with the pill while it runs"
 
     # focus and selection are carried across the rebuild
     assert "document.activeElement" in page and "setSelectionRange" in page

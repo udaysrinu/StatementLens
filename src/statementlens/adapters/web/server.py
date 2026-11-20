@@ -102,12 +102,14 @@ class _Handler(BaseHTTPRequestHandler):
             if self.app.stats().get("transactions", 0) == 0:
                 return self._send(200, self._onboarding().encode("utf-8"),
                                   "text/html; charset=utf-8")
+            getattr(self.app, "refresh_live", lambda: None)()     # live SMS, when opted in
             html = AppShellRenderer().render(self.app.dataset(self.account))
             return self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/setup":
             return self._send(200, self._onboarding().encode("utf-8"),
                               "text/html; charset=utf-8")
         if route == "/api/dataset":
+            getattr(self.app, "refresh_live", lambda: None)()
             return self._json(self.app.dataset(self.account))
         if route == "/api/similar":
             ref = parse_qs(urlparse(self.path).query).get("ref", [""])[0]

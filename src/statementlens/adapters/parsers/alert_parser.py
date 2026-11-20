@@ -85,7 +85,8 @@ _HDFC_TXN_AT = re.compile(
 #   "Your A/C XXXXX000000 has credit for C0000000000000000000000 of Rs 460.00 on 13/07/26"
 _SBI_HAS_FOR = re.compile(
     r"your\s+A/?C\s*(?P<acct>X*\d{3,})\s+has\s+(?P<dir>credit|debit)\s+for\s+"
-    r"(?P<merchant>\S+)\s+of\s+" + _AMOUNT +
+    # the narration may be one token or several ("ITDTAX REFUND 2025-26 LACPS1234"); stop at " of Rs"
+    r"(?P<merchant>.{1,60}?)\s+of\s+" + _AMOUNT +
     r"\s+on\s+(?P<d>\d{1,2})[/-](?P<m>\d{1,2})[/-](?P<y>\d{2,4})",
     re.IGNORECASE | re.DOTALL)
 
@@ -93,7 +94,8 @@ _SBI_HAS_FOR = re.compile(
 #   "Your A/C XXXXX000000 has a debit by NACH of Rs 10,000.00 on 10/07/26"
 _SBI_HAS_BY = re.compile(
     r"your\s+A/?C\s*(?P<acct>X*\d{3,})\s+has\s+a?\s*(?P<dir>credit|debit)\s+by\s+"
-    r"(?P<merchant>[A-Za-z ]{2,20}?)\s+of\s+" + _AMOUNT +
+    # "by NACH of Rs" and "by NACH- SAMPLE INDUSTRIES of Rs" (a dividend names the payer)
+    r"(?P<merchant>[A-Za-z0-9 .&/-]{2,40}?)\s+of\s+" + _AMOUNT +
     r"\s+on\s+(?P<d>\d{1,2})[/-](?P<m>\d{1,2})[/-](?P<y>\d{2,4})",
     re.IGNORECASE | re.DOTALL)
 
@@ -101,6 +103,37 @@ _SBI_HAS_BY = re.compile(
 #   "Transaction Status Successful Amount Rs.97,000.00 Transaction Number 000000000000
 #    Date of Transaction 03.08.26 Debit account x0000 Beneficiary Name SOME PERSON"
 # Requires "Successful" so a failed transfer receipt is not booked.
+#: SBI's UPI SMS: "Dear UPI user A/C X1234 debited by 20.00 on date 15Nov26 trf to SAMPLE CAFE HOUS
+#: Refno 111122223333 If not u? call-...". The date is run together (15Nov26) and the payee is cut at 16.
+_SBI_UPI_SMS = re.compile(
+    r"A/C\s*X*(?P<acct>\d{3,})\s+(?P<dir>debited|credited)\s+by\s+(?:Rs\.?\s*|INR\s*)?(?P<amt>[\d,]+(?:\.\d{1,2})?)"
+    r"\s+on\s+date\s+(?P<d>\d{1,2})(?P<m>[A-Za-z]{3})(?P<y>\d{2})"
+    r"\s+(?:trf\s+to|trf\s+from|by|from)\s+(?P<merchant>.+?)\s+Ref\s*no\s*(?P<ref>\d{6,})",
+    re.IGNORECASE)
+
+#: SBI's UPI reversal SMS: "ur A/cX1234 credited with Rs190 on 09Oct26 against reversal of txn
+#: (Ref no 444455556666)". It carries the ORIGINAL payment's reference, so reconciliation pairs the two.
+_SBI_UPI_REVERSAL = re.compile(
+    r"A/c\s*X*(?P<acct>\d{3,})\s+(?P<dir>credited)\s+with\s+(?:Rs\.?|INR)\s*(?P<amt>[\d,]+(?:\.\d{1,2})?)"
+    r"\s+on\s+(?P<d>\d{1,2})(?P<m>[A-Za-z]{3})(?P<y>\d{2})\s+against\s+(?P<merchant>reversal)\s+of\s+txn"
+    r".{0,10}?Ref\s*no\s*(?P<ref>\d{6,})",
+    re.IGNORECASE)
+
+#: ICICI card SMS: "Rs 8,970.00 spent on ICICI Bank Card XX9012 on 16-Nov-26 at CITY CLINIC . Avl Lmt:
+#: Rs ..". The merchant comes AFTER the date, which the generic spent-on pattern does not expect.
+_ICICI_CARD_SMS = re.compile(
+    r"(?:Rs\.?|INR)\s*(?P<amt>[\d,]+(?:\.\d{1,2})?)\s+spent\s+on\s+.{0,30}?Card\s+(?P<acct>X*\d{4})"
+    r"\s+on\s+(?P<d>\d{1,2})-(?P<m>[A-Za-z]{3})-(?P<y>\d{2,4})\s+at\s+(?P<merchant>[^.]{1,40}?)\s*\.\s*Avl",
+    re.IGNORECASE)
+
+#: ICICI card email: "Your ICICI Bank Credit Card XX3456 has been used for a transaction of INR 1230.00
+#: on Nov 18, 2026 at 11:47:33. Info: AmazonSellerServices." Always a debit; month-name-first date.
+_ICICI_CARD = re.compile(
+    r"Credit\s+Card\s+(?P<acct>X*\d{4})\s+has\s+been\s+used\s+for\s+a\s+transaction\s+of\s+"
+    r"(?:INR|Rs\.?)\s*(?P<amt>[\d,]+(?:\.\d{1,2})?)\s+on\s+(?P<m>[A-Za-z]{3})\s+(?P<d>\d{1,2}),\s*(?P<y>\d{4})"
+    r".{0,40}?Info:\s*(?P<merchant>[^.]{1,60})",
+    re.IGNORECASE | re.DOTALL)
+
 _YONO_TRANSFER = re.compile(
     r"transaction\s+status\s+successful\s+amount\s+" + _AMOUNT +
     r".{0,80}?date\s+of\s+transaction\s+(?P<d>\d{1,2})[.\-/](?P<m>\d{1,2})[.\-/](?P<y>\d{2,4})"
@@ -177,6 +210,9 @@ class AlertTxn:
     account_hint: str
     provisional: bool = True
     source: str = ""          # which pattern matched, for debugging
+    #: the bank's own reference (UPI Refno). The monthly statement prints the same number, so it is
+    #: the exact key that reconciles a live row against the settled one.
+    ref: str = ""
 
 
 def _minor(raw: str) -> int:
@@ -256,6 +292,23 @@ def _first_real_match(rx: "re.Pattern[str]", body: str):
     return None
 
 
+#: When no pattern named the counterparty: "...towards NEFT with UTR SBIN.. sent to Some Payee
+#: BARB0ABCDEF-SBI" and "...by a/c linked to mobile 9XXXXXX123-SAMPLEBROKR (IMPS Ref# ..)".
+_PAYEE = (re.compile(r"\bsent\s+to\s+(?P<p>[A-Za-z][A-Za-z .&]{2,40}?)(?=\s+[A-Z]{4}0[A-Z0-9]{6}|\s*[-.(]|$)"),
+          re.compile(r"linked\s+to\s+mobile\s+\S+?-(?P<p>[A-Za-z][A-Za-z .&]{1,30}?)\s*\("))
+_CHANNEL = re.compile(r"\b(NEFT|RTGS|IMPS|UPI|NACH|ECS|ATM|POS)\b", re.IGNORECASE)
+
+
+def _fallback_payee(body: str) -> str:
+    """A readable name for an alert whose pattern captured no merchant: the payee, else the channel."""
+    for rx in _PAYEE:
+        m = rx.search(body)
+        if m:
+            return m.group("p").strip()
+    m = _CHANNEL.search(body)
+    return f"{m.group(1).upper()} transfer" if m else ""
+
+
 def parse_alert(text: str, *, subject: str = "") -> Optional[AlertTxn]:
     """Extract one transaction from an alert email, or None if it isn't one.
 
@@ -271,7 +324,9 @@ def parse_alert(text: str, *, subject: str = "") -> Optional[AlertTxn]:
     if _QUALIFIED_OUT.search(f"{subject} {_amount_context(body)}"):
         return None
 
-    for name, rx in (("hdfc", _HDFC), ("hdfc_at", _HDFC_TXN_AT),
+    for name, rx in (("sbi_upi_sms", _SBI_UPI_SMS), ("sbi_upi_reversal", _SBI_UPI_REVERSAL),
+                     ("icici_card", _ICICI_CARD), ("icici_card_sms", _ICICI_CARD_SMS),
+                     ("hdfc", _HDFC), ("hdfc_at", _HDFC_TXN_AT),
                      ("sbi", _SBI), ("sbi_for", _SBI_HAS_FOR), ("sbi_by", _SBI_HAS_BY),
                      ("yono", _YONO_TRANSFER), ("spent_on", _SPENT_ON), ("generic", _GENERIC),
                      ("any_bank", _ANY_BANK)):
@@ -286,7 +341,7 @@ def parse_alert(text: str, *, subject: str = "") -> Optional[AlertTxn]:
         # Some formats carry no direction word: a card purchase and an outgoing fund transfer are
         # both always debits. The bank-agnostic pattern may capture the word in either of two spots.
         word = (g.get("dir") or g.get("dir2") or "")
-        if name in ("hdfc_at", "yono", "spent_on"):
+        if name in ("hdfc_at", "yono", "spent_on", "icici_card", "icici_card_sms"):
             direction = Direction.DEBIT
         elif _SPENT_WORDING.search(body):
             # "was spent on" / "charged to" states the direction in plain words; trust it over a
@@ -302,7 +357,8 @@ def parse_alert(text: str, *, subject: str = "") -> Optional[AlertTxn]:
             amount_minor=amount,
             direction=direction,
             txn_date=when,
-            merchant=_clean_merchant(g.get("merchant")),
-            account_hint=(g.get("last4") or g.get("acct") or "").strip()[-4:],
-            source=name)
+            merchant=_clean_merchant(g.get("merchant")) or _fallback_payee(body),
+            # digits only: RBL prints the card as "(...1220)", which leaked a ")" into the hint
+            account_hint=re.sub(r"\D", "", g.get("last4") or g.get("acct") or "")[-4:],
+            source=name, ref=g.get("ref") or "")
     return None

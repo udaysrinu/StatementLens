@@ -47,11 +47,13 @@ _BANK_SENDERS = (
     # split form lost every one before it. Verified by match count against the live mailbox.
     "icicibank", "hdfcbank", "axisbank", "rblbank", "yesbank", "idfcfirstbank", "aubank",
     # card-only and non-bank issuers
-    "sbicard", "onecard", "amex", "citibank", "hsbc", "scapia", "federal", "federalbank")
+    "sbicard", "onecard", "amex", "citibank", "hsbc", "scapia", "federal", "federalbank",
+    # loan and deposit documents (stored as positions, not transactions)
+    "bankofbaroda", "suryoday", "suryodaybank")
 
 DEFAULT_QUERY = (
     'has:attachment filename:pdf newer_than:5y '
-    'subject:(statement OR "e-statement" OR "account statement" OR "credit card" OR bill) '
+    'subject:(statement OR "e-statement" OR "account statement" OR "credit card" OR bill OR "fixed deposit") '
     'from:(' + ' OR '.join(_BANK_SENDERS) + ')')
 
 

@@ -8,13 +8,14 @@ No I/O — the app wires a repository + categorizer + this builder together.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..domain.models import Direction, Transaction
 from . import flows as flow_engine
 from . import insights as insight_engine
 from . import tagging as tag_engine
 from .similar import merchant_key
+from ..adapters.categorize import upi
 
 
 def _median(xs: List[int]) -> int:
@@ -33,12 +34,34 @@ _FLOW_CODE = {
 }
 
 
+def net_group(t: Transaction, names: Optional[Iterable[str]]) -> Optional[Tuple[str, str]]:
+    """(key, display) when this row's payee is one of `names`, else None.
+
+    Matched against the payee NAME field and the merchant only, never the whole narration — the
+    holder's own name also sits in remarks and payer fields, which would sweep in unrelated rows.
+    Prefix comparison, because banks cut names at about 8 characters ("SHARMA", "Sharma").
+    """
+    if not names:
+        return None
+    cands = [c.strip().lower() for c in (upi.payee_name(t.description), t.merchant or "") if c]
+    for raw in names:
+        tok = (raw or "").strip().lower()
+        if len(tok) < 4:
+            continue
+        for c in cands:
+            k = min(len(tok), len(c), 8)
+            if k >= 4 and c[:k] == tok[:k]:
+                return tok, f"{raw.strip().title()} (all)"
+    return None
+
+
 def build_dataset(txns: List[Transaction], *, account: str = "Account",
                   currency: str = "INR", own_names: List[str] = None,
                   tags: "tag_engine.TagStore" = None,
                   sync: Dict[str, Any] = None,
                   splits: Dict[str, Dict[str, Any]] = None,
-                  accounts: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+                  accounts: List[Dict[str, Any]] = None,
+                  net_with: List[str] = None) -> Dict[str, Any]:
     """Transaction list -> embeddable dataset for the app-shell renderer.
 
     `own_names` enables self-transfer exclusion: money moved between the owner's own accounts is
@@ -96,8 +119,11 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
             # ledger still reconciles against the statement; `mine` is the annotation on top.
             **({"mine": splits[t.source_ref]["mine"],
                 "with": splits[t.source_ref]["with_whom"]} if t.source_ref in splits else {}),
-            # counterparty identity, for person-level netting without re-deriving the key in JS
-            **({"cp": _key} if (_key := merchant_key(t)) and len(_key) >= 3 else {}),
+            # counterparty identity, for person-level netting without re-deriving the key in JS.
+            # A name the user asked to net as ONE party (a family surname) wins over the per-payee
+            # key, which deliberately keeps relatives with their own UPI handles apart.
+            **({"cp": _grp[0], "cpn": _grp[1]} if (_grp := net_group(t, net_with))
+               else {"cp": _key} if (_key := merchant_key(t)) and len(_key) >= 3 else {}),
         })
 
     # insight cards (crown jewel)
@@ -142,7 +168,8 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
         "bill_cycles": ([c.as_dict() for c in flow_engine.bill_cycles(txns)] if is_card else []),
         "flow": {
             "incoming": flow.incoming,
-            "investments": flow.investments,
+            "investments": flow.investments,          # net of redemptions
+            "redeemed": flow.redeemed,
             "spends": flow.spends,
             "net": flow.net,
             "self_transfers": flow.self_transfers,
@@ -157,7 +184,10 @@ def build_dataset(txns: List[Transaction], *, account: str = "Account",
         "monthly": flow_engine.monthly_series(txns, own_names, months=12),
         # cancelled pairs and two-way counterparties, for the "net" toggles
         "reversals": [r.as_dict() for r in find_reversals(txns)],
-        "person_nets": [p.as_dict() for p in _person_nets(txns)],
+        # the SAME counterparty identity the rows carry, or this summary and the netting screen
+        # describe different people under one name
+        "person_nets": [p.as_dict() for p in _person_nets(
+            txns, key=lambda t: (net_group(t, net_with) or (merchant_key(t), None)))],
         "recurring": flow_engine.recurring_payments(txns, own_names),
         # Same predicate as the cash flow: group_by_tag only drops rows literally tagged
         # "self transfer", while classify_flow also routes card-bill payments and own-name matches

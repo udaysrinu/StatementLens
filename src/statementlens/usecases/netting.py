@@ -190,21 +190,26 @@ def reversed_refs(txns: Iterable[Transaction], *,
     return refs, sum(r.amount for r in revs)
 
 
-def person_nets(txns: Iterable[Transaction], *, min_offset: int = 0) -> List[PersonNet]:
+def person_nets(txns: Iterable[Transaction], *, min_offset: int = 0,
+                key=None) -> List[PersonNet]:
     """Counterparties money moved BOTH ways with, ranked by how much cancels out.
 
     Only two-way counterparties are returned: a payee you have only ever paid has nothing to net, so
     listing it would bury the handful of rows where netting actually changes the answer.
     """
+    # `key` lets the caller apply the same counterparty identity the dashboard rows carry (a family
+    # surname netted as one party). Without it this summary and the netting screen disagreed — by
+    # ₹70,100 on the real store for the largest counterparty.
+    key_of = key or (lambda t: (merchant_key(t), None))
     acc: Dict[str, PersonNet] = {}
     for t in txns:
-        key = merchant_key(t)
+        key, shown = key_of(t)
         if not key or len(key) < 3:
             continue
         p = acc.get(key)
         if p is None:
             p = acc[key] = PersonNet(counterparty=key,
-                                     display=(t.merchant or t.description or key).strip())
+                                     display=shown or (t.merchant or t.description or key).strip())
         if t.is_debit:
             p.paid += t.amount.minor
             p.n_paid += 1

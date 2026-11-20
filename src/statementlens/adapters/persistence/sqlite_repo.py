@@ -9,6 +9,7 @@ double-stores. Reconstructs domain Transactions on read.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import sqlite3
 import threading
@@ -83,6 +84,20 @@ class SqliteTransactionRepository:
         CREATE TABLE IF NOT EXISTS txn_split(
             content_hash TEXT PRIMARY KEY, mine_minor INTEGER NOT NULL,
             with_whom TEXT DEFAULT '', created_at TEXT DEFAULT '');
+
+        -- Loans and deposits are POSITIONS (what is owed or held, as of a date), not transactions:
+        -- every EMI and the FD's funding are already debits on the bank account they left, so these
+        -- never enter txns. One row per document; the newest as_of per label is the live position.
+        -- Live rows (SMS / alert email) that a statement covering their date did NOT confirm: a UPI
+        -- that failed or was reversed, or an authorisation that never settled. Kept OUT of txns so no
+        -- total counts them, and listed so the user can check each one.
+        CREATE TABLE IF NOT EXISTS unsettled(
+            content_hash TEXT PRIMARY KEY, account TEXT NOT NULL, iso_date TEXT, minor INTEGER,
+            direction TEXT, description TEXT, noticed_on TEXT);
+
+        CREATE TABLE IF NOT EXISTS positions(
+            label TEXT NOT NULL, as_of TEXT NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL,
+            PRIMARY KEY(label, as_of));
         """)
         self._migrate()
         self._conn.commit()
@@ -120,6 +135,17 @@ class SqliteTransactionRepository:
             "SELECT 1 FROM statements WHERE source_name=? LIMIT 1",
             (statement.source_name,)).fetchone()
         return row is not None
+
+    def movement_counts(self, account: str) -> "Counter":
+        """How many settled rows the store holds per (date, amount, direction) for this account.
+
+        The identity of a movement of money, independent of how a PDF's text came out. Provisional
+        alert rows are excluded — they are superseded by statements separately.
+        """
+        from collections import Counter
+        return Counter(self._conn.execute(
+            "SELECT iso_date, minor, direction FROM txns WHERE account=? AND provisional=0",
+            (account,)).fetchall())
 
     def save_statement(self, statement: Statement) -> Dict[str, int]:
         cur = self._conn.execute(
@@ -186,6 +212,65 @@ class SqliteTransactionRepository:
             removed += cur.rowcount or 0
         self._conn.commit()
         return removed
+
+    def reconcile_provisional(self, account: str, ranges) -> Dict[str, int]:
+        """Pair every live row inside statement-covered windows with the statement line it became.
+
+        A pair has the same amount and direction, and either the bank's reference (UPI Refno, kept in
+        the live row's description as "Ref <n>") appears in the settled narration, or the dates are
+        within 2 days. Each settled line pairs at most once, so two identical ₹20 coffees need two
+        lines. Paired live rows are deleted: the statement is the record. Unpaired ones never settled
+        and move to `unsettled`, out of every total.
+        """
+        import re
+        from datetime import timedelta
+        matched = moved = 0
+        for start, end in ranges:
+            live = self._conn.execute(
+                "SELECT id, iso_date, minor, direction, description, content_hash FROM txns"
+                " WHERE account=? AND provisional=1 AND iso_date BETWEEN ? AND ?",
+                (account, start.isoformat(), end.isoformat())).fetchall()
+            if not live:
+                continue
+            # settled lines may post a day or two after the SMS, so look slightly past the window
+            settled = self._conn.execute(
+                "SELECT id, iso_date, minor, direction, description FROM txns"
+                " WHERE account=? AND provisional=0 AND iso_date BETWEEN ? AND ?",
+                (account, (start - timedelta(days=3)).isoformat(),
+                 (end + timedelta(days=3)).isoformat())).fetchall()
+            used = set()
+            for lid, iso, minor, dirn, desc, chash in live:
+                m = re.search(r"\bRef (\d{6,})", desc or "")
+                ref = m.group(1) if m else None
+                cands = [x for x in settled if x[0] not in used and x[2] == minor and x[3] == dirn]
+                gap = lambda x: abs((date.fromisoformat(x[1]) - date.fromisoformat(iso)).days)
+                hit = (next((x for x in cands if ref and ref in (x[4] or "")), None)
+                       or next((x for x in sorted(cands, key=gap) if gap(x) <= 2), None))
+                if hit:
+                    used.add(hit[0]); matched += 1
+                else:
+                    self._conn.execute(
+                        "INSERT OR IGNORE INTO unsettled VALUES(?,?,?,?,?,?,?)",
+                        (chash, account, iso, minor, dirn, desc, end.isoformat())); moved += 1
+                self._conn.execute("DELETE FROM txns WHERE id=?", (lid,))
+        self._conn.commit()
+        return {"matched": matched, "unsettled": moved}
+
+    def clear_provisional_since(self, account: str, iso: str) -> int:
+        """Drop this account's live rows dated `iso` or later, so a re-read REBUILDS them rather than
+        adding renamed copies beside the old ones (a parser fix changes the description, hence the hash)."""
+        n = self._conn.execute("DELETE FROM txns WHERE account=? AND provisional=1 AND iso_date >= ?",
+                               (account, iso)).rowcount or 0
+        self._conn.commit()
+        return n
+
+    def unsettled(self, account: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Live payments no statement confirmed, newest first."""
+        q = "SELECT account, iso_date, minor, direction, description FROM unsettled"
+        rows = self._conn.execute(q + (" WHERE account=?" if account else "") + " ORDER BY iso_date DESC",
+                                  (account,) if account else ()).fetchall()
+        return [{"account": a, "date": d, "minor": m, "direction": r, "description": t}
+                for a, d, m, r, t in rows]
 
     # -- tag corrections + notes -------------------------------------------
     def load_tags(self):
@@ -366,6 +451,19 @@ class SqliteTransactionRepository:
             "SELECT MIN(iso_date),MAX(iso_date) FROM txns WHERE iso_date IS NOT NULL").fetchone()
         return {"statements": s, "transactions": n, "date_min": span[0], "date_max": span[1]}
 
+    def save_position(self, snap: Dict[str, Any]) -> None:
+        """Store one loan/deposit snapshot; re-reading the same document replaces it, never duplicates."""
+        self._conn.execute("INSERT OR REPLACE INTO positions(label, as_of, kind, data) VALUES(?,?,?,?)",
+                           (snap["label"], snap["as_of"], snap["kind"], json.dumps(snap)))
+        self._conn.commit()
+
+    def positions(self) -> List[Dict[str, Any]]:
+        """The newest snapshot of every loan and deposit — loans first, then by label."""
+        rows = self._conn.execute(
+            "SELECT p.data FROM positions p JOIN (SELECT label, MAX(as_of) m FROM positions GROUP BY label) l"
+            " ON p.label=l.label AND p.as_of=l.m ORDER BY p.kind DESC, p.label").fetchall()
+        return [json.loads(r[0]) for r in rows]
+
     def accounts(self) -> List[Dict[str, Any]]:
         """Every account in the store, busiest first — what the dashboard's switcher is built from.
 
@@ -384,6 +482,14 @@ class SqliteTransactionRepository:
         out = []
         for a, n, lo, hi in rows:
             settled = [t for t in self.all(a) if not t.provisional]
+            # The newest printed running balance, for the accounts list. Cards print none (their
+            # statements carry dues, not a ledger balance), so they report None rather than a guess.
+            bal = self._conn.execute(
+                "SELECT balance_minor, iso_date FROM txns WHERE account=? AND provisional=0"
+                " AND balance_minor IS NOT NULL ORDER BY iso_date DESC, id DESC LIMIT 1",
+                (a,)).fetchone()
             out.append({"account": a, "count": n, "date_min": lo, "date_max": hi,
-                        "is_card": looks_like_card(settled, a)})
+                        "is_card": looks_like_card(settled, a),
+                        "balance": bal[0] if bal else None,
+                        "balance_on": bal[1] if bal else None})
         return out

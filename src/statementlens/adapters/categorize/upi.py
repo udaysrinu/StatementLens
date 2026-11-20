@@ -62,12 +62,35 @@ def parse_upi(description: str) -> Optional[UpiParts]:
     if not description or not _UPI_PREFIX.match(description.strip()):
         return None
     f: List[str] = [p.strip() for p in description.strip().split("/")]
+    # IMPS/NEFT/RTGS print no CR/DR segment: `IMPS/<ref>/IBKL-xx802-Payee/<remark>`. Read with the UPI
+    # layout every field shifted by one, so the REMARK became the payee — "Loan Rep" and "Rent" were
+    # treated as counterparties and one person's transfers split across several keys. UPI itself is
+    # left alone: its direction-less lines (`UPI/<ref>/05022023`) carry no payee, and shifting them
+    # would turn a date into one.
+    if (len(f) > 1 and f[0].upper() in ("IMPS", "NEFT", "RTGS")
+            and f[1].upper() not in ("CR", "DR") and f[1].isdigit()):
+        # channel, ref, payee, then the remark — which must land in `note`, the field the categorizer
+        # searches, or keywords like "Rent" would silently stop categorizing these rows
+        f = [f[0], "", f[1], f[2] if len(f) > 2 else "", "", "", "/".join(f[3:])]
     # pad so field access is uniform regardless of how many segments the bank printed
     f += [""] * (7 - len(f)) if len(f) < 7 else []
     return UpiParts(channel=f[0], direction=f[1] if len(f) > 1 else "",
                     ref=f[2] if len(f) > 2 else "", payee_name=f[3] if len(f) > 3 else "",
                     payee_bank=f[4] if len(f) > 4 else "", vpa=f[5] if len(f) > 5 else "",
                     note=f[6] if len(f) > 6 else "")
+
+
+def payee_name(description: str) -> str:
+    """The payee NAME field, a bank-transfer handle reduced to its name. "" when there is none.
+
+    Unlike `counterparty`, never substitutes the VPA: grouping by a person's NAME is the point when
+    several relatives share one surname but each pays from their own UPI handle.
+    """
+    parts = parse_upi(description)
+    if not parts:
+        return ""
+    m = _BANK_HANDLE.match(parts.payee_name)
+    return (m.group("name") if m else parts.payee_name).strip()
 
 
 def counterparty(description: str, merchant: str = "") -> str:

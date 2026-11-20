@@ -1,0 +1,23 @@
+name: tests
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      # node runs the dashboard's shipped JavaScript for the browser/server parity checks
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -e ".[dev]"
+      # The real-store consistency tests are no-ops here (no store in CI) and run on the owner's
+      # machine via `python3 tests/run.py`; everything else runs on synthetic data.
+      - run: pytest -q

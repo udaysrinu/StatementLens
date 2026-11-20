@@ -1,0 +1,1312 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T11:40:36+00:00",
+  "title": "Design System: StatementLens",
+  "extensions": {
+    "colorMeta": {
+      "page": {
+        "role": "neutral",
+        "displayName": "Desk Grey",
+        "canonical": "#e7e7e5",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222221",
+          "#3b3b39",
+          "#555554",
+          "#747473",
+          "#989897",
+          "#c4c4c3",
+          "#eeeeee"
+        ]
+      },
+      "band": {
+        "role": "neutral",
+        "displayName": "Cool Band Grey",
+        "canonical": "#efefee",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222221",
+          "#3a3a3a",
+          "#555554",
+          "#747474",
+          "#989897",
+          "#c4c4c3",
+          "#eeeeee"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Sheet White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "s2": {
+        "role": "neutral",
+        "displayName": "Wash",
+        "canonical": "#f5f5f4",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222221",
+          "#3a3a3a",
+          "#555554",
+          "#747474",
+          "#989897",
+          "#c4c4c3",
+          "#eeeeee"
+        ]
+      },
+      "ink": {
+        "role": "primary",
+        "displayName": "NeoPOP Ink",
+        "canonical": "#0f0f0f",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "ink2": {
+        "role": "neutral",
+        "displayName": "Ink 2",
+        "canonical": "#555555",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "ink3": {
+        "role": "neutral",
+        "displayName": "Ink 3",
+        "canonical": "#6b6b6b",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e7e7e7",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "line2": {
+        "role": "neutral",
+        "displayName": "Hairline 2",
+        "canonical": "#cfcfcf",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "edge": {
+        "role": "neutral",
+        "displayName": "Disc Edge",
+        "canonical": "#2b2b2b",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "sel": {
+        "role": "neutral",
+        "displayName": "Selection Wash",
+        "canonical": "rgba(15,15,15,.05)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "np": {
+        "role": "primary",
+        "displayName": "NeoPOP Face",
+        "canonical": "#0f0f0f",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "onnp": {
+        "role": "primary",
+        "displayName": "On NeoPOP",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "npr": {
+        "role": "primary",
+        "displayName": "NeoPOP Right Face",
+        "canonical": "#6f6f6f",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "npb": {
+        "role": "primary",
+        "displayName": "NeoPOP Bottom Face",
+        "canonical": "#3b3b3b",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "up": {
+        "role": "signal",
+        "displayName": "Ledger Green",
+        "canonical": "#077f47",
+        "tonalRamp": [
+          "#001004",
+          "#002c0e",
+          "#004a1f",
+          "#006834",
+          "#1e8a51",
+          "#54ae77",
+          "#95d6ab",
+          "#d9f7e2"
+        ]
+      },
+      "down": {
+        "role": "signal",
+        "displayName": "Debit Red",
+        "canonical": "#c2352d",
+        "tonalRamp": [
+          "#1e0101",
+          "#4a0000",
+          "#750000",
+          "#9f1413",
+          "#c83b32",
+          "#ed695c",
+          "#ffa497",
+          "#ffe0d9"
+        ]
+      },
+      "link": {
+        "role": "signal",
+        "displayName": "Account Blue",
+        "canonical": "#1f47d4",
+        "tonalRamp": [
+          "#010629",
+          "#041361",
+          "#0d2797",
+          "#1c42c7",
+          "#3564f3",
+          "#5b8eff",
+          "#95c1ff",
+          "#d7eeff"
+        ]
+      },
+      "gold": {
+        "role": "tertiary",
+        "displayName": "Ledger Gold",
+        "canonical": "#8a5f0f",
+        "tonalRamp": [
+          "#130900",
+          "#331c00",
+          "#533300",
+          "#744c00",
+          "#976b21",
+          "#ba9050",
+          "#dfbe90",
+          "#fcecd6"
+        ]
+      },
+      "goldbg": {
+        "role": "tertiary",
+        "displayName": "Gold Cream",
+        "canonical": "#fcf8ee",
+        "tonalRamp": [
+          "#0c0b09",
+          "#23211d",
+          "#3d3a34",
+          "#58554d",
+          "#78746b",
+          "#9b988f",
+          "#c6c4bd",
+          "#f0eeeb"
+        ]
+      },
+      "goldline": {
+        "role": "tertiary",
+        "displayName": "Gold Rule",
+        "canonical": "#e8d6a4",
+        "tonalRamp": [
+          "#0f0b02",
+          "#292107",
+          "#463914",
+          "#635428",
+          "#847344",
+          "#a7976b",
+          "#d0c3a2",
+          "#f4eede"
+        ]
+      },
+      "ongold": {
+        "role": "tertiary",
+        "displayName": "On Gold",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "ray": {
+        "role": "tertiary",
+        "displayName": "Sunburst Ray",
+        "canonical": "rgba(154,118,52,.22)",
+        "tonalRamp": [
+          "#120900",
+          "#301e00",
+          "#503500",
+          "#6f4f05",
+          "#916e2b",
+          "#b59257",
+          "#dbc094",
+          "#faedd8"
+        ]
+      },
+      "sunbg": {
+        "role": "tertiary",
+        "displayName": "Sun Ground",
+        "canonical": "#f1ece3",
+        "tonalRamp": [
+          "#0c0b09",
+          "#24211d",
+          "#3d3a34",
+          "#59554e",
+          "#78746c",
+          "#9c9890",
+          "#c7c4be",
+          "#f0eeeb"
+        ]
+      },
+      "inF": {
+        "role": "secondary",
+        "displayName": "Incoming Cobalt Face",
+        "canonical": "#aac3f6",
+        "tonalRamp": [
+          "#060b16",
+          "#162139",
+          "#293a5c",
+          "#40547f",
+          "#5e74a2",
+          "#8298c5",
+          "#b3c4e8",
+          "#e6efff"
+        ]
+      },
+      "inL": {
+        "role": "secondary",
+        "displayName": "Incoming Cobalt Line",
+        "canonical": "#7397ea",
+        "tonalRamp": [
+          "#040a1d",
+          "#0e1e48",
+          "#1f3672",
+          "#335099",
+          "#4f70c0",
+          "#7496e3",
+          "#a8c4ff",
+          "#e1efff"
+        ]
+      },
+      "inS": {
+        "role": "secondary",
+        "displayName": "Incoming Cobalt Side",
+        "canonical": "#0d2a8c",
+        "tonalRamp": [
+          "#030922",
+          "#091b52",
+          "#163280",
+          "#294cab",
+          "#446dd4",
+          "#6994f6",
+          "#a0c3ff",
+          "#ddefff"
+        ]
+      },
+      "outF": {
+        "role": "secondary",
+        "displayName": "Spends Plum Face",
+        "canonical": "#e8b0f6",
+        "tonalRamp": [
+          "#120615",
+          "#301436",
+          "#4f2859",
+          "#6f3f7a",
+          "#915d9e",
+          "#b583c1",
+          "#dbb4e4",
+          "#fae7ff"
+        ]
+      },
+      "outL": {
+        "role": "secondary",
+        "displayName": "Spends Plum Line",
+        "canonical": "#c57de2",
+        "tonalRamp": [
+          "#13041a",
+          "#330b41",
+          "#541c68",
+          "#75328d",
+          "#9851b3",
+          "#bb79d6",
+          "#e0aef5",
+          "#fde4ff"
+        ]
+      },
+      "outS": {
+        "role": "secondary",
+        "displayName": "Spends Plum Side",
+        "canonical": "#3d1052",
+        "tonalRamp": [
+          "#110617",
+          "#2d153a",
+          "#4b295e",
+          "#6a4081",
+          "#8c5fa5",
+          "#af84c8",
+          "#d6b5ea",
+          "#f7e8ff"
+        ]
+      },
+      "invF": {
+        "role": "secondary",
+        "displayName": "Investments Peach Face",
+        "canonical": "#f5ccb9",
+        "tonalRamp": [
+          "#110906",
+          "#2f1d14",
+          "#4e3327",
+          "#6d4d3d",
+          "#8f6b5a",
+          "#b38f7f",
+          "#dabdb0",
+          "#f9ebe5"
+        ]
+      },
+      "invL": {
+        "role": "secondary",
+        "displayName": "Investments Peach Line",
+        "canonical": "#df9d7f",
+        "tonalRamp": [
+          "#150703",
+          "#371808",
+          "#5a2c16",
+          "#7c442a",
+          "#a06347",
+          "#c4886d",
+          "#e7b8a3",
+          "#ffe9df"
+        ]
+      },
+      "invS": {
+        "role": "secondary",
+        "displayName": "Investments Peach Side",
+        "canonical": "#7c3518",
+        "tonalRamp": [
+          "#170602",
+          "#3b1405",
+          "#602710",
+          "#833f24",
+          "#a85d40",
+          "#cd8367",
+          "#efb59f",
+          "#ffe7dd"
+        ]
+      },
+      "page-dark": {
+        "role": "neutral",
+        "displayName": "Desk Grey (dark)",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "band-dark": {
+        "role": "neutral",
+        "displayName": "Cool Band Grey (dark)",
+        "canonical": "#121212",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "bg-dark": {
+        "role": "neutral",
+        "displayName": "Sheet White (dark)",
+        "canonical": "#0b0b0b",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "s2-dark": {
+        "role": "neutral",
+        "displayName": "Wash (dark)",
+        "canonical": "#1d1d1d",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "ink-dark": {
+        "role": "primary",
+        "displayName": "NeoPOP Ink (dark)",
+        "canonical": "#f3f3f3",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "ink2-dark": {
+        "role": "neutral",
+        "displayName": "Ink 2 (dark)",
+        "canonical": "#bdbdbd",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "ink3-dark": {
+        "role": "neutral",
+        "displayName": "Ink 3 (dark)",
+        "canonical": "#959595",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "line-dark": {
+        "role": "neutral",
+        "displayName": "Hairline (dark)",
+        "canonical": "#262626",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "line2-dark": {
+        "role": "neutral",
+        "displayName": "Hairline 2 (dark)",
+        "canonical": "#3d3d3d",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "edge-dark": {
+        "role": "neutral",
+        "displayName": "Disc Edge (dark)",
+        "canonical": "#2f2f2f",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "sel-dark": {
+        "role": "neutral",
+        "displayName": "Selection Wash (dark)",
+        "canonical": "rgba(255,255,255,.1)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "np-dark": {
+        "role": "primary",
+        "displayName": "NeoPOP Face (dark)",
+        "canonical": "#f3f3f3",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "onnp-dark": {
+        "role": "primary",
+        "displayName": "On NeoPOP (dark)",
+        "canonical": "#0b0b0b",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "npr-dark": {
+        "role": "primary",
+        "displayName": "NeoPOP Right Face (dark)",
+        "canonical": "#9d9d9d",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "npb-dark": {
+        "role": "primary",
+        "displayName": "NeoPOP Bottom Face (dark)",
+        "canonical": "#6a6a6a",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#222222",
+          "#3a3a3a",
+          "#555555",
+          "#747474",
+          "#989898",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "up-dark": {
+        "role": "signal",
+        "displayName": "Ledger Green (dark)",
+        "canonical": "#41d18f",
+        "tonalRamp": [
+          "#001104",
+          "#002e0e",
+          "#004d1f",
+          "#006c34",
+          "#008e51",
+          "#2ab377",
+          "#84daab",
+          "#d3fae2"
+        ]
+      },
+      "down-dark": {
+        "role": "signal",
+        "displayName": "Debit Red (dark)",
+        "canonical": "#ff7a72",
+        "tonalRamp": [
+          "#1d0202",
+          "#470004",
+          "#71070f",
+          "#9a2123",
+          "#c2433f",
+          "#e76e66",
+          "#ffa79e",
+          "#ffe1dc"
+        ]
+      },
+      "link-dark": {
+        "role": "signal",
+        "displayName": "Account Blue (dark)",
+        "canonical": "#98b5ff",
+        "tonalRamp": [
+          "#050a1a",
+          "#131f42",
+          "#25376a",
+          "#3b5190",
+          "#5871b6",
+          "#7c96d8",
+          "#aec3f7",
+          "#e4eeff"
+        ]
+      },
+      "gold-dark": {
+        "role": "tertiary",
+        "displayName": "Ledger Gold (dark)",
+        "canonical": "#e5c072",
+        "tonalRamp": [
+          "#120a00",
+          "#301e00",
+          "#4f3500",
+          "#6f4f00",
+          "#916f1a",
+          "#b4934c",
+          "#dac18d",
+          "#f9edd5"
+        ]
+      },
+      "goldbg-dark": {
+        "role": "tertiary",
+        "displayName": "Gold Cream (dark)",
+        "canonical": "#1c170b",
+        "tonalRamp": [
+          "#0c0b08",
+          "#24211a",
+          "#3f3a2f",
+          "#5a5548",
+          "#7a7465",
+          "#9e988a",
+          "#c8c4b9",
+          "#f0eee9"
+        ]
+      },
+      "goldline-dark": {
+        "role": "tertiary",
+        "displayName": "Gold Rule (dark)",
+        "canonical": "#53431d",
+        "tonalRamp": [
+          "#0f0b03",
+          "#29200b",
+          "#46391b",
+          "#63532f",
+          "#84724c",
+          "#a79772",
+          "#d0c3a7",
+          "#f4eee0"
+        ]
+      },
+      "ongold-dark": {
+        "role": "tertiary",
+        "displayName": "On Gold (dark)",
+        "canonical": "#1a1306",
+        "tonalRamp": [
+          "#0d0b07",
+          "#262119",
+          "#403a2e",
+          "#5c5445",
+          "#7c7363",
+          "#a09787",
+          "#cac3b7",
+          "#f1eee8"
+        ]
+      },
+      "ray-dark": {
+        "role": "tertiary",
+        "displayName": "Sunburst Ray (dark)",
+        "canonical": "rgba(229,192,114,.16)",
+        "tonalRamp": [
+          "#120a00",
+          "#301e00",
+          "#4f3500",
+          "#6f4f00",
+          "#916f1a",
+          "#b4934c",
+          "#dac18d",
+          "#f9edd5"
+        ]
+      },
+      "sunbg-dark": {
+        "role": "tertiary",
+        "displayName": "Sun Ground (dark)",
+        "canonical": "#17140e",
+        "tonalRamp": [
+          "#0c0b09",
+          "#23211d",
+          "#3d3a34",
+          "#58554e",
+          "#78746c",
+          "#9c9890",
+          "#c7c4be",
+          "#f0eeeb"
+        ]
+      },
+      "inF-dark": {
+        "role": "secondary",
+        "displayName": "Incoming Cobalt Face (dark)",
+        "canonical": "#5f86ea",
+        "tonalRamp": [
+          "#030920",
+          "#0c1c4f",
+          "#1a327d",
+          "#2e4da7",
+          "#496dcf",
+          "#6e94f2",
+          "#a3c3ff",
+          "#deefff"
+        ]
+      },
+      "inL-dark": {
+        "role": "secondary",
+        "displayName": "Incoming Cobalt Line (dark)",
+        "canonical": "#a7bff7",
+        "tonalRamp": [
+          "#060b17",
+          "#16203b",
+          "#2a395f",
+          "#415382",
+          "#5e73a6",
+          "#8297c9",
+          "#b3c4eb",
+          "#e6efff"
+        ]
+      },
+      "inS-dark": {
+        "role": "secondary",
+        "displayName": "Incoming Cobalt Side (dark)",
+        "canonical": "#2d50c6",
+        "tonalRamp": [
+          "#020825",
+          "#081858",
+          "#152d8a",
+          "#2748b7",
+          "#4169e1",
+          "#6691ff",
+          "#9dc1ff",
+          "#dbeeff"
+        ]
+      },
+      "outF-dark": {
+        "role": "secondary",
+        "displayName": "Spends Plum Face (dark)",
+        "canonical": "#c287de",
+        "tonalRamp": [
+          "#120518",
+          "#30113d",
+          "#502363",
+          "#6f3a87",
+          "#9259ac",
+          "#b57fcf",
+          "#dbb2f0",
+          "#fae6ff"
+        ]
+      },
+      "outL-dark": {
+        "role": "secondary",
+        "displayName": "Spends Plum Line (dark)",
+        "canonical": "#e9c2f6",
+        "tonalRamp": [
+          "#100813",
+          "#2c1931",
+          "#492e52",
+          "#674772",
+          "#886594",
+          "#ac8ab7",
+          "#d4b9dd",
+          "#f6e9fb"
+        ]
+      },
+      "outS-dark": {
+        "role": "secondary",
+        "displayName": "Spends Plum Side (dark)",
+        "canonical": "#73348f",
+        "tonalRamp": [
+          "#120419",
+          "#310e40",
+          "#511f67",
+          "#72368c",
+          "#9455b2",
+          "#b77cd5",
+          "#ddb0f4",
+          "#fbe5ff"
+        ]
+      },
+      "invF-dark": {
+        "role": "secondary",
+        "displayName": "Investments Peach Face (dark)",
+        "canonical": "#e3a083",
+        "tonalRamp": [
+          "#150703",
+          "#371709",
+          "#5a2c17",
+          "#7c442b",
+          "#a06347",
+          "#c4886e",
+          "#e8b8a4",
+          "#ffe9df"
+        ]
+      },
+      "invL-dark": {
+        "role": "secondary",
+        "displayName": "Investments Peach Line (dark)",
+        "canonical": "#f7d4c5",
+        "tonalRamp": [
+          "#100907",
+          "#2d1d17",
+          "#4b342b",
+          "#6a4e42",
+          "#8b6d5f",
+          "#af9184",
+          "#d6beb4",
+          "#f8ece7"
+        ]
+      },
+      "invS-dark": {
+        "role": "secondary",
+        "displayName": "Investments Peach Side (dark)",
+        "canonical": "#a1502c",
+        "tonalRamp": [
+          "#180501",
+          "#3d1200",
+          "#622504",
+          "#873c19",
+          "#ad5a37",
+          "#d1815f",
+          "#f2b399",
+          "#ffe7da"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "hero": {
+        "displayName": "Hero",
+        "purpose": "The one figure a screen exists to show; Gloock, tappable through to its rows."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "A tab's screen title, written lowercase; also a transaction's merchant name."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Sub-screen titles, the empty-pane prompt, the card-summary figure."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose, notes and subtitles."
+      },
+      "row": {
+        "displayName": "Row",
+        "purpose": "Row names, single line with ellipsis."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "Row, grid and legend amounts; exact, with recessive paise."
+      },
+      "figure-large": {
+        "displayName": "Figure Large",
+        "purpose": "A single transaction's amount on its detail screen."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "NeoPOP button labels, sentence case."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Tracked uppercase caps naming a figure or a section, in Ink 3."
+      },
+      "label-pill": {
+        "displayName": "Pill Label",
+        "purpose": "Tracked uppercase caps inside pills."
+      },
+      "tab": {
+        "displayName": "Tab",
+        "purpose": "The four tab labels on the band."
+      }
+    },
+    "shadows": [
+      {
+        "name": "neopop-edge",
+        "value": "::before right face var(--npr) skewY(45deg) + ::after bottom face var(--npb) skewX(45deg), depth 4px",
+        "purpose": "The solid 3D edge under every NeoPOP button; hidden while pressed."
+      },
+      {
+        "name": "bar-side",
+        "value": "::after 12px right face var(--{flow}S) skewY(45deg)",
+        "purpose": "The extruded side of each cash-flow bar."
+      },
+      {
+        "name": "pill-drop",
+        "value": "0 3px 0 var(--line2)",
+        "purpose": "The balance pill on the band."
+      },
+      {
+        "name": "disc-drop",
+        "value": "0 4px 0 var(--edge)",
+        "purpose": "Bank discs, with a 1.5px var(--edge) ring."
+      },
+      {
+        "name": "card-drop",
+        "value": "0 6px 0 var(--line2)",
+        "purpose": "The recurring card and the ghost cards fanned behind it."
+      },
+      {
+        "name": "ghost-ring",
+        "value": "inset 0 0 0 2px var(--ink)",
+        "purpose": "The ghost NeoPOP button's outline."
+      },
+      {
+        "name": "pill-selected-ring",
+        "value": "inset 0 0 0 1px var(--ink)",
+        "purpose": "A selected pill."
+      },
+      {
+        "name": "donut-rim",
+        "value": "inset 0 0 0 1.5px rgba(255,255,255,.9), inset 0 0 0 2.5px var(--edge)",
+        "purpose": "The thin rim around the donut's top ring."
+      },
+      {
+        "name": "coin-edge",
+        "value": "donut copy 14px lower, filter: brightness(.42) saturate(1.2), repeating-conic-gradient(rgba(255,255,255,.18) 0 .45deg, transparent .45deg 2.4deg)",
+        "purpose": "The donut's ribbed side."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.2,.7,.3,1)",
+        "purpose": "Every state transition (0.12-0.25s): press, hover borders, tab icon opacity, toast, privacy blur."
+      },
+      {
+        "name": "neopop-press",
+        "value": "transform: translate(4px,4px) over .12s var(--ease)",
+        "purpose": "The press: the face sinks by its edge depth and the edges hide."
+      },
+      {
+        "name": "flow-grow",
+        "value": "@keyframes grow{from{transform:scaleY(0)}} .7s cubic-bezier(.16,1,.3,1) both, stagger .07s",
+        "purpose": "The one motion moment: cash-flow bars rise from the baseline when the tab opens; never on a value change, never under reduced motion."
+      },
+      {
+        "name": "toast",
+        "value": "opacity 0->1, translateY(16px)->0 over .25s var(--ease)",
+        "purpose": "Feedback toast arriving at the bottom."
+      },
+      {
+        "name": "hush",
+        "value": "filter: blur(8px) over .2s var(--ease)",
+        "purpose": "Privacy mode blurs every figure."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "max-width: 359px"
+      },
+      {
+        "name": "phone-frame",
+        "value": "480px (max app width below wide)"
+      },
+      {
+        "name": "wide",
+        "value": "min-width: 1100px (448px list column + detail pane, frame max 1360px)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "NeoPOP Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The screen's primary action: an ink slab on a solid 4px edge that sinks into it when pressed.",
+      "html": "<button class=\"ds-np\" type=\"button\">Confirm</button>",
+      "css": ".ds-np{--npr-x:var(--npr,#6f6f6f);--npb-x:var(--npb,#3b3b3b);position:relative;display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:52px;padding:0 28px;margin:0 4px 4px 0;border:none;cursor:pointer;font:600 1rem/1 'Figtree',system-ui,sans-serif;transition:transform .12s cubic-bezier(.2,.7,.3,1);background:var(--np,#0f0f0f);color:var(--onnp,#fff)} .ds-np::before,.ds-np::after{content:'';position:absolute;transition:opacity .12s cubic-bezier(.2,.7,.3,1)} .ds-np::before{top:0;right:-4px;width:4px;height:100%;background:var(--npr-x);transform-origin:left top;transform:skewY(45deg)} .ds-np::after{left:0;bottom:-4px;width:100%;height:4px;background:var(--npb-x);transform-origin:left top;transform:skewX(45deg)} .ds-np:active{transform:translate(4px,4px)} .ds-np:active::before,.ds-np:active::after{opacity:0} .ds-np:focus-visible{outline:2px solid var(--ink,#0f0f0f);outline-offset:2px}"
+    },
+    {
+      "name": "NeoPOP Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The secondary choice in a pair (Skip / Confirm, Previous / Next) and View all: sheet face, 2px ink ring, ink edges.",
+      "html": "<button class=\"ds-npg\" type=\"button\">Skip</button>",
+      "css": ".ds-npg{--npr-x:var(--ink,#0f0f0f);--npb-x:var(--ink,#0f0f0f);position:relative;display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:52px;padding:0 28px;margin:0 4px 4px 0;border:none;cursor:pointer;font:600 1rem/1 'Figtree',system-ui,sans-serif;transition:transform .12s cubic-bezier(.2,.7,.3,1);background:var(--bg,#fff);color:var(--ink,#0f0f0f);box-shadow:inset 0 0 0 2px var(--ink,#0f0f0f)} .ds-npg::before,.ds-npg::after{content:'';position:absolute;transition:opacity .12s cubic-bezier(.2,.7,.3,1)} .ds-npg::before{top:0;right:-4px;width:4px;height:100%;background:var(--npr-x);transform-origin:left top;transform:skewY(45deg)} .ds-npg::after{left:0;bottom:-4px;width:100%;height:4px;background:var(--npb-x);transform-origin:left top;transform:skewX(45deg)} .ds-npg:active{transform:translate(4px,4px)} .ds-npg:active::before,.ds-npg:active::after{opacity:0} .ds-npg:focus-visible{outline:2px solid var(--ink,#0f0f0f);outline-offset:2px}"
+    },
+    {
+      "name": "Pill Button",
+      "kind": "chip",
+      "refersTo": "pill",
+      "description": "Sort, filter and direction toggles: full pill, tracked caps; selected gains an inset ink ring; gold variant for the period on Cash Flow.",
+      "html": "<div class=\"ds-pills\"><button class=\"ds-pill ds-on\" type=\"button\">outgoing</button><button class=\"ds-pill\" type=\"button\">incoming</button><button class=\"ds-pill ds-gold\" type=\"button\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"15.5\" rx=\"1.5\"/><path d=\"M3.5 9.5h17M8 3v4M16 3v4\"/></svg>last 3 months</button></div>",
+      "css": ".ds-pills{display:flex;flex-wrap:wrap;gap:10px} .ds-pill{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line2,#cfcfcf);background:var(--bg,#fff);color:var(--ink,#0f0f0f);cursor:pointer;font:700 .75rem/1 'Figtree',system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;transition:border-color .18s cubic-bezier(.2,.7,.3,1),background .18s cubic-bezier(.2,.7,.3,1)} .ds-pill:hover{border-color:var(--ink3,#6b6b6b)} .ds-pill:focus-visible{outline:2px solid var(--ink,#0f0f0f);outline-offset:2px} .ds-pill.ds-on{box-shadow:inset 0 0 0 1px var(--ink,#0f0f0f);border-color:var(--ink,#0f0f0f)} .ds-pill.ds-gold{color:var(--gold,#8a5f0f);border-color:var(--goldline,#e8d6a4);background:var(--goldbg,#fcf8ee)}"
+    },
+    {
+      "name": "Tag Chip",
+      "kind": "chip",
+      "refersTo": "tag-chip",
+      "description": "Sharp 60px tag choices on the transaction screen; the chosen tag inverts to ink.",
+      "html": "<div class=\"ds-tags\"><button class=\"ds-tag ds-on\" type=\"button\" aria-pressed=\"true\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.5 11a7.5 4.5 0 0 1 15 0z\"/><path d=\"M4 14h16\"/><path d=\"M5 17h14a1.5 1.5 0 0 1-1.5 2.5h-11A1.5 1.5 0 0 1 5 17z\"/></svg>food &amp; dining</button><button class=\"ds-tag\" type=\"button\" aria-pressed=\"false\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 10h16l-1.6 8.6a1.5 1.5 0 0 1-1.5 1.2H7.1a1.5 1.5 0 0 1-1.5-1.2z\"/><path d=\"M8.5 10l2.5-5.5M15.5 10 13 4.5\"/><path d=\"M9 13.5v3M12 13.5v3M15 13.5v3\"/></svg>groceries</button></div>",
+      "css": ".ds-tags{display:flex;flex-wrap:wrap;gap:14px} .ds-tag{display:inline-flex;align-items:center;gap:16px;min-height:60px;padding:0 22px;border:1.5px solid var(--line2,#cfcfcf);background:var(--bg,#fff);color:var(--ink,#0f0f0f);cursor:pointer;font:700 .8125rem/1 'Figtree',system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;transition:border-color .16s cubic-bezier(.2,.7,.3,1),background .16s cubic-bezier(.2,.7,.3,1)} .ds-tag:hover{border-color:var(--ink3,#6b6b6b)} .ds-tag:focus-visible{outline:2px solid var(--ink,#0f0f0f);outline-offset:2px} .ds-tag.ds-on{background:var(--ink,#0f0f0f);color:var(--bg,#fff);border-color:var(--ink,#0f0f0f)}"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "The ledger search: sharp, 1.5px hairline border; focus turns the border ink.",
+      "html": "<input class=\"ds-input\" placeholder=\"search a merchant, tag or amount…\" aria-label=\"search transactions\">",
+      "css": ".ds-input{width:100%;min-height:56px;padding:0 18px;border:1.5px solid var(--line2,#cfcfcf);border-radius:0;background:var(--bg,#fff);color:var(--ink,#0f0f0f);font:400 1rem/1 'Figtree',system-ui,sans-serif} .ds-input::placeholder{color:var(--ink3,#6b6b6b)} .ds-input:focus,.ds-input:focus-visible{outline:none;border-color:var(--ink,#0f0f0f)}"
+    },
+    {
+      "name": "Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Four equal icon tabs on the grey band; the active tab gets full-strength icon, ink label and a 24x3px underline.",
+      "html": "<nav class=\"ds-tabs\" role=\"tablist\" aria-label=\"sections\"><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\" type=\"button\"><svg viewBox=\"0 0 24 24\" width=\"30\" height=\"30\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.35\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 9.5 12 4l9 5.5\"/><path d=\"M4 9.5h16\"/><path d=\"M5.5 10.5v6.5M9.5 10.5v6.5M14.5 10.5v6.5M18.5 10.5v6.5\"/><path d=\"M3.5 17.5h17M3 20.5h18\"/></svg><span>accounts</span></button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\" type=\"button\"><svg viewBox=\"0 0 24 24\" width=\"30\" height=\"30\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.35\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9V5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5V12\"/><path d=\"M20 15.5v3A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5V12.5\"/><path d=\"M2.5 10.5 4 9l1.5 1.5M21.5 14 20 15.5 18.5 14\"/><path d=\"M9 8h6M9 10.5h6M9.8 8c3 0 3 4.5 0 4.5H9l4.2 4\"/></svg><span>transactions</span></button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\" type=\"button\"><svg viewBox=\"0 0 24 24\" width=\"30\" height=\"30\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.35\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"13\" height=\"13\" rx=\"1.5\"/><path d=\"M3.5 9h13M7 3v4M13 3v4\"/><circle cx=\"17\" cy=\"16.5\" r=\"4.2\"/><path d=\"M17 14.7v2l1.3.9\"/></svg><span>recurring</span></button><button class=\"ds-tab ds-on\" role=\"tab\" aria-selected=\"true\" type=\"button\"><svg viewBox=\"0 0 24 24\" width=\"30\" height=\"30\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.35\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"13\" width=\"4\" height=\"7\"/><rect x=\"10\" y=\"8.5\" width=\"4\" height=\"11.5\"/><rect x=\"16.5\" y=\"4\" width=\"4\" height=\"16\"/></svg><span>cash flow</span></button></nav>",
+      "css": ".ds-tabs{display:grid;grid-template-columns:repeat(4,1fr);background:var(--band,#efefee);padding-top:12px} .ds-tab{position:relative;display:flex;flex-direction:column;align-items:center;gap:9px;min-height:72px;padding:4px 2px 16px;background:none;border:none;color:var(--ink2,#555);cursor:pointer;font:600 .6875rem/1 'Figtree',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap} .ds-tab svg{opacity:.5;transition:opacity .18s cubic-bezier(.2,.7,.3,1)} .ds-tab:hover svg{opacity:.8} .ds-tab:focus-visible{outline:2px solid var(--ink,#0f0f0f);outline-offset:2px} .ds-tab.ds-on{color:var(--ink,#0f0f0f)} .ds-tab.ds-on svg{opacity:1} .ds-tab.ds-on::after{content:'';position:absolute;bottom:6px;left:50%;width:24px;height:3px;border-radius:2px;background:var(--ink,#0f0f0f);transform:translateX(-50%)}"
+    },
+    {
+      "name": "Transaction Row",
+      "kind": "custom",
+      "refersTo": "row-transaction",
+      "description": "Icon disc with a bank-hue badge, name over metadata, exact amount with recessive paise over the date, chevron.",
+      "html": "<button class=\"ds-row\" type=\"button\"><span class=\"ds-ic\"><svg viewBox=\"0 0 24 24\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.5 11a7.5 4.5 0 0 1 15 0z\"/><path d=\"M4 14h16\"/><path d=\"M5 17h14a1.5 1.5 0 0 1-1.5 2.5h-11A1.5 1.5 0 0 1 5 17z\"/></svg><span class=\"ds-bb\"><i></i></span></span><span class=\"ds-rm\"><span class=\"ds-rn\">Example Café</span><span class=\"ds-rs\">food &amp; dining · note</span></span><span class=\"ds-rr\"><span class=\"ds-ra\">₹1,234<span class=\"ds-ps\">.56</span></span><span class=\"ds-rd\">12 mar '26</span></span><span class=\"ds-chev\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 5.5 15.5 12 9 18.5\"/></svg></span></button>",
+      "css": ".ds-row{display:flex;align-items:center;gap:16px;width:100%;padding:14px 0;background:none;border:none;text-align:left;cursor:pointer;color:var(--ink,#0f0f0f);font-family:'Figtree',system-ui,sans-serif} .ds-row:hover .ds-rn{text-decoration:underline;text-underline-offset:4px} .ds-row:focus-visible{outline:2px solid var(--ink,#0f0f0f);outline-offset:2px} .ds-ic{position:relative;width:56px;height:56px;flex:none;border-radius:50%;border:1px solid var(--line,#e7e7e7);display:grid;place-items:center;background:var(--bg,#fff)} .ds-bb{position:absolute;right:-3px;bottom:-1px;width:22px;height:22px;border-radius:50%;background:var(--bg,#fff);display:grid;place-items:center} .ds-bb i{width:16px;height:16px;border-radius:50%;background:#2a7fd4} .ds-rm{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px} .ds-rn{font:600 1.0625rem/1.3 'Figtree',system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .ds-rs,.ds-rd{font:400 .9375rem/1.35 'Figtree',system-ui,sans-serif;color:var(--ink3,#6b6b6b)} .ds-rr{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px} .ds-ra{font:700 1.0625rem/1.3 'Figtree',system-ui,sans-serif;font-variant-numeric:tabular-nums} .ds-ps{color:color-mix(in oklab,currentColor 35%,var(--ink3,#6b6b6b))} .ds-chev{display:inline-grid;color:var(--ink2,#555)}"
+    },
+    {
+      "name": "Cash-Flow Bars",
+      "kind": "custom",
+      "description": "Signature: three extruded, banknote-textured bars on one scale (incoming, investments, spends) that grow from the baseline once when the tab opens.",
+      "html": "<div class=\"ds-cf\"><svg width=\"0\" height=\"0\" style=\"position:absolute\" aria-hidden=\"true\"><defs><pattern id=\"ds-wv-in\" width=\"5\" height=\"5\" patternUnits=\"userSpaceOnUse\" patternTransform=\"rotate(-38)\"><path d=\"M-1.25 2.5 Q0 .6 1.25 2.5 T3.75 2.5 T6.25 2.5\" fill=\"none\" stroke=\"var(--inL,#7397ea)\" stroke-width=\".7\"/></pattern><pattern id=\"ds-wv-inv\" width=\"5\" height=\"5\" patternUnits=\"userSpaceOnUse\" patternTransform=\"rotate(-38)\"><path d=\"M-1.25 2.5 Q0 .6 1.25 2.5 T3.75 2.5 T6.25 2.5\" fill=\"none\" stroke=\"var(--invL,#df9d7f)\" stroke-width=\".7\"/></pattern><pattern id=\"ds-wv-out\" width=\"5\" height=\"5\" patternUnits=\"userSpaceOnUse\" patternTransform=\"rotate(-38)\"><path d=\"M-1.25 2.5 Q0 .6 1.25 2.5 T3.75 2.5 T6.25 2.5\" fill=\"none\" stroke=\"var(--outL,#c57de2)\" stroke-width=\".7\"/></pattern></defs></svg><div class=\"ds-cfchart\"><button class=\"ds-cfbar\" type=\"button\"><span class=\"ds-cfv\">₹1.00L</span><span class=\"ds-cff ds-in\" style=\"height:100%\"><svg aria-hidden=\"true\"><rect width=\"100%\" height=\"100%\" fill=\"url(#ds-wv-in)\"/></svg></span></button><button class=\"ds-cfbar\" type=\"button\"><span class=\"ds-cfv\">₹25.00K</span><span class=\"ds-cff ds-inv\" style=\"height:25%\"><svg aria-hidden=\"true\"><rect width=\"100%\" height=\"100%\" fill=\"url(#ds-wv-inv)\"/></svg></span></button><button class=\"ds-cfbar\" type=\"button\"><span class=\"ds-cfv\">₹60.00K</span><span class=\"ds-cff ds-out\" style=\"height:60%\"><svg aria-hidden=\"true\"><rect width=\"100%\" height=\"100%\" fill=\"url(#ds-wv-out)\"/></svg></span></button></div><div class=\"ds-cfl\"><span>incoming</span><span>investments</span><span>spends</span></div></div>",
+      "css": ".ds-cf{max-width:400px} .ds-cfchart{height:300px;display:grid;grid-template-columns:repeat(3,1fr);align-items:end;gap:12px;padding:40px 6px 0;border-bottom:1.5px solid var(--ink,#0f0f0f);background:linear-gradient(var(--line,#e7e7e7),var(--line,#e7e7e7)) 0 40px/100% 1px no-repeat,linear-gradient(var(--line,#e7e7e7),var(--line,#e7e7e7)) 0 105px/100% 1px no-repeat,linear-gradient(var(--line,#e7e7e7),var(--line,#e7e7e7)) 0 170px/100% 1px no-repeat,linear-gradient(var(--line,#e7e7e7),var(--line,#e7e7e7)) 0 235px/100% 1px no-repeat} .ds-cfbar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;background:none;border:none;padding:0;cursor:pointer} .ds-cfbar:focus-visible{outline:2px solid var(--ink,#0f0f0f);outline-offset:2px} .ds-cfv{font:600 .8125rem/1 'Figtree',system-ui,sans-serif;letter-spacing:.06em;color:var(--ink2,#555);margin-bottom:14px} .ds-cff{position:relative;width:56%;max-width:84px;min-height:6px;margin-right:12px;border:1px solid var(--s);transform-origin:50% 100%;animation:ds-grow .7s cubic-bezier(.16,1,.3,1) both} .ds-cfbar:nth-child(2) .ds-cff{animation-delay:.07s} .ds-cfbar:nth-child(3) .ds-cff{animation-delay:.14s} @keyframes ds-grow{from{transform:scaleY(0)}} @media (prefers-reduced-motion:reduce){.ds-cff{animation:none}} .ds-cff svg{position:absolute;inset:0;width:100%;height:100%} .ds-cff::after{content:'';position:absolute;top:-1px;right:-13px;width:12px;height:calc(100% + 1px);background:var(--s);transform-origin:left top;transform:skewY(45deg)} .ds-in{background-color:var(--inF,#aac3f6);--s:var(--inS,#0d2a8c)} .ds-inv{background-color:var(--invF,#f5ccb9);--s:var(--invS,#7c3518)} .ds-out{background-color:var(--outF,#e8b0f6);--s:var(--outS,#3d1052)} .ds-cfl{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px} .ds-cfl span{text-align:center;font:600 .75rem/1 'Figtree',system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--ink3,#6b6b6b)}"
+    },
+    {
+      "name": "3D Donut",
+      "kind": "custom",
+      "description": "Signature: one flow hue stepped by rank as a ring, standing on a darker ribbed coin edge; decorative, the legend rows carry the data.",
+      "html": "<div class=\"ds-d3\" aria-hidden=\"true\"><div class=\"ds-d3e\"></div><div class=\"ds-d3t\"></div></div>",
+      "css": ".ds-d3{position:relative;width:260px;height:274px;margin:6px auto 0} .ds-d3e,.ds-d3t{position:absolute;left:0;width:260px;height:260px;border-radius:50%;background:conic-gradient(#3d1052 0 40%,#724785 40% 70%,#a67eb7 70% 90%,#dbb6ea 90% 100%);-webkit-mask:radial-gradient(circle,transparent 56%,#000 56.6%);mask:radial-gradient(circle,transparent 56%,#000 56.6%)} .ds-d3e{top:14px;filter:brightness(.42) saturate(1.2)} .ds-d3e::after{content:'';position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(rgba(255,255,255,.18) 0 .45deg,transparent .45deg 2.4deg)} .ds-d3t{top:0;box-shadow:inset 0 0 0 1.5px var(--edge,#2b2b2b)} .ds-d3t::after{content:'';position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.9),inset 0 0 0 2.5px var(--edge,#2b2b2b)}"
+    },
+    {
+      "name": "Gold Note",
+      "kind": "card",
+      "refersTo": "note-gold",
+      "description": "A detected suggestion (the salary cycle): cream fill, gold rule, a 45-degree pointer tip, underlined caps actions.",
+      "html": "<div class=\"ds-note\"><span class=\"ds-nic\"><svg viewBox=\"0 0 24 24\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.8L12 17l-5.2 2.7 1-5.8-4.3-4.2 5.9-.8z\" fill=\"currentColor\"/></svg></span><span>introducing salary cycle. your cash flow can start from your salary date instead of the calendar month.<span class=\"ds-acts\"><button class=\"ds-nb\" type=\"button\">use salary cycle</button><button class=\"ds-nb\" type=\"button\">understood</button></span></span></div>",
+      "css": ".ds-note{position:relative;display:flex;gap:16px;align-items:flex-start;padding:18px 20px;margin-top:10px;border:1.5px solid var(--goldline,#e8d6a4);background:var(--goldbg,#fcf8ee);font:400 1rem/1.5 'Figtree',system-ui,sans-serif;color:var(--ink,#0f0f0f)} .ds-note::before{content:'';position:absolute;top:-9px;left:120px;width:16px;height:16px;background:var(--goldbg,#fcf8ee);border-left:1.5px solid var(--goldline,#e8d6a4);border-top:1.5px solid var(--goldline,#e8d6a4);transform:rotate(45deg)} .ds-nic{flex:none;margin-top:1px} .ds-acts{display:flex;flex-wrap:wrap;gap:4px 18px;margin:6px 0 -12px} .ds-nb{display:inline-flex;align-items:center;min-height:44px;background:none;border:none;color:var(--ink,#0f0f0f);font:700 .8125rem/1 'Figtree',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:1.5px;cursor:pointer} .ds-nb:focus-visible{outline:2px solid var(--ink,#0f0f0f);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Reconciling Sheet",
+    "overview": "StatementLens is a calm white sheet of large serif figures, tracked caps and dashed hairlines, laid over a cool grey band that holds identity and navigation. It follows CRED Money's structure and feel, which the owner pinned as the binding reference, rebuilt from scratch: Gloock and Figtree stand in for CRED's commercial faces, and the buttons follow CRED's open-source NeoPOP system (Apache-2.0). No CRED logo, mark or proprietary asset appears. Every total on the sheet is a door. Tap it and you land on the rows behind it. The visual system exists so that two numbers on screen never seem to disagree: the same figure is set the same way wherever it appears, and breakdowns visibly add up to their headline.\n\nThe surface is quiet so that a few physical materials can carry the character. Primary buttons are NeoPOP slabs: a flat face on a solid 3D edge that sinks into the edge when pressed. The three money flows are extruded bars printed with a banknote weave. The spend breakdown is a ring standing on a darker, ribbed coin edge. Account pages open under a gold sunburst. Depth is always a solid, blur-free edge, never a soft shadow. Colour is rationed: near-black ink does selection and action, and three flow hues (cobalt incoming, plum spends, peach investments) appear only where that flow is drawn.\n\nIt refuses the dashboard-of-cards default: no KPI tiles, no charts in boxes, no left rail of icons. Density is relaxed, at phone scale: 56px icon discs, rows padded 14–22px, a 28px gap between blocks. Motion is spent once. The cash-flow bars grow out of their baseline when the tab opens. Nothing fades in and no figure counts up.",
+    "keyCharacteristics": [
+      "Grey header band over a white sheet with 18px top corners; on desktop, a 448px list column beside a detail pane.",
+      "Gloock for headings and the hero figure, Figtree for everything else. Labels are tracked uppercase Figtree.",
+      "Paise stay on every exact figure but recede, through a solid colour mix rather than opacity.",
+      "Dashed hairlines separate rows. Solid lines are reserved for structure and chart baselines.",
+      "NeoPOP press, extruded banknote bars, a ribbed 3D donut, a gold sunburst. Depth is always solid.",
+      "Light (CRED's palette) is the default. Dark is the same structure on near-black, toggled from the band."
+    ],
+    "rules": [
+      {
+        "name": "The Flow Hue Rule",
+        "body": "Cobalt is incoming, plum is spends, peach is investments, everywhere a flow is drawn: bar, donut ramp, legend swatch, month-chart highlight. A flow hue never decorates anything that is not that flow. Charts with no single flow (a tag's or merchant's history) highlight in ink.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Selects Rule",
+        "body": "A selected or primary thing is ink-on-sheet inverted: near-black fill with white text in light, the reverse in dark. Selection is never a hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Gold Speaks Rule",
+        "body": "Gold means the app noticed something or a mode is on, such as a detected salary cycle, a caution, or privacy. It is never used for ordinary emphasis.",
+        "section": "colors"
+      },
+      {
+        "name": "The Measured Ink Rule",
+        "body": "Every text colour is checked against the darkest surface it sits on in its theme, and has to clear 4.5:1 there. A failing token gets darkened. It is not tolerated.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Serif Figure Rule",
+        "body": "Gloock sets headings and the hero figure that headlines a screen. Every other amount, however large, is Figtree 700 with tabular figures.",
+        "section": "typography"
+      },
+      {
+        "name": "The Recessive Paise Rule",
+        "body": "Every exact figure keeps its paise, but they are set in `color-mix(in oklab, currentColor 35%, var(--ink3))`. This is a solid colour, never opacity. Both ends of the mix clear 4.5:1 in both themes, so a green or red figure keeps its hue and its paise stay legible. The change is typographic only. Figures are never rounded.",
+        "section": "typography"
+      },
+      {
+        "name": "The Exact-or-Compact Rule",
+        "body": "Wherever a figure belongs to a sum that has to reconcile (hero, row, legend line, balance pill), it is exact, with Indian grouping and recessive paise (an illustrative ₹1,23,456.78). Compact two-decimal figures (₹12.40K, ₹3.20L, ₹1.05Cr) appear only on chart labels, averages and prose notes. A figure shown in two places is the same figure in the same form.",
+        "section": "typography"
+      },
+      {
+        "name": "The Caps Name Things Rule",
+        "body": "Tracked caps name a figure or a section. They never sit over a heading that already says the same thing. Screen headings and copy are written lowercase (\"all transactions\"). Only button labels start with a capital (\"View all\", \"Confirm\").",
+        "section": "typography"
+      },
+      {
+        "name": "The Sheet Over Band Rule",
+        "body": "Identity and navigation live on the band. Content lives on the sheet. A chart, the donut or a hero figure sits directly on the sheet, never inside a box of its own.",
+        "section": "layout"
+      },
+      {
+        "name": "The Dashed Row Rule",
+        "body": "Rows within a list are split by 1px dashed `--line2`. Solid rules mark structure only: the filter bar, chart baselines, gridlines.",
+        "section": "layout"
+      },
+      {
+        "name": "The Solid Edge Rule",
+        "body": "If it is raised, it stands on a solid edge. The edge is a darker face, offset down or down-right, with zero blur.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Press Rule",
+        "body": "A NeoPOP slab sinks by exactly its edge depth and its edges vanish. The press is the only feedback a primary button gives.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two Conics",
+        "body": "Repeating conic gradients appear twice, both as the world's own materials (a coin's milled edge, a sunburst) and nowhere else. One is the ribbing on the donut's coin edge. The other is the account sunburst: gold rays 0.6° wide every 6°, fanning from the bottom centre over Sun Ground, behind a 220px sheet-white circle with a 1.5px gold rim that holds the 96px bank disc.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "**Do** put a screen's one answer in a Gloock hero (2.75rem) under a tracked caps label, and make it tappable through to its rows.",
+      "**Do** make every breakdown visibly sum to its headline. Use exact figures with recessive paise for anything that reconciles, and compact K/L/Cr only on chart labels, averages and notes.",
+      "**Do** give primary actions the NeoPOP press: an ink face, a 4px solid edge, and a sink of exactly that depth.",
+      "**Do** draw a flow only in its hue triplet (Face, Line, Side), and print the banknote weave on any extruded flow bar.",
+      "**Do** separate list rows with 1px dashed `--line2`, and keep every control at least 44px tall.",
+      "**Do** check each new text colour against the darkest surface it sits on in both themes, and darken it until it clears 4.5:1.",
+      "**Do** inline fonts (both `latin` and `latin-ext`, for ₹), icons and patterns. The page fetches nothing.",
+      "**Do** draw new icons in the app's own outline family: 24px grid, 1.6 stroke, round caps and joins, inline SVG."
+    ],
+    "donts": [
+      "**Don't** build KPI tiles, boxed charts, or a left rail of icons.",
+      "**Don't** fade paise or any figure with opacity. Mix colours toward `--ink3` instead.",
+      "**Don't** use a blurred `box-shadow`. Depth is a solid edge.",
+      "**Don't** use a flow hue for decoration, or a hue of any kind for selection.",
+      "**Don't** add entrance fades, count-up figures, or a second motion moment beyond the cash-flow bars' growth.",
+      "**Don't** use repeating conic ribbing or rays outside the donut's edge and the account sunburst.",
+      "**Don't** round a rectangle you act on. Corners are 0px, pills are full, identity is a circle.",
+      "**Don't** use CRED's logos, marks, proprietary faces or assets, or any bank's logo."
+    ]
+  }
+}

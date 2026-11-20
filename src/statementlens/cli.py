@@ -77,10 +77,18 @@ def main(argv=None) -> int:
     srv.add_argument("--phone", action="store_true",
                      help="also serve on your local network so a phone can open it (prints a QR code)")
     srv.add_argument("--no-open", action="store_true", help="don't auto-open a browser")
+    srv.add_argument("--sms", action="store_true",
+                     help="live: read bank SMS from macOS Messages (iPhone text forwarding) on each page load")
     srv.add_argument("--own-name", dest="own_names", nargs="*",
                      help="your name(s) as they appear in narrations, to exclude self-transfers")
+    srv.add_argument("--net-with", dest="net_with", nargs="+", metavar="NAME",
+                     help="net every transfer with this name as one party, e.g. a family surname "
+                          "(remembered for next time)")
     srv.add_argument("--name"); srv.add_argument("--dob"); srv.add_argument("--mobile")
     srv.add_argument("--card-last4", dest="card_last4"); srv.add_argument("--rule-text", dest="rule_text")
+
+    al = sub.add_parser("alerts", help="pull live transactions from bank SMS (macOS Messages) and reconcile")
+    al.add_argument("--days", type=int, default=45, help="how far back to read (default 45)")
 
     ref = sub.add_parser("refresh", help="check for new statements and record the outcome")
     ref.add_argument("--account", required=True)
@@ -140,9 +148,19 @@ def main(argv=None) -> int:
         path = app.render(args.account, args.out, args.currency)
         print("rendered ->", path)
         return 0
+    if args.cmd == "alerts":
+        import json
+        from .adapters.sources.sms_source import MacMessagesSource
+        print(json.dumps(App(db_path=args.db).ingest_alerts(sources=[MacMessagesSource(days=args.days)]),
+                         indent=1, ensure_ascii=False))
+        return 0
     if args.cmd == "serve":
         from .adapters.web.server import serve
         app = App(db_path=args.db, own_names=getattr(args, "own_names", None))
+        app.live_sms = args.sms
+        if args.net_with:
+            app.set_net_with(args.net_with)
+            print("netting as one party each:", ", ".join(args.net_with))
         account = args.account
         if not account:
             # busiest first: the account someone actually uses is the one worth opening on

@@ -8,7 +8,7 @@ Orchestration only — no bank/format specifics live here.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from ..domain.models import Statement
 from ..domain.ports import (Categorizer, Decryptor, StatementSource,
@@ -32,22 +32,27 @@ class IngestResult:
     skipped: List[Dict[str, str]] = field(default_factory=list)
     #: Account labels this run wrote to, so the user learns their statements held several accounts.
     accounts: Dict[str, int] = field(default_factory=dict)
+    #: loan / deposit snapshots stored (positions, never transactions)
+    positions: int = 0
 
     @property
     def ok(self) -> bool:
-        return self.inserted > 0 or self.duplicate > 0
+        return self.inserted > 0 or self.duplicate > 0 or self.positions > 0
 
 
 class IngestStatements:
     def __init__(self, *, source: StatementSource, decryptor: Decryptor,
                  extractor: TextExtractor, parser_registry, categorizer: Categorizer,
-                 repository: TransactionRepository):
+                 repository: TransactionRepository,
+                 position_parser: Optional[Callable[[str], Optional[Dict[str, Any]]]] = None):
         self._source = source
         self._decryptor = decryptor
         self._extractor = extractor
         self._parsers = parser_registry
         self._categorizer = categorizer
         self._repo = repository
+        #: text -> loan/deposit snapshot or None. Injected, so no bank format lives in this use-case.
+        self._position = position_parser
 
     def run(self, *, account: str, hints: Dict[str, Any], limit: int = 100,
             split_accounts: bool = True) -> IngestResult:
@@ -73,6 +78,17 @@ class IngestStatements:
             try:
                 decrypted = self._decryptor.decrypt(raw.data, hints)
                 text = self._extractor.extract(decrypted)
+                # A loan statement or FD advice is a position. It must never reach the transaction
+                # parsers: its EMIs are already debits on the paying account, so rows from it would
+                # count every EMI twice. A document failing its own arithmetic raises and lands in
+                # `errors` rather than being stored with a plausible wrong number.
+                snap = self._position(text) if self._position else None
+                if snap is not None:
+                    save = getattr(self._repo, "save_position", None)
+                    if save is not None:
+                        save(snap)
+                        result.positions += 1
+                    continue
                 label = (account_label(raw.source_name, text, fallback=account)
                          if split_accounts else account)
                 # A file already in the store is skipped outright. Row-level dedup cannot be relied
@@ -93,7 +109,12 @@ class IngestStatements:
                                                "message": d.message, "detail": d.detail})
                         continue
                 stmt = self._categorize(stmt)
+                stmt, already = self._drop_stored_movements(stmt)
+                if already and not stmt.transactions:
+                    result.duplicate += already      # every movement in it is already stored
+                    continue
                 counts = self._repo.save_statement(stmt)
+                counts["duplicate"] += already
                 result.statements += 1
                 result.inserted += counts["inserted"]
                 result.duplicate += counts["duplicate"]
@@ -107,16 +128,52 @@ class IngestStatements:
         return result
 
     def _supersede(self, stmt: Statement) -> int:
-        """Remove provisional rows covered by this statement, if the repo supports it."""
+        """Reconcile live rows this statement covers: paired ones go, unpaired ones are set aside.
+
+        Returns the live rows the statement confirmed. Falls back to a plain purge for a repo that
+        cannot reconcile."""
+        recon = getattr(self._repo, "reconcile_provisional", None)
         purge = getattr(self._repo, "purge_provisional", None)
-        if purge is None:
+        if recon is None and purge is None:
             return 0
         # per-month blocks, not a min..max hull: one carry-forward row would otherwise stretch the
         # range back weeks and irreversibly delete alert rows for months this statement never covered
         ranges = merge_coverages(coverage_blocks(stmt.transactions, stmt.account)).get(stmt.account, [])
         if not ranges:
             return 0
+        if recon is not None:
+            return recon(stmt.account, ranges)["matched"]
         return purge(stmt.account, ranges)
+
+    def _drop_stored_movements(self, stmt: Statement):
+        """Remove rows whose movement of money is already in the store; return (stmt, n_removed).
+
+        The filename check above misses a statement that arrives twice under DIFFERENT names — HDFC
+        mailed one card's Jul/Sep/Oct statements twice (`…_01-10-2025.PDF` and `…_01-10-2025_93.pdf`)
+        plus a consolidated Aug–Mar file. Each copy's text came out slightly differently ("Limited
+        Bangalore" vs "LimitedBangalore", a Ref# dropped), so the content hash differed and 399 rows
+        went in twice: HDFC spend read ₹10.3L against a real ₹5.2L.
+
+        A movement is (date, amount, direction) within the account, matched as a MULTISET: two genuine
+        ₹2 charges on one day are both kept unless the store already holds two. A consolidated file
+        that overlaps some months contributes only the months that are new.
+        """
+        counts = getattr(self._repo, "movement_counts", None)
+        if counts is None or not stmt.transactions:
+            return stmt, 0
+        have = counts(stmt.account)
+        keep, dropped = [], 0
+        for t in stmt.transactions:
+            k = (t.txn_date.isoformat() if t.txn_date else None, t.amount.minor, t.direction.value)
+            if have[k] > 0 and not t.provisional:
+                have[k] -= 1
+                dropped += 1
+            else:
+                keep.append(t)
+        if not dropped:
+            return stmt, 0
+        import dataclasses
+        return dataclasses.replace(stmt, transactions=tuple(keep)), dropped
 
     def _categorize(self, stmt: Statement) -> Statement:
         tagged = tuple(t.with_category(self._categorizer.categorize(t)) for t in stmt.transactions)

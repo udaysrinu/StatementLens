@@ -82,7 +82,11 @@ class CardStatementParser:
                 if not m:
                     continue
                 desc = m.group("desc").strip()
-                if len(desc) < 2 or re.fullmatch(r"[\d,.\s]+", desc):
+                # A transaction always names something. A "description" with no letters is a row of
+                # some other table — ICICI's EMI schedule ("28/01/2026 3 11,357.00 1 3,887.00") was
+                # booked as a ₹3,887 purchase in two statements. Digits-only was the old test, and the
+                # slashes in that schedule's date slipped past it.
+                if len(desc) < 2 or not re.search(r"[A-Za-z]", desc):
                     break
                 g = m.groupdict()
                 # an explicit DR/CR flag is authoritative; then a leading "+" (payment/cashback);
@@ -100,4 +104,47 @@ class CardStatementParser:
                     source_ref=source_id,
                 ))
                 break
-        return Statement(account, source_id, source_name, source_name[-8:], tuple(rows))
+        return Statement(account, source_id, source_name, source_name[-8:],
+                         tuple(_settle_directions_from_totals(text, rows)))
+
+
+#: The reconciliation block some issuers print instead of marking each row (RBL):
+#:   - Payments & Credits 13,873.00 / - Transferred to EMI 0.00 / + New Debits ... / + Fees & Charges
+_PRINTED_CREDITS = re.compile(r"-\s*Payments\s*&\s*Credits\s+([\d,]+\.\d{2})", re.I)
+_PRINTED_EMI_OUT = re.compile(r"-\s*Transferred\s+to\s+EMI\s+([\d,]+\.\d{2})", re.I)
+_SAYS_CREDIT = re.compile(r"(?i)payment\s+received|transferred\s+to\s+emi|refund|reversal|cash\s*back")
+
+
+def _paise(s: str) -> int:
+    return round(float(s.replace(",", "")) * 100)
+
+
+def _settle_directions_from_totals(text: str, rows: List[Transaction]) -> List[Transaction]:
+    """Mark credits on a statement that prints no per-row credit marker, using its own totals.
+
+    RBL's extracted text carries no Cr flag, so EVERY row went in as a debit: bill payments, a
+    ₹10,843 EMI conversion and a ₹6,925 Myntra refund were all counted as spending. The statement
+    does say how much came IN ("Payments & Credits" + "Transferred to EMI"), so: rows whose narration
+    says payment/refund/EMI-transfer are credits, and if a remainder is left, the one row that
+    exactly makes it up is a credit too (a refund reads like the purchase it reverses).
+
+    Only acts when no row is already a credit (an issuer that marks rows is never second-guessed),
+    and only on an unambiguous remainder — if two rows could fill it, it leaves both as they are,
+    because guessing the wrong one would be worse than the known gap.
+    """
+    m = _PRINTED_CREDITS.search(text)
+    if not m or not rows or any(not r.is_debit for r in rows):
+        return rows
+    e = _PRINTED_EMI_OUT.search(text)
+    want = _paise(m.group(1)) + (_paise(e.group(1)) if e else 0)
+    credit = {i for i, r in enumerate(rows) if _SAYS_CREDIT.search(r.description)}
+    rest = want - sum(rows[i].amount.minor for i in credit)
+    if rest > 0:
+        fits = [i for i, r in enumerate(rows) if i not in credit and r.amount.minor == rest]
+        if len(fits) == 1:
+            credit.add(fits[0])
+    if not credit:
+        return rows
+    import dataclasses
+    return [dataclasses.replace(r, direction=Direction.CREDIT) if i in credit else r
+            for i, r in enumerate(rows)]
