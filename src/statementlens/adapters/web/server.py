@@ -33,6 +33,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
 from ..render.app_shell import AppShellRenderer
+from ..render.legacy_shell import LegacyShellRenderer
 from .onboarding import render_onboarding
 
 _MAX_UPLOAD_BYTES = 25 * 1024 * 1024   # a statement PDF is well under this; refuse anything larger
@@ -104,6 +105,11 @@ class _Handler(BaseHTTPRequestHandler):
                                   "text/html; charset=utf-8")
             getattr(self.app, "refresh_live", lambda: None)()     # live SMS, when opted in
             html = AppShellRenderer().render(self.app.dataset(self.account))
+            return self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/legacy":
+            # the plain-CSS dashboard, kept reachable while screens move to NeoPOP
+            getattr(self.app, "refresh_live", lambda: None)()
+            html = LegacyShellRenderer().render(self.app.dataset(self.account))
             return self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/setup":
             return self._send(200, self._onboarding().encode("utf-8"),

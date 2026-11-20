@@ -184,10 +184,11 @@ def test_no_movement_of_money_is_stored_by_two_statements():
 
 def _shipped_compute_js() -> str:
     """The dashboard's own `sa` + `compute`, cut from the page it ships — not a copy."""
-    from statementlens.adapters.render.app_shell import _PAGE
-    start = _PAGE.index("const sa=")
-    end = _PAGE.index("/* ---- period control ----", start)
-    return _PAGE[start:end]
+    # compute() lives in web/src/core.js now (moved verbatim from the plain-CSS page)
+    src = (Path(__file__).resolve().parent.parent / "web" / "src" / "core.js").read_text(encoding="utf-8")
+    start = src.index("const sa=")
+    end = src.index("/* ---- period control ----", start)
+    return src[start:end]
 
 
 def _browser_compute(rows):

@@ -1,0 +1,17 @@
+{
+  "name": "statementlens-web",
+  "private": true,
+  "type": "module",
+  "description": "StatementLens dashboard on CRED's NeoPOP components. Built output is committed to src/statementlens/adapters/render/web_dist so the Python package needs no Node.",
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch"
+  },
+  "dependencies": {
+    "@cred/neopop-web": "1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "styled-components": "^5.3.11"
+  },
+  "devDependencies": { "vite": "^5.4.0", "@vitejs/plugin-react": "^4.3.0" }
+}

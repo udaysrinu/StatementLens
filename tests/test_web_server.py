@@ -191,7 +191,7 @@ def test_period_control_offers_presets_first_and_custom_last():
     What broke before and must not come back: two rival period controls on one screen, and the
     rarest option (a manual date pair) rendered as the most prominent one.
     """
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -215,7 +215,7 @@ def test_every_flow_side_is_reachable_from_the_hero():
     ZERO times by the renderer. ₹72L of credits was reachable only as a two-significant-figure "₹73L"
     tile with nothing to drill into, because the hero was hardcoded to the spend total.
     """
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -243,7 +243,7 @@ def test_netting_modes_are_offered_and_disclosed():
     per-row pairing needed to honour the period picker, and a visible disclosure that links to an
     audit screen listing every pair.
     """
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -273,7 +273,7 @@ def test_top_merchant_rows_drill_down_and_keep_their_breadcrumb():
     transactions, and backing out must return to the TAG it was reached from rather than dumping the
     user at the tag list.
     """
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -297,7 +297,7 @@ def test_paise_are_dimmed_typographically_never_rounded_away():
     This is the one dangerous way to get "calmer numbers" wrong: rounding to whole rupees would make
     every figure stop reconciling against the statement. fmtH must emit the same digits as fmt.
     """
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
     assert "function fmtH(" in page
@@ -313,7 +313,7 @@ def test_flow_faces_keep_their_banknote_texture():
     the texture: the bars still rendered, just flat, so nothing failed loudly. The weave now lives in an
     SVG pattern laid over the face, and the face colour must still never reach for the shorthand.
     """
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
     for flow in ("in", "inv", "out"):
@@ -336,7 +336,7 @@ def test_nothing_styled_clickable_is_actually_dead():
     """
     import re
 
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -372,7 +372,7 @@ def test_cash_flow_shows_all_three_flows_as_peers():
     "where is incoming?" must be answerable by looking. So every flow gets a bar AND a row on the cash
     flow tab, each opening that flow's breakdown, and the four sections are a real tablist.
     """
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -406,7 +406,7 @@ def test_interactive_controls_declare_a_touch_target():
     """
     import re
 
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -447,7 +447,7 @@ def test_styled_buttons_inherit_their_text_colour():
     """
     import re
 
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -469,7 +469,7 @@ def test_both_themes_define_every_colour_token():
     """
     import re
 
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -494,7 +494,7 @@ def test_redrawing_the_same_screen_neither_reanimates_nor_drops_the_caret():
     whole page fade in from blank; and the caret was lost, because the input holding it had been
     replaced. Neither is a speed problem, which is why the fix is not component diffing.
     """
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
@@ -523,7 +523,7 @@ def test_properties_safari_needs_prefixed_are_prefixed():
     """
     import re
 
-    from statementlens.adapters.render.app_shell import AppShellRenderer
+    from statementlens.adapters.render.legacy_shell import LegacyShellRenderer as AppShellRenderer
 
     page = AppShellRenderer().render({"meta": {"account": "SBI"}, "transactions": [], "insights": []})
 
