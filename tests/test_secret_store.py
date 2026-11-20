@@ -12,7 +12,7 @@ from pathlib import Path
 
 from statementlens.adapters.crypto.secret_store import SecretStore, migrate_file_secret
 
-SERVICE = "statementlens_pytest"
+SERVICE = f"statementlens_pytest_{os.getpid()}"   # per run: concurrent suites must not share an item
 
 
 def _store(tmp) -> SecretStore:
