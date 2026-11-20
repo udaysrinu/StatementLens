@@ -247,7 +247,7 @@ statement being re-imported.
 | "Settle up friends" | additionally nets people money moved both ways with; a preference, never the default |
 | "My share" | uses your share of split charges; the billed amount itself never changes |
 | Total balance | the newest printed running balance of each bank account; cards print none |
-| Net worth | bank balances + deposits (principal) + NPS value − loans outstanding, from what is tracked. Moving to a separate portfolio app (section 10); StatementLens will hand it balances |
+| Net worth | bank balances + deposits (principal) + NPS value − loans outstanding, from what is tracked. Moving to Netfolio (section 10); StatementLens will hand it balances |
 | NPS | value, contributed and gain as the statement prints them, after checking gain = value − contributed + withdrawn |
 | Live rows | counted until a statement covers their date, then replaced by it; unpaired ones leave the totals |
 
@@ -283,9 +283,9 @@ device; anything public and stateless can be a website; shared code is a library
 
 ```mermaid
 flowchart LR
-  subgraph device["<b>Your computer</b> · private, nothing leaves it"]
+  subgraph device["<b>Your computer</b> · your data stays here"]
     SL["<b>StatementLens</b><br/>local process on 127.0.0.1<br/>bank + card statements, spending"]
-    NF["<b>Portfolio app</b> (Netfolio, private)<br/>local process<br/>what you own and owe, net worth"]
+    NF["<b>Netfolio</b><br/>local scripts + a localhost page<br/>what you own and owe, net worth<br/>public code, private data"]
     IK[["<b>inboxkit</b><br/>library inside both:<br/>Gmail fetch, PDF unlock, keychain"]]
     DB[("store.db<br/>+ OS keychain")]
     MSG[("macOS Messages<br/>chat.db")]
@@ -293,29 +293,30 @@ flowchart LR
   end
   subgraph web["<b>Public web</b> · no personal data"]
     SC["<b>sharecase</b><br/>static site: build and share<br/>stock baskets"]
-    PX["<b>/api/price</b><br/>stateless serverless quote proxy"]
+    PX["<b>/api/price</b><br/>stateless serverless proxy<br/>for Yahoo's chart API"]
     DEMO["StatementLens demo<br/>static page, synthetic data<br/>(proposed)"]
   end
   G[("<b>Gmail API</b><br/>read-only OAuth")]
+  Y[("<b>Yahoo Finance</b><br/>chart API")]
   SL --- IK
   NF --- IK
   IK -- "HTTPS, your token" --> G
   SL --> DB
   SL -- "reads, read-only" --> MSG
   SL -- "one page, data inline" --> UI
-  SL -- "statementlens balances --json<br/>same machine, no network" --> NF
-  NF -- "tickers only" --> PX
-  SC --> PX
+  SL -. "statementlens balances --json<br/>same machine (planned)" .-> NF
+  NF -- "tickers only, server-side" --> Y
+  SC --> PX -- "tickers only" --> Y
 ```
 
 | Piece | Runs as | Why there | As a generic product |
 |---|---|---|---|
 | StatementLens | a local process (Python, stdlib HTTP server on 127.0.0.1) plus a page in your browser | it holds your Gmail token, statement PDFs and every transaction; the bank SMS feed is a file only your Mac can read | an installable desktop app (pip / pipx today; a signed app with its own window later). Same code, same local store |
 | The dashboard page | a static bundle (React + NeoPOP), served by the local process with the data inlined | needs no server of its own, so it works offline and fetches nothing | the same bundle can also run as a **website demo** on synthetic data, or on PDFs a visitor drops in, processed in their browser only |
-| inboxkit | a Python library, pinned by tag | fetching and unlocking documents is the same job for every app; a library keeps it on the user's machine | stays a library. Making it a hosted service would collect everyone's mail in one place |
-| Portfolio app (Netfolio) | a local process | holdings, PAN, PRAN, policy and FD numbers are the most sensitive data of all | the same desktop pattern as StatementLens; reads StatementLens's balances through the CLI |
-| sharecase | a public website (static pages + one serverless function) | building and sharing a basket needs no personal data | stays a website. The private tracking of your own holdings moves to the portfolio app |
-| /api/price | a stateless serverless function | browsers cannot call the exchanges' quote APIs directly (CORS), so a tiny proxy is needed | stays a public, stateless service. It sees tickers and an IP address, never holdings or amounts |
+| [inboxkit](https://github.com/udaysrinu/inboxkit) | a Python library, pinned by tag | fetching and unlocking documents is the same job for every app; a library keeps it on the user's machine | stays a library. Making it a hosted service would collect everyone's mail in one place |
+| [Netfolio](https://github.com/udaysrinu/netfolio) (public code, private data) | scripts run in order on your machine (contract notes, then the snapshot, the daily series and the page build) plus a localhost-only page server | holdings and trades now, and it will hold PAN-unlocked documents and the identifiers you want in one place (PRAN, policy and FD numbers): the most sensitive data of all | the same desktop pattern as StatementLens; it is to read StatementLens's balances through the CLI (planned) |
+| sharecase | a public website (static pages + one serverless function) | building and sharing a basket needs no personal data | stays a website. The private tracking of your own holdings moves to Netfolio |
+| /api/price | a stateless serverless function that proxies Yahoo's chart API; quotes cached 60 s, history 1 h | Yahoo sends no CORS header, so a browser page cannot call it directly. Netfolio calls Yahoo itself, server-side, and its local page server runs its own copy of this function, so it never touches the public one | stays a public, stateless service. It sees tickers and an IP address, never holdings or amounts |
 
 Why not one hosted web app with accounts? Three costs, all avoidable by staying local:
 - **Custody.** A server holding users' statements and mailbox tokens makes the operator responsible for
