@@ -75,10 +75,10 @@ flowchart LR
 | Serve | A stdlib HTTP server on 127.0.0.1 behind a per-launch token; renders the page and takes corrections | the dataset |
 | Dashboard | One React app on CRED's NeoPOP components, built once and committed, so installing needs no Node | the page's embedded JSON |
 
-The **Unlock** box, the password rules, the keychain store and the Gmail fetch are generic, so they are
-moving into [inboxkit](https://github.com/udaysrinu/inboxkit), a library shared with other apps
-(section 11). The switch is on branch `chore/inboxkit`; on this branch StatementLens still carries its
-own copies. Loan, FD and NPS parsing moves the same way.
+The **Unlock** box, the password rules, the keychain store, the Gmail fetch and the loan / FD / NPS
+parser are generic, so they come from [inboxkit](https://github.com/udaysrinu/inboxkit), a library shared
+with other apps (section 11), pinned to a tag in `pyproject.toml`. StatementLens's own modules for them
+are one-line re-exports, so nothing else in the code had to change.
 
 ### What lives where
 
@@ -94,6 +94,10 @@ own copies. Loan, FD and NPS parsing moves the same way.
 
 ```mermaid
 flowchart TB
+  mail["statement mail from Gmail"] --> gate{"GmailStatementSource.fetch()<br/>sender on TRUSTED_SENDERS<br/>and Document.authenticated()?"}
+  gate -- "no" --> refused["listed on the page as not read,<br/>never opened"]
+  gate -- "yes" --> raw
+  folder["a PDF from a folder<br/>(your own file, no sender to check)"] --> raw
   raw["raw document<br/>(bytes + filename)"] --> dec["PdfDecryptor.decrypt()<br/>tries password_rules.candidates(hints)"]
   dec --> ext["PdfTextExtractor.extract()"]
   ext --> pos{"parse_position(text)<br/>a loan, FD or NPS document?"}
@@ -273,6 +277,11 @@ The browser recomputes every total from the rows; a parity test runs the same `c
 - Statement passwords are derived in memory from hints and never stored. The Gmail token lives in the OS
   keychain.
 - Gmail and IMAP access is read-only; `chat.db` is opened read-only and only bank senders are read.
+- A statement from Gmail is opened only when its sender's domain is on `TRUSTED_SENDERS`
+  (`gmail_source.py`, one organisational domain per bank) **and** the DKIM / DMARC verdict Gmail's own
+  server recorded proves the mail came from that domain. Anything else, a lookalike sender or a forged
+  one, is listed on the page as not read, with the reason. A new bank is one line in that list, added
+  once its first statement is confirmed genuine. PDFs imported from a folder have no sender to check.
 - The public repository holds no real statements, figures, names or account numbers; screenshots use the
   synthetic demo store.
 

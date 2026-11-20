@@ -37,7 +37,7 @@ class _Exec:
     def __init__(self, body):
         self._body = body
 
-    def execute(self):
+    def execute(self, **_):
         return self._body
 
 

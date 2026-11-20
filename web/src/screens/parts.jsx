@@ -43,9 +43,13 @@ export function Freshness() {
       else { setBusy('up to date'); setTimeout(() => setBusy(''), 2200); }
     });
   };
-  return (
+  const refused = s.refused || [];      // statements whose sender was not proven: actionable, so shown
+  return (<>
     <div className={`fresh ${s.stale && !imported ? 'stale' : ''}`}>
       <Icon n="bank" size={18} /><span>{text}</span>
       {C.API && <NBtn kind="link" onClick={refresh} disabled={!!busy}>{busy || 'refresh'}</NBtn>}
-    </div>);
+    </div>
+    {refused.length > 0 && <div className="pnote" role="status"><Icon n="shield" size={16} />
+      <span>{refused.length === 1 ? '1 statement' : `${refused.length} statements`} not read, sender not verified. {refused[0]}</span></div>}
+  </>);
 }

@@ -11,8 +11,9 @@ kept in the OS keychain (service "statementlens"), never in a plain file.
 
 from __future__ import annotations
 
+from email.utils import parseaddr
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, List, Optional
 
 # Paging, the truncation flag, the MIME walk and keychain token storage live in inboxkit (shared with
 # sharecase). DEFAULT_LIMIT is 1000 there too: the old 100 cut a real mailbox's oldest months silently.
@@ -51,6 +52,29 @@ DEFAULT_QUERY = (
 
 
 
+#: The senders trusted to carry statements, by ORGANISATIONAL domain (a mail from alerts.sbi.co.in is
+#: sbi.co.in's). Each was measured against real mail: 182 of 182 genuine statement emails pass (20 Nov
+#: 2026). A statement from any other sender, or one that fails the DKIM/DMARC verdict Gmail's own server
+#: recorded, is refused and listed, never opened. Adding a bank is one line here, once its first
+#: statement is confirmed genuine. True = DMARC passing on SPF alone is accepted: Protean's own DKIM
+#: signature fails and its mail is vouched for by an SPF-aligned DMARC pass.
+TRUSTED_SENDERS = {
+    "sbi.co.in": False, "sbi.bank.in": False, "icicibank.com": False, "icici.bank.in": False,
+    "hdfcbank.net": False, "hdfcbank.bank.in": False, "hdfclife.com": False,
+    "rblbank.com": False, "rbl.bank.in": False, "federalbank.co.in": False,
+    "bankofbaroda.bank.in": False, "suryodaybank.com": False, "proteantech.in": True,
+}
+
+
+def _domain(sender: str) -> str:
+    return parseaddr(sender or "")[1].lower().rsplit("@", 1)[-1]
+
+
+def trusted_org(sender: str) -> Optional[str]:
+    """The trusted organisational domain a From address sits in, on a dot boundary, or None."""
+    dom = _domain(sender)
+    return next((o for o in TRUSTED_SENDERS if dom == o or dom.endswith("." + o)), None)
+
 #: Where a sibling ExpensifyAI / splitwise-mcp install already keeps its Google credentials. Read as a
 #: FALLBACK so someone who has already authorised Gmail for that tool is not made to create a second
 #: Google Cloud project and consent again: same user, same mailbox, same read-only scope. Only ever
@@ -77,3 +101,27 @@ class GmailStatementSource(GmailDocuments):
         super().__init__(query or DEFAULT_QUERY, app="statementlens", service=service,
                          client_config=_bundled_client, client_secret_path=client_secret_path,
                          token_path=token_path, fallback_dirs=[str(_SIBLING_DIR)])
+        self.refused: List[dict] = []
+
+    def fetch(self, limit: int = DEFAULT_LIMIT, skip_ids: Iterable[str] = ()):
+        """Statement PDFs whose sender is proven. The rest land in `refused`, with the reason, unopened.
+
+        A lookalike sender ("statements@sbi-alerts.co") matches the bank-name query, so without this its
+        PDF would be parsed and its made-up rows counted. ponytail: refused attachments are still
+        downloaded by inboxkit's fetch (never parsed); checking before download needs a hook there.
+        """
+        self.refused = []
+        kept = []
+        for d in super().fetch(limit=limit, skip_ids=skip_ids):
+            org = trusted_org(d.sender)
+            why = ("not on the trusted list" if org is None
+                   else d.authenticated(org, allow_spf_only=TRUSTED_SENDERS[org]))
+            if why is None:
+                kept.append(d)
+                continue
+            dom = _domain(d.sender) or "an unknown sender"
+            hint = ("not on the trusted list; if it is genuine, add the domain" if org is None
+                    else f"it failed the check that it really came from {org}")
+            self.refused.append({"source": d.filename, "problem": "untrusted_sender", "detail": why,
+                                 "message": f"{d.filename}: not read, sent from {dom}: {hint}."})
+        return kept

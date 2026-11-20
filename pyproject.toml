@@ -24,10 +24,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 # PDF unlock, passwords, keychain and Gmail fetch are shared with sharecase via inboxkit
-dependencies = ["inboxkit @ git+https://github.com/udaysrinu/inboxkit@v0.2.0"]
+dependencies = ["inboxkit @ git+https://github.com/udaysrinu/inboxkit@v0.3.7"]
 
 [project.optional-dependencies]
-gmail = ["inboxkit[gmail] @ git+https://github.com/udaysrinu/inboxkit@v0.2.0"]
+gmail = ["inboxkit[gmail] @ git+https://github.com/udaysrinu/inboxkit@v0.3.7"]
 pdf = []   # now a core dependency; kept so `[pdf]` stays valid for existing installs
 ocr = ["pytesseract>=0.3.10", "pillow>=10.0.0"]
 dev = ["pytest>=8.0.0", "pytest-cov>=4.1.0"]

@@ -64,6 +64,8 @@ class IngestStatements:
         """
         result = IngestResult()
         raws = self._source.fetch(limit=limit)
+        # mail the source refused to open (sender not proven) is listed, never silently dropped
+        result.skipped += getattr(self._source, "refused", [])
         # A source that hit its own cap has MORE history than it returned. Reported through `skipped`
         # so it surfaces in the UI's "which?" panel rather than being a silently shorter ledger — the
         # failure mode here is that a truncated history looks exactly like a short one.

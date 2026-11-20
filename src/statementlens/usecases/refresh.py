@@ -39,6 +39,8 @@ class SyncAttempt:
     reason: str = ""            # why it failed, in plain language
     duration_ms: int = 0
     skipped_reasons: List[str] = field(default_factory=list)
+    #: statements refused because their sender was not proven; shown on the page, unlike skips
+    refused: List[str] = field(default_factory=list)
 
 
 class SyncLog:
@@ -86,6 +88,8 @@ class SyncLog:
             # the per-file explanations, so the UI can answer "which files?" instead of showing a
             # bare count the user cannot act on
             "skipped_reasons": (last or {}).get("skipped_reasons", []),
+            # a refused statement is actionable (confirm a new bank, or notice a fake), so it is shown
+            "refused": (last or {}).get("refused", []),
         }
         if ok:
             age = now - _parse(ok["started_at"])
@@ -170,7 +174,9 @@ class RefreshStatements:
             inserted=r.inserted, duplicate=r.duplicate, statements=r.statements, failed=r.failed,
             reason=reason,
             duration_ms=int((time.monotonic() - t0) * 1000),
-            skipped_reasons=[s.get("message", "") for s in getattr(r, "skipped", [])][:5])
+            skipped_reasons=[s.get("message", "") for s in getattr(r, "skipped", [])][:5],
+            refused=[s.get("message", "") for s in getattr(r, "skipped", [])
+                     if s.get("problem") == "untrusted_sender"])
         self._log.append(attempt)
         return attempt
 
