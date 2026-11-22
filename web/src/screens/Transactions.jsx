@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ElevatedCard, SearchBar } from '@cred/neopop-web/lib/components';
 import * as C from '../core.js';
-import { Icon, Money, NBtn, Back } from '../ui.jsx';
+import { Icon, Money, NBtn, Pill, Back } from '../ui.jsx';
 import { IconDisc, TxRow } from './parts.jsx';
 
 function Unsettled() {
@@ -25,8 +25,8 @@ function AccountChips() {
   if (list.length < 2) return null;
   return (
     <div className="chips">{list.map((a) => (
-      <NBtn key={a.account} variant={a.account === C.M.account ? 'secondary' : 'primary'}
-        onClick={() => { if (a.account !== C.M.account) location.href = C.accHref(a.account, 'txns'); }}>{a.account}</NBtn>))}
+      <Pill key={a.account} on={a.account === C.M.account}
+        onClick={() => { if (a.account !== C.M.account) location.href = C.accHref(a.account, 'txns'); }}>{a.account}</Pill>))}
     </div>);
 }
 
@@ -59,8 +59,8 @@ function SplitEditor({ t }) {
         : <div className="sub">all <span className="num">{C.fmt(t.a)}</span> counts as yours</div>}
       <div className="chips">
         {[2, 3, 4].map((n) => { const share = Math.round(t.a / n);
-          return <NBtn key={n} variant={isSplit && Math.abs(cur - share) <= 1 ? 'secondary' : 'primary'} title={`your share if ${n} people shared this`}
-            onClick={() => C.applySplit(t.ref, share)}>1/{n}</NBtn>; })}
+          return <Pill key={n} on={isSplit && Math.abs(cur - share) <= 1} title={`your share if ${n} people shared this`}
+            onClick={() => C.applySplit(t.ref, share)}>1/{n}</Pill>; })}
         {isSplit && <NBtn kind="link" onClick={() => C.applySplit(t.ref, null)}>clear</NBtn>}
       </div>
       <div className="sfields">
@@ -125,7 +125,7 @@ export function TxnDetail() {
         <div className="sub" style={{ marginTop: 6 }}>the right tag sharpens every number. we'll remember it for {t.m || 'this merchant'}.</div></div>
       <SearchBar placeholder="search for category" handleSearchInput={(v) => setQ(v || '')} colorMode={C.isDark() ? 'dark' : 'light'} />
       <div className="tagwrap">{vocab.map((v) => (
-        <NBtn key={v.tag} variant={v.tag === sel ? 'secondary' : 'primary'} onClick={() => C.pickTag(v.tag)} aria-pressed={v.tag === sel}>{v.tag}</NBtn>))}
+        <Pill key={v.tag} className="tagpill" on={v.tag === sel} onClick={() => C.pickTag(v.tag)}>{v.tag}</Pill>))}
       </div>
       <textarea className="notefield" rows="2" placeholder="add a note: why was this payment made?" aria-label="note"
         defaultValue={C.NOTES[t.ref] || t.note || ''} onChange={(e) => C.setNote(t.ref, e.target.value)} />

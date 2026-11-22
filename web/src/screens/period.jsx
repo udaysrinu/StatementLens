@@ -2,14 +2,14 @@
 // says what a total includes. Both only call core.js setters; no money logic lives here.
 import React from 'react';
 import * as C from '../core.js';
-import { Icon, NBtn } from '../ui.jsx';
+import { Icon, NBtn, Pill } from '../ui.jsx';
 
 /* rendered only when the data HAS something to net: cancelled pairs, two-way people, or splits */
 export function NetRow() {
   const c = C.countable(), sp = C.splitInfo(C.periodRows());
   if (!c.pairs && !c.people && !sp.n) return null;
   const chip = (k, label, title) => (
-    <NBtn key={k} variant={C.NET === k ? 'secondary' : 'primary'} onClick={() => C.setNet(k)} title={title}>{label}</NBtn>);
+    <Pill key={k} on={C.NET === k} onClick={() => C.setNet(k)} title={title}>{label}</Pill>);
   const removed = C.NET === 'clean' ? c.cancelledAmt : c.cancelledAmt + c.offsetAmt;
   return (
     <div className="nrow">
@@ -19,9 +19,9 @@ export function NetRow() {
       {c.people > 0 && chip('net', 'settle up friends', `${c.people} people you both paid and got money back from`)}
       {sp.n > 0 && <>
         <span className="nsep" />
-        <NBtn variant={C.SHARE === 'billed' ? 'secondary' : 'primary'} onClick={() => C.setShare('billed')} title="the full amount the bank billed">billed</NBtn>
-        <NBtn variant={C.SHARE === 'mine' ? 'secondary' : 'primary'} onClick={() => C.setShare('mine')}
-          title={`${sp.n} shared charge${sp.n !== 1 ? 's' : ''} · ${C.fmtK(sp.recoverable)} is someone else's`}>my share</NBtn></>}
+        <Pill on={C.SHARE === 'billed'} onClick={() => C.setShare('billed')} title="the full amount the bank billed">billed</Pill>
+        <Pill on={C.SHARE === 'mine'} onClick={() => C.setShare('mine')}
+          title={`${sp.n} shared charge${sp.n !== 1 ? 's' : ''} · ${C.fmtK(sp.recoverable)} is someone else's`}>my share</Pill></>}
       {/* what the mode removed, in money, and a door to the rows behind it */}
       {C.NET !== 'gross' && <button className="nlink" onClick={() => C.openDetail('netting')}>
         −{C.fmtK(removed)} {C.NET === 'clean' ? 'cancelled' : 'cancelled & settled'} · what?</button>}
@@ -36,7 +36,7 @@ function MonthPicker() {
   return (
     <div className="mpick">
       <div className="yrow">{years.map((y) => (
-        <NBtn key={y} variant={y === year ? 'secondary' : 'primary'} onClick={() => C.setPickYear(y)}>{y}</NBtn>))}</div>
+        <Pill key={y} on={y === year} onClick={() => C.setPickYear(y)}>{y}</Pill>))}</div>
       <div className="mgrid">{C.MONTHNAMES.map((nm, i) => {
         const mo = `${year}-${String(i + 1).padStart(2, '0')}`, has = have.has(mo);
         const inR = C.CF && C.CT && mo >= C.CF.slice(0, 7) && mo <= C.CT.slice(0, 7);
@@ -65,10 +65,10 @@ export function PeriodPanel() {
     <div className="ppanel">
       <div className="chips">
         {C.PRESETS.map(([k, label]) => (
-          <NBtn key={k} variant={C.RANGE === k ? 'secondary' : 'primary'} onClick={() => C.setR(k)}>{label}</NBtn>))}
-        {C.M.salary_day > 0 && <NBtn variant={C.RANGE === 'S' ? 'secondary' : 'primary'} onClick={() => C.setR('S')}
-          title="your salary cycle, not the calendar month">cycle</NBtn>}
-        <NBtn variant={C.RANGE === 'C' ? 'secondary' : 'primary'} onClick={() => C.setR('C')} title="pick months or exact dates">custom</NBtn>
+          <Pill key={k} on={C.RANGE === k} onClick={() => C.setR(k)}>{label}</Pill>))}
+        {C.M.salary_day > 0 && <Pill on={C.RANGE === 'S'} onClick={() => C.setR('S')}
+          title="your salary cycle, not the calendar month">cycle</Pill>}
+        <Pill on={C.RANGE === 'C'} onClick={() => C.setR('C')} title="pick months or exact dates">custom</Pill>
       </div>
       {C.RANGE === 'C' && <MonthPicker />}
       <NetRow />

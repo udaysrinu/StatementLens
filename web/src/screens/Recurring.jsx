@@ -1,8 +1,7 @@
 // Recurring section: outgoing / incoming, one detected payment at a time on a raised card, then all of them.
 import React from 'react';
-import { ElevatedCard } from '@cred/neopop-web/lib/components';
 import * as C from '../core.js';
-import { Icon, Money, NBtn } from '../ui.jsx';
+import { Icon, Money, NBtn, Pill } from '../ui.jsx';
 import { IconDisc } from './parts.jsx';
 
 export function Recurring() {
@@ -14,17 +13,18 @@ export function Recurring() {
     <div className="view">
       <div><h1 className="h1">recurring payments</h1><div className="cap" style={{ marginTop: 6 }}>{n} detected from your statements</div></div>
       <div className="chips">
-        <NBtn variant={C.RECDIR === 'out' ? 'secondary' : 'primary'} onClick={() => C.setRecDir('out')}>outgoing</NBtn>
-        <NBtn variant={C.RECDIR === 'in' ? 'secondary' : 'primary'} onClick={() => C.setRecDir('in')}>incoming</NBtn>
+        <Pill on={C.RECDIR === 'out'} onClick={() => C.setRecDir('out')}>outgoing</Pill>
+        <Pill on={C.RECDIR === 'in'} onClick={() => C.setRecDir('in')}>incoming</Pill>
       </div>
       {r ? <>
-        <ElevatedCard backgroundColor="var(--bg)" edgeColors={{ bottom: 'var(--edge)', right: 'var(--edge)' }} style={{ width: '100%' }}>
+        {/* a stacked deck: the payment in front, the others fanned behind it (the plain-CSS card) */}
+        <div className="deck"><i className="ghostc g1" /><i className="ghostc g2" /><i className="ghostc g3" />
           <button className="rcard" onClick={() => C.openMerchant(r.merchant)}>
             <IconDisc icon={C.catIcon(C.rowCat(r.merchant))} />
             <span className="ramt"><Money p={r.median} /></span><span className="rnm2">{r.merchant}</span>
             {kv.map(([k, v]) => <span key={k} className="rkv"><span>{k}:</span><b>{v}</b></span>)}
           </button>
-        </ElevatedCard>
+        </div>
         <div className="rpos">{i + 1} out of {n}</div>
         <div className="rnav">
           <NBtn size="medium" variant="primary" disabled={n < 2} onClick={() => C.recStep(-1)}>Previous</NBtn>

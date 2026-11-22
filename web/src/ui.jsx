@@ -38,6 +38,12 @@ export function NBtn({ children, variant = 'secondary', size = 'small', kind = '
   );
 }
 
+/** A toggle (one state of several) as a rounded pill: the plain-CSS look, chosen back over NeoPOP's
+ *  block buttons on 23 Nov. Actions (Next, search, view all) stay NeoPOP buttons. */
+export const Pill = ({ on, className = '', children, ...rest }) => (
+  <button type="button" className={`pillb ${className} ${on ? 'on' : ''}`} aria-pressed={!!on} {...rest}>{children}</button>
+);
+
 /** Back control at the top of a drilled-in screen. */
 export const Back = ({ label = 'back' }) => (
   <button className="back" onClick={() => C.backFromDetail()} aria-label={`back to ${label}`}>
