@@ -4,66 +4,22 @@ StatementLens reads the bank, card, loan, deposit and pension documents you alre
 in a folder, or as bank SMS on a Mac), parses them on your machine, and serves one dashboard from a local
 server. Nothing is sent anywhere. This document describes how the app works; it contains no real data.
 
-Diagrams are Mermaid source, rendered by GitHub; the same diagrams are in [`docs/architecture/`](architecture/)
-as SVG files. Node labels use the real module and function names, so a rename shows up here as a stale
-label in review.
+The big-picture diagrams (sections 1 to 4, 10 and 11) are draw.io: each PNG sits next to its editable
+`.drawio` file in [`docs/architecture/`](architecture/), and `gen_drawio.py` there regenerates all of them.
+The detailed ones (the page-load sequence, the page, the store) are Mermaid, rendered by GitHub, with SVG
+copies in the same folder. Labels use the real module and function names, so a rename shows up here as a
+stale label in review.
 
 Reading order for an engineer: sections 1 and 2 for the shape, 10 for what runs where, 11 for the shared
 Gmail/PDF layer, then 3 to 6 for the data path, and 7 for how every number is computed.
 
 ## 1. Context
 
-```mermaid
-flowchart LR
-  you(["<b>You</b><br/>one browser, on this machine<br/>(or your phone on the LAN with --phone)"])
-  sl["<b>StatementLens</b><br/>parse, reconcile, store,<br/>serve one dashboard"]
-  gmail[("<b>Gmail</b><br/>statement PDFs, FD advices,<br/>NPS statements")]
-  folder[("<b>A folder of PDFs</b><br/>for anyone not using Gmail")]
-  imap[("<b>Any IMAP mailbox</b><br/>app password")]
-  sms[("<b>macOS Messages</b><br/>bank SMS forwarded<br/>from the iPhone")]
-  kc[("<b>OS keychain</b><br/>the Gmail OAuth token")]
-  you -- "opens http://127.0.0.1 with a per-launch token" --> sl
-  gmail -- "read-only Gmail API" --> sl
-  imap -- "read-only IMAP" --> sl
-  folder -- "reads files" --> sl
-  sms -- "reads chat.db read-only" --> sl
-  sl -- "stores / reads" --> kc
-```
+![StatementLens: what runs where](architecture/01-what-runs-where.png)
 
 ## 2. Containers
 
-```mermaid
-flowchart LR
-  subgraph sources["Sources · adapters/sources"]
-    G["<b>GmailStatementSource</b><br/>gmail_source.py"]
-    F["<b>FolderStatementSource</b><br/>folder_source.py"]
-    I["<b>ImapStatementSource</b><br/>imap_source.py"]
-    S["<b>MacMessagesSource</b><br/>sms_source.py"]
-    A["<b>GmailAlertSource · ImapAlertSource</b><br/>alert_email_source.py"]
-  end
-  D["<b>PdfDecryptor · PdfTextExtractor</b><br/>adapters/crypto<br/>password_rules.candidates()"]
-  IN["<b>IngestStatements.run()</b><br/>usecases/ingest.py"]
-  subgraph parse["Parsers · adapters/parsers"]
-    R["<b>ParserRegistry</b><br/>bank_parser · card_parser"]
-    P["<b>parse_position()</b><br/>loan · FD · NPS"]
-  end
-  L["<b>parse_alert()</b><br/>parsers/alert_parser.py"]
-  AL["<b>App.ingest_alerts()</b><br/>app.py · route, dedupe, reconcile"]
-  DB[("<b>SQLite store</b><br/>~/.statementlens/store.db")]
-  DS["<b>build_dataset()</b><br/>usecases/analytics.py"]
-  subgraph web["Serve · adapters/render, adapters/web"]
-    RN["<b>AppShellRenderer</b><br/>inlines web_dist, fonts, data"]
-    SV["<b>serve()</b><br/>server.py · token · /api/*"]
-  end
-  UI["<b>Dashboard</b><br/>web/ · React + NeoPOP<br/>core.js holds the logic"]
-  G & F & I -- "PDF bytes" --> D -- "text" --> IN
-  IN -- "parse(text)" --> R & P
-  IN -- "rows, positions" --> DB
-  S -- "AlertMessage" --> L -- "AlertTxn" --> AL -- "live rows" --> DB
-  A -. "built, not wired in yet" .-> L
-  DB --> DS -- "dataset" --> RN --> SV -- "one self-contained page" --> UI
-  UI -- "POST corrections" --> SV -- "tags · notes · splits" --> DB
-```
+![Inside StatementLens](architecture/02-inside-statementlens.png)
 
 | Container | Does | Its data comes from |
 |---|---|---|
@@ -92,51 +48,14 @@ are one-line re-exports, so nothing else in the code had to change.
 
 ## 3. Ingesting a statement
 
-```mermaid
-flowchart TB
-  mail["statement mail from Gmail"] --> gate{"GmailStatementSource.fetch()<br/>sender on TRUSTED_SENDERS<br/>and Document.authenticated()?"}
-  gate -- "no" --> refused["listed on the page as not read,<br/>never opened"]
-  gate -- "yes" --> raw
-  folder["a PDF from a folder<br/>(your own file, no sender to check)"] --> raw
-  raw["raw document<br/>(bytes + filename)"] --> dec["PdfDecryptor.decrypt()<br/>tries password_rules.candidates(hints)"]
-  dec --> ext["PdfTextExtractor.extract()"]
-  ext --> pos{"parse_position(text)<br/>a loan, FD or NPS document?"}
-  pos -- "yes, and its own sums hold" --> savep[("positions<br/>(label, as_of)")]
-  pos -- "yes, but a sum fails:<br/>PositionParseError" --> err["counted as failed,<br/>with the reason"]
-  pos -- "no" --> lab["account_label()<br/>which account the file is for"]
-  lab --> reg["ParserRegistry.parse()"]
-  reg --> seen{"already_ingested()<br/>this filename stored before?"}
-  seen -- "yes" --> dup["counted as duplicate"]
-  seen -- "no" --> empty{"any rows?"}
-  empty -- "no" --> diag["diagnose(): skipped,<br/>with why"]
-  empty -- "yes" --> cat["categorize each row"]
-  cat --> mv["_drop_stored_movements()<br/>(date, amount, direction) multiset"]
-  mv --> save[("txns<br/>content_hash UNIQUE")]
-  save --> rec["_supersede() → reconcile_provisional()<br/>per covered month: pair live rows<br/>with statement lines"]
-```
+![Importing a statement from Gmail](architecture/03-importing-a-statement.png)
 
 A position (loan, deposit, pension) is never booked as transactions: every EMI and every FD funding is
 already a debit on the account that paid it, so booking the document as well would count it twice.
 
 ## 4. Live rows and reconciliation
 
-```mermaid
-flowchart TB
-  chat[("chat.db<br/>bank senders only")] --> mm["MacMessagesSource.messages()"]
-  mail[("alert emails")] -.-> ga["GmailAlertSource<br/>(built, not wired in yet)"]
-  ga -.-> pa
-  mm --> pa["parse_alert()<br/>amount · date · direction · last-4 · ref"]
-  pa --> route["route to an account:<br/>1 label ends in last-4<br/>2 a stored row carries the ref<br/>3 the bank's only account"]
-  route -- "no rule matches" --> unr["counted as unrouted,<br/>skipped, never guessed"]
-  route -- "routed" --> dd["one row per swipe across sources<br/>(busiest single source wins, SMS first)"]
-  dd --> clear["clear_provisional_since()<br/>rebuild the window, never append"]
-  clear --> live[("txns, provisional = 1")]
-  live --> stmt{"a statement now<br/>covers the date?"}
-  stmt -- "no" --> show["shown with a 'live' tag,<br/>counted in totals"]
-  stmt -- "yes" --> pair{"paired by ref,<br/>else date ±2d + amount"}
-  pair -- "paired" --> drop["live row removed;<br/>the statement line stands"]
-  pair -- "unpaired" --> un[("unsettled<br/>out of every total, listed")]
-```
+![Live rows from bank SMS, settled by the statement](architecture/04-live-rows-from-sms.png)
 
 ## 5. Serving the dashboard
 
@@ -295,33 +214,7 @@ The other pieces document themselves:
 [sharecase](https://github.com/udaysrinu/sharecase/blob/main/docs/ARCHITECTURE.md) and
 [inboxkit](https://github.com/udaysrinu/inboxkit/blob/main/ARCHITECTURE.md).
 
-```mermaid
-flowchart LR
-  subgraph device["<b>Your computer</b> · your data stays here"]
-    SL["<b>StatementLens</b><br/>local process on 127.0.0.1<br/>bank + card statements, spending"]
-    NF["<b>Netfolio</b><br/>local scripts + a localhost page<br/>what you own and owe, net worth<br/>public code, private data"]
-    IK[["<b>inboxkit</b><br/>library inside both:<br/>Gmail fetch, PDF unlock, keychain"]]
-    DB[("store.db<br/>+ OS keychain")]
-    MSG[("macOS Messages<br/>chat.db")]
-    UI["your browser<br/>the self-contained page"]
-  end
-  subgraph web["<b>Public web</b> · no personal data"]
-    SC["<b>sharecase</b><br/>static site: build and share<br/>stock baskets"]
-    PX["<b>/api/price</b><br/>stateless serverless proxy<br/>for Yahoo's chart API"]
-    DEMO["StatementLens demo<br/>static page, synthetic data<br/>(proposed)"]
-  end
-  G[("<b>Gmail API</b><br/>read-only OAuth")]
-  Y[("<b>Yahoo Finance</b><br/>chart API")]
-  SL --- IK
-  NF --- IK
-  IK -- "HTTPS, your token" --> G
-  SL --> DB
-  SL -- "reads, read-only" --> MSG
-  SL -- "one page, data inline" --> UI
-  SL -. "statementlens balances --json<br/>same machine (planned)" .-> NF
-  NF -- "tickers only, server-side" --> Y
-  SC --> PX -- "tickers only" --> Y
-```
+![StatementLens: what runs where](architecture/01-what-runs-where.png)
 
 | Piece | Runs as | Why there | As a generic product |
 |---|---|---|---|
@@ -372,36 +265,7 @@ Python that calls Google's Gmail REST API with Google's own client library (`goo
 on your machine, with a token that only your machine holds. "The Gmail connector" in this README means
 this optional piece (`pip install "statementlens[gmail]"`).
 
-```mermaid
-sequenceDiagram
-  participant App as StatementLens (or another app)
-  participant GD as GmailDocuments (inboxkit.inbox)
-  participant KC as SecretStore (inboxkit.secrets)
-  participant G as Gmail API
-  participant PDF as PdfDecryptor · PdfTextExtractor
-  App->>GD: fetch(query) with app="statementlens"
-  GD->>KC: get("gmail_token")  (macOS keychain, service "statementlens")
-  alt no token yet
-    GD->>G: OAuth consent in your browser, scope gmail.readonly
-    G-->>GD: refresh token
-    GD->>KC: set("gmail_token")  (over stdin, never on a command line)
-  else token expired
-    GD->>G: refresh the access token
-  end
-  loop every page of results (retries on rate limits)
-    GD->>G: messages.list(q=query)
-    loop each message
-      GD->>G: messages.get(format=full)
-      G-->>GD: headers + MIME tree
-      GD->>G: attachments.get for each .pdf part
-    end
-  end
-  GD-->>App: Document(filename, bytes, headers, labels)
-  App->>App: doc.authenticated("bank.example")  (DKIM / DMARC verdict Gmail recorded)
-  App->>PDF: decrypt(bytes, hints) tries passwords.candidates(hints)
-  PDF-->>App: text
-  App->>App: parse: bank/card parser, or inboxkit.positions for loan, FD, NPS
-```
+![How inboxkit reads a statement from Gmail](architecture/05-how-inboxkit-reads-gmail.png)
 
 inboxkit's own [ARCHITECTURE.md](https://github.com/udaysrinu/inboxkit/blob/main/ARCHITECTURE.md) is the
 reference for its modules, the sender-authentication decision flow and the order passwords are tried in.
